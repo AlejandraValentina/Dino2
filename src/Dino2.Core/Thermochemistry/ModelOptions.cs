@@ -3,6 +3,7 @@ using Dino2.Core.FourStroke;
 namespace Dino2.Core.Thermochemistry;
 
 public enum BurnLaw { PrescribedWiebe, ConditionScaledWiebe }
+public enum ProductChemistry { Frozen, ClosedCycleEquilibrium }
 public enum EvidenceStatus { Estimated, Calibrated }
 public sealed record ParameterEvidence(EvidenceStatus Status, string Source, string CalibrationDataset, string ApplicableRange)
 {
@@ -17,9 +18,18 @@ public sealed record ParameterEvidence(EvidenceStatus Status, string Source, str
 public sealed record ThermochemicalOptions(BurnLaw BurnLaw, double ReferenceTemperatureK, double ReferencePressurePa,
     double ReferenceResidualFraction, double ReferenceMeanPistonSpeedMPerS, double ReferenceBoreM,
     double TurbulenceToPistonSpeed, ParameterEvidence CombustionEvidence,
-    ParameterEvidence HeatTransferEvidence, ParameterEvidence FrictionEvidence, double ReferenceEquivalenceRatio = 1)
+    ParameterEvidence HeatTransferEvidence, ParameterEvidence FrictionEvidence, double ReferenceEquivalenceRatio = 1,
+    ProductChemistry Products = ProductChemistry.Frozen)
 {
     public const string ModelId = "four-stroke-isooctane-frozen-v2";
+    public const string EquilibriumModelId = "four-stroke-isooctane-equilibrium-v3";
+    public bool UsesEquilibrium => Products == ProductChemistry.ClosedCycleEquilibrium;
+    public string Identifier => UsesEquilibrium ? EquilibriumModelId : ModelId;
+    public static FourStrokeConfiguration EquilibriumExample => Example with
+    {
+        Thermochemistry = Default with { Products = ProductChemistry.ClosedCycleEquilibrium }
+    };
+
     public static ThermochemicalOptions Default => new(BurnLaw.ConditionScaledWiebe, 650, 2e6, .05, 8, .08, .3,
         new(EvidenceStatus.Estimated, "Metghalchi-Keck 1982 + duración de referencia y turbulencia asumidas", "", "Iso-octano; phi 0.8–1; sin validación de motor"),
         new(EvidenceStatus.Estimated, "Hohenberg 1979; multiplicador transferido, no calibrado", "", "Correlación de otro tipo de motor; sin rango validado propio"),
@@ -27,7 +37,7 @@ public sealed record ThermochemicalOptions(BurnLaw BurnLaw, double ReferenceTemp
 
     public void Validate(FourStrokeConfiguration c)
     {
-        if (!Enum.IsDefined(BurnLaw) || CombustionEvidence is null || HeatTransferEvidence is null || FrictionEvidence is null)
+        if (!Enum.IsDefined(Products) || !Enum.IsDefined(BurnLaw) || CombustionEvidence is null || HeatTransferEvidence is null || FrictionEvidence is null)
             throw new ArgumentException("Opciones termoquímicas incompletas.");
         CombustionEvidence.Validate(); HeatTransferEvidence.Validate(); FrictionEvidence.Validate();
         double phi = SpeciesThermodynamics.StoichiometricAfr / c.Combustion.AirFuelRatio;
@@ -54,11 +64,14 @@ public sealed record ThermochemicalOptions(BurnLaw BurnLaw, double ReferenceTemp
     };
 }
 
-public readonly record struct SpeciesMasses(double FuelKg, double OxygenKg, double NitrogenKg, double CarbonDioxideKg, double WaterKg)
+public readonly record struct SpeciesMasses(double FuelKg, double OxygenKg, double NitrogenKg, double CarbonDioxideKg, double WaterKg,
+    double CarbonMonoxideKg = 0, double HydrogenKg = 0)
 {
-    public double Sum => FuelKg + OxygenKg + NitrogenKg + CarbonDioxideKg + WaterKg;
-    public double[] ToArray() => [FuelKg, OxygenKg, NitrogenKg, CarbonDioxideKg, WaterKg];
-    public static SpeciesMasses From(ReadOnlySpan<double> values) => new(values[0], values[1], values[2], values[3], values[4]);
+    public double Sum => FuelKg + OxygenKg + NitrogenKg + CarbonDioxideKg + WaterKg + CarbonMonoxideKg + HydrogenKg;
+    public double[] ToArray(bool extended = false) => extended
+        ? [FuelKg, OxygenKg, NitrogenKg, CarbonDioxideKg, WaterKg, CarbonMonoxideKg, HydrogenKg]
+        : [FuelKg, OxygenKg, NitrogenKg, CarbonDioxideKg, WaterKg];
+    public static SpeciesMasses From(ReadOnlySpan<double> values) => new(values[0], values[1], values[2], values[3], values[4], values.Length > 5 ? values[5] : 0, values.Length > 6 ? values[6] : 0);
 }
 
 public sealed record ReactiveDiagnostics(double MaximumSpeciesResidualKg, double MaximumElementResidualKg,

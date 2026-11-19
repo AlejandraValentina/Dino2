@@ -22,7 +22,7 @@ public static class ReactiveSimulator
             progress?.Report($"Mezcla reactiva: {rpm} RPM…");
             points.Add(Simulate(c, rpm, cancellation));
         }
-        return new(c, points.AsReadOnly(), clock.Elapsed.TotalMilliseconds) { Model = ThermochemicalOptions.ModelId };
+        return new(c, points.AsReadOnly(), clock.Elapsed.TotalMilliseconds) { Model = c.Thermochemistry.Identifier };
     }
     public static FourStrokePoint Simulate(FourStrokeConfiguration c, int rpm, CancellationToken cancellation = default)
     {
@@ -30,10 +30,11 @@ public static class ReactiveSimulator
         if (c.Thermochemistry is null || !c.Speeds.Values().Contains(rpm)) throw new ArgumentException("Configuración/RPM reactiva inválida.");
         var clock = Stopwatch.StartNew(); var eq = new ReactiveCylinder(c, rpm);
         OdeFunction derivative = eq.Evaluate;
-        const int n = ReactiveCylinder.Dimension;
+        int n = eq.Dimension;
         var y = new double[n]; eq.Initialize(y);
         var full = new double[n]; var half = new double[n]; var refined = new double[n]; var workspace = new double[5 * n];
-        Span<double> physical = stackalloc double[5];
+        Span<double> physical = stackalloc double[eq.SpeciesCount];
+        Span<double> extents = stackalloc double[2];
         double[] scales = Enumerable.Range(0, n).Select(i => i is >= 5 and <= 9 ? 10.0 : 1e-7).ToArray();
         int accepted = 0, rejected = 0, consecutive = 0;
         double previousWork = double.NaN, periodic = double.PositiveInfinity;
@@ -43,8 +44,10 @@ public static class ReactiveSimulator
         {
             cancellation.ThrowIfCancellationRequested();
             if (ivo == 0) y[11] = 0;
-            var initial = y[..6]; double initialTag = y[11];
+            var initial = (double[])y.Clone(); double initialTag = y[11];
             Array.Clear(y, 6, 5); Array.Clear(y, 12, 5);
+            if (eq.SpeciesCount > 5) Array.Clear(y, 19, 2);
+            extents.Clear();
             trace.Clear(); trace.Add(eq.Sample(0, y, 0));
             double angle = 0, step = c.Solver.MaximumStepDeg, consumed = 0, freshAirRetained = 0;
             double burnEnd = double.PositiveInfinity;
@@ -65,8 +68,7 @@ public static class ReactiveSimulator
                         RungeKutta.Step(derivative, angle, y, step, full, workspace);
                         RungeKutta.Step(derivative, angle, y, step / 2, half, workspace);
                         RungeKutta.Step(derivative, angle + step / 2, half, step / 2, refined, workspace);
-                        eq.PhysicalSpecies(angle + step, refined, physical);
-                        SpeciesThermodynamics.Temperature(physical, refined[5]);
+                        eq.Resolve(angle + step, SliderCrank.At(c.Geometry, angle + step).VolumeM3, refined, physical);
                         error = 0;
                         for (int i = 0; i < n; i++)
                         {
@@ -89,20 +91,36 @@ public static class ReactiveSimulator
                 if (Math.Abs(boundary - c.IntakeValve.ClosesDeg) < 1e-8) freshAirRetained = y[11];
                 if (boundary == eq.BurnStart) { eq.BeginReaction(y); burnEnd = eq.BurnStart + eq.BurnDuration; events.Add(burnEnd); }
                 if (boundary == burnEnd) consumed += eq.CommitReaction(y);
+                if (boundary == c.ExhaustValve.OpensDeg) eq.FreezeProducts(boundary, y, extents);
                 if (boundary == ivo || (boundary == 720 && ivo == 0)) y[11] = 0;
             }
             periodic = Math.Abs(y[11] - initialTag) / (1e-7 + Math.Abs(y[11]));
             for (int i = 0; i < 6; i++) periodic = Math.Max(periodic, Math.Abs(y[i] - initial[i]) / (scales[i] + Math.Abs(y[i])));
+            for (int i = 5; i < eq.SpeciesCount; i++)
+            {
+                int index = ReactiveCylinder.MassIndex(i);
+                periodic = Math.Max(periodic, Math.Abs(y[index] - initial[index]) / (scales[index] + Math.Abs(y[index])));
+            }
             periodic = Math.Max(periodic, double.IsNaN(previousWork) ? 1 : Math.Abs(y[6] - previousWork) / (10 + Math.Abs(y[6])));
             consecutive = cycle >= 3 && periodic < c.Solver.PeriodicTolerance ? consecutive + 1 : 0;
             previousWork = y[6]; if (consecutive < 2) continue;
-            double[] speciesResiduals = new double[5];
-            for (int i = 0; i < 5; i++) speciesResiduals[i] = y[i] - initial[i] - y[12 + i] - consumed * SpeciesThermodynamics.ReactionMassRatio(i);
+            double[] speciesResiduals = new double[eq.SpeciesCount];
+            for (int i = 0; i < eq.SpeciesCount; i++)
+            {
+                int index = ReactiveCylinder.MassIndex(i);
+                double changeMoles = i switch
+                {
+                    1 => .5 * (extents[0] + extents[1]),
+                    3 => -extents[0], 4 => -extents[1], 5 => extents[0], 6 => extents[1], _ => 0
+                };
+                speciesResiduals[i] = y[index] - initial[index] - y[ReactiveCylinder.FlowIndex(i)] -
+                    consumed * SpeciesThermodynamics.ReactionMassRatio(i) - changeMoles * SpeciesThermodynamics.MolecularWeight(i);
+            }
             double maxElement = 0;
             for (int element = 0; element < 4; element++)
             {
                 double residual = 0;
-                for (int i = 0; i < 5; i++) residual += speciesResiduals[i] * SpeciesThermodynamics.ElementMassFraction(i, element);
+                for (int i = 0; i < eq.SpeciesCount; i++) residual += speciesResiduals[i] * SpeciesThermodynamics.ElementMassFraction(i, element);
                 maxElement = Math.Max(maxElement, Math.Abs(residual));
             }
             double peakP = trace.Max(s => s.PressurePa), peakT = trace.Max(s => s.TemperatureK);
@@ -120,7 +138,9 @@ public static class ReactiveSimulator
             {
                 Chemistry = new(speciesResiduals.Max(Math.Abs), maxElement, consumed, eq.BurnDuration, eq.SocT, eq.SocP, eq.SocResidual,
                     Phase(.1), Phase(.5), Phase(.9), eq.ExtrapolatedCorrelation,
-                    "Productos congelados, sin disociación; iso-octano vaporizado; Wiebe prescrita o escalada, sin propagación de llama. Parámetros de pérdidas requieren evidencia propia.")
+                    c.Thermochemistry.UsesEquilibrium
+                    ? "Equilibrio UV reducido CO/H2 de inicio de combustión a apertura de escape; composición transportada fuera de ese intervalo. Sin radicales, NO ni cinética. Pérdidas requieren evidencia propia."
+                    : "Productos congelados, sin disociación; iso-octano vaporizado; Wiebe prescrita o escalada, sin propagación de llama. Parámetros de pérdidas requieren evidencia propia.")
             };
         }
         throw new ArithmeticException($"{rpm} RPM: no convergió la composición y energía en {c.Solver.MaximumCycles} ciclos (residual {periodic:E3}).");

@@ -4,9 +4,15 @@ namespace Dino2.Core.Thermochemistry;
 
 // State: 5 species masses (before the current analytic reaction extent), total U,
 // W, Wpump, Qwall, Hflow, net intake fuel, fresh-air tag, 5 signed species-flow integrals.
+// V3 appends CO and H2 masses (17-18) and their signed flow integrals (19-20).
 public sealed class ReactiveCylinder
 {
-    public const int Dimension = 17;
+    public int SpeciesCount { get; }
+    public int Dimension => SpeciesCount == 5 ? 17 : 21;
+    internal static int MassIndex(int species) => species < 5 ? species : 17 + species - 5;
+    internal static int FlowIndex(int species) => species < 5 ? 12 + species : 19 + species - 5;
+    private bool equilibrating;
+    private readonly bool useEquilibrium;
     private readonly FourStrokeConfiguration config;
     private readonly int rpm;
     private readonly double[] intake, exhaust;
@@ -25,8 +31,12 @@ public sealed class ReactiveCylinder
     public ReactiveCylinder(FourStrokeConfiguration c, int speed)
     {
         config = c; rpm = speed;
+        useEquilibrium = c.Thermochemistry!.UsesEquilibrium;
+        SpeciesCount = useEquilibrium ? SpeciesThermodynamics.ExtendedCount : SpeciesThermodynamics.Count;
         intake = SpeciesThermodynamics.FreshMixture(c.Combustion.AirFuelRatio);
         exhaust = SpeciesThermodynamics.ExhaustMixture(c.Combustion.AirFuelRatio);
+        Array.Resize(ref intake, SpeciesCount);
+        Array.Resize(ref exhaust, SpeciesCount);
         intakeH = SpeciesThermodynamics.Enthalpy(intake, c.Intake.TemperatureK);
         exhaustH = SpeciesThermodynamics.Enthalpy(exhaust, c.Exhaust.TemperatureK);
         intakeR = SpeciesThermodynamics.GasConstant(intake); exhaustR = SpeciesThermodynamics.GasConstant(exhaust);
@@ -44,13 +54,15 @@ public sealed class ReactiveCylinder
     public void PhysicalSpecies(double angle, ReadOnlySpan<double> state, Span<double> masses)
     {
         double extent = ReactionActive ? TargetFuel * HeatRelease.Fraction((angle - BurnStart) / BurnDuration, config.Combustion.WiebeExponent) : 0;
-        for (int i = 0; i < 5; i++) masses[i] = state[i] + extent * SpeciesThermodynamics.ReactionMassRatio(i);
+        for (int i = 0; i < masses.Length; i++) masses[i] = state[MassIndex(i)] + extent * SpeciesThermodynamics.ReactionMassRatio(i);
     }
     public void BeginReaction(ReadOnlySpan<double> state)
     {
-        SocT = SpeciesThermodynamics.Temperature(state[..5], state[5]);
-        double mass = SpeciesThermodynamics.TotalMass(state[..5]);
-        SocP = mass * SpeciesThermodynamics.GasConstant(state[..5]) * SocT / SliderCrank.At(config.Geometry, BurnStart).VolumeM3;
+        Span<double> masses = stackalloc double[SpeciesCount];
+        PhysicalSpecies(BurnStart, state, masses);
+        SocT = SpeciesThermodynamics.Temperature(masses, state[5]);
+        double mass = SpeciesThermodynamics.TotalMass(masses);
+        SocP = mass * SpeciesThermodynamics.GasConstant(masses) * SocT / SliderCrank.At(config.Geometry, BurnStart).VolumeM3;
         SocResidual = 1 - state[11] * (config.Combustion.AirFuelRatio + 1) / config.Combustion.AirFuelRatio / mass;
         // Tag roundoff at the pure-fresh limit is not a physical residual correction.
         if (SocResidual is < 0 and > -1e-10) SocResidual = 0;
@@ -59,6 +71,7 @@ public sealed class ReactiveCylinder
             throw new ArithmeticException($"{rpm} RPM: la combustión condicionada no termina antes del escape. Revise duración y condiciones.");
         TargetFuel = config.Combustion.HeatReleaseEfficiency * Math.Min(state[0], state[1] / -SpeciesThermodynamics.ReactionMassRatio(1));
         ReactionActive = true;
+        equilibrating = useEquilibrium && TargetFuel > 0;
         ExtrapolatedCorrelation = config.Thermochemistry!.BurnLaw == BurnLaw.ConditionScaledWiebe &&
             (SocT < 298 || SocT > 700 || SocP < .4 * 101325 || SocP > 50 * 101325 || SocResidual > .2 ||
              (SocResidual > 0 && SpeciesThermodynamics.StoichiometricAfr / config.Combustion.AirFuelRatio < .999));
@@ -69,6 +82,25 @@ public sealed class ReactiveCylinder
         ReactionActive = false;
         return TargetFuel;
     }
+    internal double Resolve(double angle, double volume, ReadOnlySpan<double> state, Span<double> masses)
+    {
+        PhysicalSpecies(angle, state, masses);
+        return equilibrating
+            ? ProductEquilibrium.Solve(masses, state[5], volume, masses)
+            : SpeciesThermodynamics.Temperature(masses, state[5]);
+    }
+
+    internal void FreezeProducts(double angle, Span<double> state, Span<double> extents)
+    {
+        if (!equilibrating) return;
+        Span<double> products = stackalloc double[SpeciesCount];
+        Resolve(angle, SliderCrank.At(config.Geometry, angle).VolumeM3, state, products);
+        for (int i = 5; i < SpeciesCount; i++)
+            extents[i - 5] = (products[i] - state[MassIndex(i)]) / SpeciesThermodynamics.MolecularWeight(i);
+        for (int i = 0; i < SpeciesCount; i++) state[MassIndex(i)] = products[i];
+        equilibrating = false;
+    }
+
     public static double Nozzle(double area, double p1, double t1, double r1, double gamma1,
         double p2, double t2, double r2, double gamma2)
     {
@@ -86,10 +118,10 @@ public sealed class ReactiveCylinder
     public void Evaluate(double angle, ReadOnlySpan<double> state, Span<double> rates)
     {
         Evaluations++;
-        Span<double> species = stackalloc double[5]; PhysicalSpecies(angle, state, species);
-        double mass = SpeciesThermodynamics.TotalMass(species);
-        double t = SpeciesThermodynamics.Temperature(species, state[5]);
         var position = SliderCrank.At(config.Geometry, angle);
+        Span<double> species = stackalloc double[SpeciesCount];
+        double t = Resolve(angle, position.VolumeM3, state, species);
+        double mass = SpeciesThermodynamics.TotalMass(species);
         double r = SpeciesThermodynamics.GasConstant(species), gamma = SpeciesThermodynamics.Gamma(species, t);
         double p = mass * r * t / position.VolumeM3;
         double mi = Nozzle(ValveFlow.EffectiveArea(config.IntakeValve, angle), config.Intake.PressurePa,
@@ -101,11 +133,11 @@ public sealed class ReactiveCylinder
         double wall = config.Thermal.HohenbergMultiplier * LossModels.HeatTransferCoefficient(position.VolumeM3, p, t,
             2 * config.Geometry.StrokeM * rpm / 60) * position.WettedAreaM2 * (t - config.Thermal.WallTemperatureK);
         double dps = 6.0 * rpm;
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < SpeciesCount; i++)
         {
             double flow = mi * (mi >= 0 ? intake[i] : species[i] / mass) + me * (me >= 0 ? exhaust[i] : species[i] / mass);
-            rates[i] = flow / dps;
-            rates[12 + i] = flow / dps;
+            rates[MassIndex(i)] = flow / dps;
+            rates[FlowIndex(i)] = flow / dps;
         }
         double work = p * position.VolumeDerivativeM3PerDeg;
         rates[5] = (enthalpy - wall) / dps - work; // Total chemical + sensible energy. NO added LHV heat source.
@@ -116,10 +148,11 @@ public sealed class ReactiveCylinder
     }
     public CycleSample Sample(double angle, ReadOnlySpan<double> state, double alreadyConsumed)
     {
-        Span<double> masses = stackalloc double[5]; PhysicalSpecies(angle, state, masses);
-        double mass = SpeciesThermodynamics.TotalMass(masses), t = SpeciesThermodynamics.Temperature(masses, state[5]);
-        double r = SpeciesThermodynamics.GasConstant(masses), gamma = SpeciesThermodynamics.Gamma(masses, t);
         var pos = SliderCrank.At(config.Geometry, angle);
+        Span<double> masses = stackalloc double[SpeciesCount];
+        double t = Resolve(angle, pos.VolumeM3, state, masses);
+        double mass = SpeciesThermodynamics.TotalMass(masses);
+        double r = SpeciesThermodynamics.GasConstant(masses), gamma = SpeciesThermodynamics.Gamma(masses, t);
         double p = mass * r * t / pos.VolumeM3;
         double burned = alreadyConsumed + (ReactionActive ? TargetFuel * HeatRelease.Fraction((angle - BurnStart) / BurnDuration, config.Combustion.WiebeExponent) : 0);
         return new(angle, pos.VolumeM3, mass, t, p, state[11] * (config.Combustion.AirFuelRatio + 1) / config.Combustion.AirFuelRatio,

@@ -21,6 +21,11 @@ public static class FourStrokeFiles
     };
     private static readonly JsonSerializerOptions FlatOptions = new(Options) { WriteIndented = false };
     private static readonly JsonSerializerOptions DiagnosticOptions = new(FlatOptions) { IgnoreReadOnlyProperties = false };
+    private static string ProjectModel(FourStrokeProject project) =>
+        project.Current.Thermochemistry?.UsesEquilibrium == true || project.Original?.Thermochemistry?.UsesEquilibrium == true
+            ? ThermochemicalOptions.EquilibriumModelId
+            : project.Current.Thermochemistry?.Identifier ?? project.Original?.Thermochemistry?.Identifier ?? FourStrokeResult.ModelId;
+
     public static void Save(string path, FourStrokeProject project)
     {
         project.Current.Validate(); project.Original?.Validate();
@@ -29,7 +34,7 @@ public static class FourStrokeFiles
         {
             using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write))
             {
-                string model = project.Current.Thermochemistry is not null || project.Original?.Thermochemistry is not null ? ThermochemicalOptions.ModelId : FourStrokeResult.ModelId;
+                string model = ProjectModel(project);
                 JsonSerializer.Serialize(stream, new Document(1, model, project), Options);
                 stream.Flush(true);
             }
@@ -42,22 +47,23 @@ public static class FourStrokeFiles
         using var stream = File.OpenRead(path);
         var document = JsonSerializer.Deserialize<Document>(stream, Options)
             ?? throw new InvalidDataException("Archivo 4T vacío.");
-        if (document.SchemaVersion != 1 || (document.Model != FourStrokeResult.ModelId && document.Model != ThermochemicalOptions.ModelId) || document.Project?.Current is null)
+        if (document.SchemaVersion != 1 || document.Project?.Current is null)
             throw new InvalidDataException("Modelo, versión o proyecto 4T incompatible.");
-        bool reactive = document.Project.Current.Thermochemistry is not null || document.Project.Original?.Thermochemistry is not null;
-        if (reactive != (document.Model == ThermochemicalOptions.ModelId)) throw new InvalidDataException("El modelo declarado no coincide con las opciones termoquímicas.");
+        if (document.Model != ProjectModel(document.Project)) throw new InvalidDataException("El modelo declarado no coincide con las opciones termoquímicas.");
         document.Project.Current.Validate(); document.Project.Original?.Validate();
         return document.Project;
     }
     private static string Number(double value) => double.IsFinite(value) ? value.ToString("R", CultureInfo.InvariantCulture) : "NA";
     private static void Metadata(StringBuilder text, FourStrokeResult result)
     {
-        string expected=result.Configuration.Thermochemistry is null?FourStrokeResult.ModelId:ThermochemicalOptions.ModelId;
+        string expected=result.Configuration.Thermochemistry?.Identifier ?? FourStrokeResult.ModelId;
         if(result.Model!=expected)throw new InvalidDataException("El resultado y la configuración declaran modelos diferentes.");
         text.AppendLine("# model=" + result.Model);
         text.AppendLine(result.Configuration.Thermochemistry is null
             ? "# evidence=model prediction; pseudo-air 0D; prescribed Wiebe; Hohenberg; empirical friction requires calibration; no experimental validation; input measurements not certified"
-            : "# evidence=five-species frozen products; total energy includes formation enthalpy; semiempirical burn law; no experimental engine validation; parameter provenance is user declared");
+            : result.Configuration.Thermochemistry.UsesEquilibrium
+                ? "# evidence=seven species; reduced UV equilibrium until exhaust opening; composition frozen during flow; no experimental engine validation"
+                : "# evidence=five-species frozen products; total energy includes formation enthalpy; semiempirical burn law; no experimental engine validation; parameter provenance is user declared");
         if (result.Configuration.Thermochemistry is not null)
             text.AppendLine("# chemical_energy=internal_energy_J and flow_enthalpy_J include formation energies; heat_released_J is diagnostic ONLY, never add it to the total-energy balance");
         text.AppendLine("# configuration_SI=" + JsonSerializer.Serialize(result.Configuration, FlatOptions));
@@ -83,13 +89,15 @@ public static class FourStrokeFiles
         var text = new StringBuilder(); Metadata(text, result);
         text.AppendLine("# rpm=" + rpm);
         bool reactive = result.Configuration.Thermochemistry is not null;
+        bool extended = result.Configuration.Thermochemistry?.UsesEquilibrium == true;
         text.AppendLine("angle_deg,volume_m3,mass_kg,temperature_K,pressure_Pa,fresh_mass_kg,intake_lift_m,exhaust_lift_m,intake_flow_kg_s,exhaust_flow_kg_s,internal_energy_J,work_J,heat_released_J,wall_heat_J,flow_enthalpy_J" +
-            (reactive ? ",fuel_kg,oxygen_kg,nitrogen_kg,carbon_dioxide_kg,water_kg" : ""));
+            (reactive ? ",fuel_kg,oxygen_kg,nitrogen_kg,carbon_dioxide_kg,water_kg" : "") +
+            (extended ? ",carbon_monoxide_kg,hydrogen_kg" : ""));
         foreach (var s in p.Trace)
             text.AppendLine(string.Join(",", new double[] { s.AngleDeg, s.VolumeM3, s.MassKg, s.TemperatureK, s.PressurePa,
                 s.FreshMassKg, s.IntakeLiftM, s.ExhaustLiftM, s.IntakeFlowKgPerS, s.ExhaustFlowKgPerS,
                 s.InternalEnergyJ, s.WorkJ, s.HeatReleasedJ, s.WallHeatJ, s.FlowEnthalpyJ }.Select(Number)) +
-                (reactive ? "," + string.Join(",", s.Composition.ToArray().Select(Number)) : ""));
+                (reactive ? "," + string.Join(",", s.Composition.ToArray(extended).Select(Number)) : ""));
         File.WriteAllText(path, text.ToString(), new UTF8Encoding(false));
     }
     public static void ExportComparison(string path, FourStrokeResult original, FourStrokeResult variant)

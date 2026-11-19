@@ -213,6 +213,11 @@ Test("Reproducible reference-v1, frozen-v2 and conditioned-v2 comparisons and se
         rhsEvaluations=reactive.Points.Sum(p=>p.RhsEvaluations),acceptedSteps=reactive.Points.Sum(p=>p.AcceptedSteps)});
 });
 
+Test("Reduced UV vessels conserve energy and elements; expansion recombines products", EquilibriumChecks.ClosedVessels);
+Test("Equilibrium cycle balances, frozen transport, independent work and A/B persistence", EquilibriumChecks.Cycle);
+Test("Equilibrium angular and periodic convergence", EquilibriumChecks.Convergence);
+Test("Matched v1/v2/v3 and combustion, losses and mechanical sensitivities", EquilibriumChecks.Sensitivities);
+
 int failures=0;
 foreach(var(name,action)in tests)
 {
