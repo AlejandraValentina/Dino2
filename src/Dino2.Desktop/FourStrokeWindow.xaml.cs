@@ -31,6 +31,17 @@ public partial class FourStrokeWindow : Window
     }
     internal FourStrokeResult? OriginalResult { get; private set; }
 
+    private TwoStrokeWindow? twoStrokeWindow;
+
+    private void TwoStroke_Click(object sender, RoutedEventArgs e)
+    {
+        if (twoStrokeWindow is not null) { twoStrokeWindow.Activate(); return; }
+        var child = new TwoStrokeWindow { Owner = this };
+        twoStrokeWindow = child;
+        child.Closed += (_, _) => twoStrokeWindow = null;
+        child.Show();
+    }
+
     public FourStrokeWindow() : this(null) { }
     internal FourStrokeWindow(Func<bool>? confirmDiscard)
     {

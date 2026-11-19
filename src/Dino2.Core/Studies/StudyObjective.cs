@@ -33,8 +33,9 @@ public sealed record StudyObjective(ObjectiveKind Kind, RpmBand? Band = null, Rp
         }
     }
 
-    public ObjectiveValue Evaluate(IReadOnlyList<StudyPoint> points, IReadOnlyList<StudyPoint>? reference = null)
+    public ObjectiveValue Evaluate(IReadOnlyList<StudyPoint> points, IReadOnlyList<StudyPoint>? reference = null, int revolutionsPerCycle = 2)
     {
+        if (revolutionsPerCycle is not (1 or 2)) throw new ArgumentOutOfRangeException(nameof(revolutionsPerCycle));
         if (points.Count == 0) return new(null, null, "Sin curva completa");
         var band = Slice(points, Band);
         if (band.Length == 0) return new(null, null, "Banda sin muestras");
@@ -52,7 +53,7 @@ public sealed record StudyObjective(ObjectiveKind Kind, RpmBand? Band = null, Rp
             case ObjectiveKind.MinimumBsfc:
                 if (band.Any(p => p.BrakePowerW <= 0 || p.FuelMassKgPerCycle <= 0))
                     return new(null, null, "Consumo específico indefinido con potencia o combustible neto no positivos");
-                return new(3.6e9 * Average(band, p => p.FuelMassKgPerCycle * p.Rpm / 120) /
+                return new(3.6e9 * Average(band, p => p.FuelMassKgPerCycle * p.Rpm / (60 * revolutionsPerCycle)) /
                     Average(band, p => p.BrakePowerW), null);
             default: throw new ArgumentOutOfRangeException(nameof(Kind));
         }

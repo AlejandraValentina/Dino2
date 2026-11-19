@@ -232,6 +232,29 @@ internal sealed partial class DuctMesh
             volume[i] = Dx / 6 * (area[i] + 4 * Area(Diameter((i + .5) / Cells)) + area[i + 1]);
     }
 
+    internal DuctMesh(DuctGeometry geometry, GasEquation equation, DuctScheme scheme,
+        Func<double, double> diameterAtM, IReadOnlyList<double> knots) : this(geometry, equation, scheme)
+    {
+        double Area(double x)
+        {
+            double d = diameterAtM(x);
+            return Math.PI / 4 * d * d;
+        }
+        for (int i = 0; i <= Cells; i++) area[i] = Area(i * Dx);
+        for (int i = 0; i < Cells; i++)
+        {
+            double left = i * Dx, right = (i + 1) * Dx;
+            double Integrate(double a, double b) => (b - a) / 6 * (Area(a) + 4 * Area((a + b) / 2) + Area(b));
+            volume[i] = 0;
+            foreach (double knot in knots)
+            {
+                if (knot <= left || knot >= right) continue;
+                volume[i] += Integrate(left, knot);
+                left = knot;
+            }
+            volume[i] += Integrate(left, right);
+        }
+    }
     // Boundary fluxes are integrated over face area in SI, internal fluxes share one face value.
     internal double Rates(ReadOnlySpan<double> state, Span<double> rate,
         ReadOnlySpan<double> leftBoundary, ReadOnlySpan<double> rightBoundary) =>

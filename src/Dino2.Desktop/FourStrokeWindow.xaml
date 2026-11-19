@@ -12,6 +12,7 @@
         <Button x:Name="KeepOriginalButton" Content="Conservar como A" Click="Keep_Click" IsEnabled="False"/>
         <Button Content="Quitar A" Click="RemoveOriginal_Click"/>
         <Button x:Name="ExportButton" Content="Exportar CSV…" Click="Export_Click" IsEnabled="False"/>
+        <Button x:Name="TwoStrokeButton" Content="Motor 2T" Click="TwoStroke_Click"/>
         <Button x:Name="OttoReferenceButton" Content="Otto de referencia" Click="Otto_Click"/>
       </WrapPanel>
       <StackPanel Orientation="Horizontal" Margin="0,0,0,10">

@@ -1,0 +1,78 @@
+<Window x:Class="Dino2.Desktop.TwoStrokeWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Dino2.Desktop"
+        Title="Dino2 · Simulación 2T" Width="1260" Height="860" MinWidth="920" MinHeight="685"
+        FontFamily="Segoe UI" FontSize="14" Background="#F2F5F8">
+  <DockPanel Margin="20">
+    <StackPanel DockPanel.Dock="Top">
+      <TextBlock Text="Dino2 / Motor 2T" FontSize="26" FontWeight="SemiBold" Foreground="#142F43"/>
+      <TextBlock Text="Monocilíndrico · Láminas · Cárter 0D · Admisión y escape 1D · 360°" Margin="0,2,0,10"/>
+      <WrapPanel x:Name="Commands" Margin="0,0,0,8">
+        <Button Content="Ejemplo 2T" Click="Example_Click"/>
+        <Button x:Name="OpenTwoStroke" Content="Abrir proyecto 2T…" Click="Open_Click"/>
+        <Button x:Name="SaveTwoStroke" Content="Guardar proyecto 2T…" Click="Save_Click"/>
+        <Button x:Name="CalculateButton" Content="Simular 2T" Click="Calculate_Click" Background="#176B8C" Foreground="White"/>
+        <Button x:Name="KeepButton" Content="Conservar como A" Click="Keep_Click"/>
+        <Button x:Name="ExportButton" Content="Exportar CSV 2T…" Click="Export_Click"/>
+        <Button Content="Volver a 4T" Click="Return_Click"/>
+      </WrapPanel>
+      <Border Background="#FFF3CF" Padding="10" Margin="0,0,0,10">
+        <TextBlock Text="Ejemplo sintético. Wiebe prescrita, láminas cuasiestáticas y pérdidas estimadas. Resultados sin validación experimental." TextWrapping="Wrap"/>
+      </Border>
+    </StackPanel>
+    <Grid DockPanel.Dock="Bottom" Margin="0,10,0,0" Background="#E1EAF0">
+      <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <TextBlock x:Name="Status" Margin="10" TextWrapping="Wrap" Text="Configurá el motor y simulá la curva."/>
+      <Button x:Name="CancelButton" Grid.Column="1" Margin="8" Content="Cancelar 2T" IsEnabled="False" Click="Cancel_Click"/>
+    </Grid>
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="330"/><ColumnDefinition Width="12"/><ColumnDefinition/></Grid.ColumnDefinitions>
+      <DockPanel x:Name="Editor" Background="White">
+        <TextBlock x:Name="GeometrySummary" DockPanel.Dock="Bottom" Margin="10" TextWrapping="Wrap"/>
+        <ComboBox x:Name="ParametersGroup" DockPanel.Dock="Top" Margin="8" AutomationProperties.Name="Grupo de parámetros 2T"/>
+        <ContentControl x:Name="ParametersContent"/>
+      </DockPanel>
+      <TabControl Grid.Column="2" x:Name="Analysis">
+        <TabItem Header="Curvas">
+          <DockPanel Margin="8">
+            <TextBlock DockPanel.Dock="Top" Text="A azul · Actual/B naranja · Indicada neta discontinua · Cigüeñal continua · Puntos calculados" TextWrapping="Wrap"/>
+            <Grid><Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+              <local:ScientificPlot x:Name="PowerPlot" Caption="Potencia [kW]"/>
+              <local:ScientificPlot x:Name="TorquePlot" Grid.Row="1" Caption="Par [N·m]"/>
+            </Grid>
+          </DockPanel>
+        </TabItem>
+        <TabItem Header="Resultados">
+          <DataGrid x:Name="ResultGrid" CanUserAddRows="False" IsReadOnly="True" AutoGenerateColumns="True" AutomationProperties.Name="Resultados por RPM 2T"/>
+        </TabItem>
+        <TabItem x:Name="TwoStrokeABTab" Header="A / B">
+          <DockPanel Margin="8">
+            <TextBlock DockPanel.Dock="Top" Text="Diferencias B − A en regímenes comunes. Resolución de par y potencia al mismo régimen." TextWrapping="Wrap"/>
+            <WrapPanel x:Name="ComparisonControls" DockPanel.Dock="Top" Margin="0,8,0,4">
+              <ComboBox x:Name="ComparisonRpm" Width="90" AutomationProperties.Name="RPM de contraste A B"/>
+              <Button x:Name="CheckTwoStrokeAB" Content="Verificar malla A/B" Click="VerifyAB_Click"/>
+            </WrapPanel>
+            <TextBlock x:Name="Resolution" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,3,0,7"/>
+            <DataGrid x:Name="ComparisonGrid" CanUserAddRows="False" IsReadOnly="True" AutoGenerateColumns="True"/>
+          </DockPanel>
+        </TabItem>
+        <TabItem x:Name="TwoStrokeTraceTab" Header="Ciclo y flujos">
+          <DockPanel Margin="8">
+            <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+              <TextBlock Text="RPM" Margin="0,0,6,0" VerticalAlignment="Center"/>
+              <ComboBox x:Name="TraceRpm" Width="86" AutomationProperties.Name="RPM del ciclo 2T" SelectionChanged="Trace_Changed"/>
+              <Button x:Name="ExportCycleButton" Content="Exportar ciclo CSV…" Click="ExportTrace_Click"/>
+              <TextBlock Text="Cilindro azul · Cárter ámbar · Escape 1D verde" Margin="8,0,0,0" VerticalAlignment="Center"/>
+            </WrapPanel>
+            <TextBlock x:Name="TraceInfo" DockPanel.Dock="Top" TextWrapping="Wrap"/>
+            <Grid><Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+              <local:ScientificPlot x:Name="PressurePlot" Caption="Presión absoluta [bar]" XLabel="Ángulo desde PMS [°]"/>
+              <local:ScientificPlot x:Name="TemperaturePlot" Grid.Row="1" Caption="Temperatura [K]" XLabel="Ángulo desde PMS [°]"/>
+              <local:ScientificPlot x:Name="FlowPlot" Grid.Row="2" Caption="Láminas azul · Transfer ámbar · Salida de escape verde [g/s]" XLabel="Ángulo desde PMS [°]"/>
+            </Grid>
+          </DockPanel>
+        </TabItem>
+        <TabItem x:Name="TwoStrokeStudyTab" Header="Estudios 2T"><ContentControl x:Name="StudyHost"/></TabItem>
+      </TabControl>
+    </Grid>
+  </DockPanel>
+</Window>
