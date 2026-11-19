@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Dino2.Desktop;
 using Dino2.Storage;
+using Dino2.Core.GasDynamics;
 using Dino2.Core.Thermochemistry;
 
 namespace Dino2.Desktop.Tests;
@@ -92,6 +93,28 @@ internal static class FourStrokeSmoke
             var parameterTabs=(TabControl)window.FindName("ParameterTabs");parameterTabs.SelectedIndex=parameterTabs.Items.Count-1;
             Capture("stage2-evidence.png");parameterTabs.SelectedIndex=0;
             window.SaveTo(file);
+            var ducts = FourStrokeFiles.Load("examples/4t-ducts.json").Current;
+            string ductFile = Path.Combine(output, "4t-ui-ducts.json");
+            FourStrokeFiles.Save(ductFile, new(ducts with { Speeds = new(4000, 4000, 1) }, null));
+            window.LoadFrom(ductFile);
+            var model = (ComboBox)window.FindName("PhysicsModel");
+            Assert(model.SelectedIndex == 5 && Field("IntakeDuctLength").IsEnabled, "1D project restores duct model and editable geometry");
+            await window.SimulateAsync();
+            Assert(window.CurrentResult?.Model == GasPath.ModelId && window.CurrentResult.Points.Single().GasDynamics is not null,
+                "1D Windows calculation publishes diagnostics");
+            var originalDuct = window.CurrentResult;
+            window.KeepOriginal();
+            Field("IntakeDuctLength").Text = "550";
+            await window.SimulateAsync();
+            Assert(ReferenceEquals(window.OriginalResult, originalDuct) &&
+                window.CurrentResult!.Points.Single().VolumetricEfficiency != originalDuct!.Points.Single().VolumetricEfficiency,
+                "Duct length changes B filling and preserves immutable A");
+            tabs.SelectedIndex = 4; Capture("stage4-port-pressure.png");
+            tabs.SelectedIndex = 2; Capture("stage4-comparison.png");
+            window.SaveTo(ductFile);
+            var ductProject = FourStrokeFiles.Load(ductFile);
+            Assert(ductProject.Current.Ducts!.Intake.LengthM == .55 && ductProject.Original!.Ducts!.Intake.LengthM == .35,
+                "Desktop saves both duct geometries");
             Console.WriteLine($"{count}/{count} 4T desktop checks passed.");
         }
         finally { window.Close(); }

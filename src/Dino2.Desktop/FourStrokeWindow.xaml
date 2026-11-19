@@ -22,6 +22,8 @@
           <ComboBoxItem Content="Iso-octano v2 · Wiebe escalada (estimada)"/>
           <ComboBoxItem Content="Iso-octano v3 · Equilibrio UV · Wiebe escalada"/>
           <ComboBoxItem Content="Iso-octano v3 · Equilibrio UV · Wiebe prescrita"/>
+          <ComboBoxItem Content="v4 · Conductos 1D · Wiebe prescrita"/>
+          <ComboBoxItem Content="v4 · Conductos 1D · Wiebe escalada"/>
         </ComboBox>
       </StackPanel>
       <Border Background="#FFF3CF" Padding="10" Margin="0,0,0,10">
@@ -66,6 +68,12 @@
             <local:ScientificPlot x:Name="PvChart" Grid.Row="2"/>
             <TextBlock x:Name="CycleDiagnostics" Grid.Row="3" Margin="8" TextWrapping="Wrap"/>
           </Grid>
+        </TabItem>
+        <TabItem Header="Conductos">
+          <DockPanel Background="White" Margin="8">
+            <TextBlock x:Name="PortCaption" DockPanel.Dock="Top" Margin="8" TextWrapping="Wrap"/>
+            <local:ScientificPlot x:Name="PortChart"/>
+          </DockPanel>
         </TabItem>
         <TabItem Header="Diagnósticos">
           <ScrollViewer VerticalScrollBarVisibility="Auto"><TextBlock x:Name="Diagnostics" Margin="16" TextWrapping="Wrap" Text="Se mostrarán balances, convergencia, tiempos y limitaciones del cálculo."/></ScrollViewer>

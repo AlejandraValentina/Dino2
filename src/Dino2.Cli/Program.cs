@@ -2,6 +2,7 @@ using System.Text.Json;
 using Dino2.Core;
 using Dino2.Storage;
 using Dino2.Core.FourStroke;
+using Dino2.Core.GasDynamics;
 using Dino2.Core.Thermochemistry;
 
 if (args.Length is < 2 or > 4)
@@ -11,10 +12,15 @@ if (args.Length is < 2 or > 4)
 }
 try
 {
-    if ((args[0] == "--example-4t" || args[0] == "--example-reactive" || args[0] == "--example-equilibrium") && args.Length == 2)
+    if ((args[0] == "--example-4t" || args[0] == "--example-reactive" || args[0] == "--example-equilibrium" || args[0] == "--example-ducts") && args.Length == 2)
     {
         FourStrokeFiles.Save(args[1], new(args[0] switch
         {
+            "--example-ducts" => ThermochemicalOptions.EquilibriumExample with
+            {
+                Thermochemistry = ThermochemicalOptions.Default with { Products = ProductChemistry.ClosedCycleEquilibrium, BurnLaw = BurnLaw.PrescribedWiebe },
+                Ducts = GasPath.Example, Speeds = new(2000, 6000, 1000)
+            },
             "--example-equilibrium" => ThermochemicalOptions.EquilibriumExample,
             "--example-reactive" => ThermochemicalOptions.Example,
             _ => FourStrokeConfiguration.Example

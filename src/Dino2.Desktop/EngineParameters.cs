@@ -1,4 +1,5 @@
 using Dino2.Core.FourStroke;
+using Dino2.Core.GasDynamics;
 using Dino2.Core.Thermochemistry;
 
 namespace Dino2.Desktop;
@@ -7,8 +8,10 @@ internal sealed record EngineParameter(string Key, string Group, string Label,
     Func<FourStrokeConfiguration, double> Get, Func<FourStrokeConfiguration, double, FourStrokeConfiguration> Set,
     double Scale = 1, bool Integer = false)
 {
-    public static IReadOnlyList<EngineParameter> All { get; } = new EngineParameter[]
-    {
+    public static IReadOnlyList<EngineParameter> All { get; } = Standard.Concat(DuctParameters()).ToArray();
+
+    private static EngineParameter[] Standard =>
+    [
         new("Bore", "Geometría", "Diámetro [mm]", c => c.Geometry.BoreM, (c,v) => c with { Geometry = c.Geometry with { BoreM = v } }, 1000),
         new("Stroke", "Geometría", "Carrera [mm]", c => c.Geometry.StrokeM, (c,v) => c with { Geometry = c.Geometry with { StrokeM = v } }, 1000),
         new("Rod", "Geometría", "Biela entre centros [mm]", c => c.Geometry.RodLengthM, (c,v) => c with { Geometry = c.Geometry with { RodLengthM = v } }, 1000),
@@ -56,5 +59,32 @@ internal sealed record EngineParameter(string Key, string Group, string Label,
         new("LocalTolerance", "RPM / cálculo", "Tolerancia local relativa", c => c.Solver.RelativeTolerance, (c,v) => c with { Solver = c.Solver with { RelativeTolerance = v } }),
         new("PeriodicTolerance", "RPM / cálculo", "Tolerancia entre ciclos", c => c.Solver.PeriodicTolerance, (c,v) => c with { Solver = c.Solver with { PeriodicTolerance = v } }),
         new("Cycles", "RPM / cálculo", "Máximo de ciclos", c => c.Solver.MaximumCycles, (c,v) => c with { Solver = c.Solver with { MaximumCycles = (int)v } }, Integer:true)
-    };
+    ];
+
+    private static IEnumerable<EngineParameter> DuctParameters()
+    {
+        foreach (bool inlet in new[] { true, false })
+        {
+            string name = inlet ? "Admisión" : "Escape", prefix = inlet ? "Intake" : "Exhaust";
+            DuctGeometry Get(GasPath path) => inlet ? path.Intake : path.Exhaust;
+            FourStrokeConfiguration Set(FourStrokeConfiguration config, Func<DuctGeometry, DuctGeometry> update)
+            {
+                var path = config.Ducts;
+                if (path is null) return config;
+                var geometry = update(Get(path));
+                return config with { Ducts = inlet ? path with { Intake = geometry } : path with { Exhaust = geometry } };
+            }
+
+            EngineParameter Field(string key, string label, Func<DuctGeometry, double> get,
+                Func<DuctGeometry, double, DuctGeometry> set, double scale = 1000, bool integer = false) =>
+                new(prefix + key, "Conductos", name + " · " + label,
+                    c => get(Get(c.Ducts ?? GasPath.Example)), (c, v) => Set(c, d => set(d, v)), scale, integer);
+            yield return Field("DuctLength", "longitud [mm]", d => d.LengthM, (d, v) => d with { LengthM = v });
+            yield return Field("ReservoirBore", "diámetro en depósito [mm]", d => d.ReservoirDiameterM, (d, v) => d with { ReservoirDiameterM = v });
+            yield return Field("ValveBore", "diámetro en válvula [mm]", d => d.ValveDiameterM, (d, v) => d with { ValveDiameterM = v });
+            yield return Field("Cells", "celdas", d => d.Cells, (d, v) => d with { Cells = (int)v }, 1, true);
+        }
+        yield return new("Courant", "Conductos", "CFL", c => (c.Ducts ?? GasPath.Example).Courant,
+            (c, v) => c.Ducts is null ? c : c with { Ducts = c.Ducts with { Courant = v } });
+    }
 }

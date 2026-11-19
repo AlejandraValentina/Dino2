@@ -69,9 +69,13 @@ internal static class ReactiveDiagnosticText
         void Evidence(string name,ParameterEvidence e)=>text.AppendLine($"\n{name}: {e.Status} (declaración del usuario)\nFuente: {e.Source}\nCalibración: {e.CalibrationDataset}\nRango: {e.ApplicableRange}");
         Evidence("Combustión",o.CombustionEvidence);Evidence("Calor",o.HeatTransferEvidence);Evidence("Fricción",o.FrictionEvidence);
         text.AppendLine("\nSin validación experimental de motor. Una diferencia A/B es una sensibilidad del modelo, no una ganancia mecánica demostrada. Evaluación de disociación y alcance: ver informe de etapa 3.");
+        if (r.Configuration.Ducts is not null)
+            text.AppendLine("Conductos Euler 1D adiabáticos. SSPRK2 limitado por CFL y paso angular; la tolerancia local RK4 solo se usa con depósitos. VE 1D incluye la etiqueta de aire fresco que entra desde el depósito de admisión y puede retornar desde los conductos.");
         foreach(var p in r.Points)
         {
             var d=p.Chemistry!;
+            if (p.GasDynamics is { } duct)
+                text.AppendLine(FormattableString.Invariant($"\n{p.Rpm} RPM · conductos: residual masa {duct.MassResidualKg:E3} kg, especie máx {duct.MaximumSpeciesResidualKg:E3} kg, energía {duct.EnergyResidualJ:E3} J, periodicidad {duct.PeriodicError:E3}; {duct.CellEvaluations:N0} evaluaciones de celda."));
             text.AppendLine(FormattableString.Invariant($"\n{p.Rpm} RPM · {p.Cycles} ciclos · periodicidad {p.PeriodicError:E3} · {p.ElapsedMilliseconds:F1} ms\nResidual especie máx {d.MaximumSpeciesResidualKg:E3} kg; elemento máx {d.MaximumElementResidualKg:E3} kg; energía total {p.EnergyResidualJ:E3} J\nWi bruto {p.GrossWorkJ:F3} J; bombeo {p.PumpingWorkJ:F3} J; neto {p.NetWorkJ:F3} J; fricción {p.FrictionWorkJ:F3} J\nSOC: {d.SocTemperatureK:F1} K, {d.SocPressurePa/1e5:F3} bar; residuo {d.SocResidualFraction:P2}; duración {d.BurnDurationDeg:F3}°; CA10/50/90 {d.Ca10Deg:F2}/{d.Ca50Deg:F2}/{d.Ca90Deg:F2}°\nT pico {p.PeakTemperatureK:F1} K; correlación de velocidad extrapolada: {d.FlameCorrelationExtrapolated}."));
         }
         return text.ToString();

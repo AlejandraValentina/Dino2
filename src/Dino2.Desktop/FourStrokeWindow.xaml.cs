@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Dino2.Core.FourStroke;
+using Dino2.Core.GasDynamics;
 using Dino2.Core.Thermochemistry;
 using Dino2.Storage;
 using Microsoft.Win32;
@@ -31,6 +32,7 @@ public partial class FourStrokeWindow : Window
         InitializeComponent();
         PowerChart.Caption = "Potencia [kW]"; TorqueChart.Caption = "Par [N·m]";
         PressureChart.Caption = "Presión absoluta [bar]"; PressureChart.XLabel = "Ángulo [°]";
+        PortChart.Caption = "Presión en la última celda [bar]"; PortChart.XLabel = "Ángulo [°]";
         PvChart.Caption = "Presión absoluta [bar]"; PvChart.XLabel = "Volumen [cm³]";
         foreach (var grid in new[] { ResultGrid, ComparisonGrid })
             grid.AutoGeneratingColumn += (_, e) =>
@@ -78,7 +80,9 @@ public partial class FourStrokeWindow : Window
         };
     }
 
-    private static int ModelIndex(ThermochemicalOptions? options) => options switch
+    private static int ModelIndex(FourStrokeConfiguration configuration) => configuration.Ducts is not null
+        ? configuration.Thermochemistry?.BurnLaw == BurnLaw.PrescribedWiebe ? 5 : 6
+        : configuration.Thermochemistry switch
     {
         null => 0,
         { UsesEquilibrium: true, BurnLaw: BurnLaw.PrescribedWiebe } => 4,
@@ -91,16 +95,21 @@ public partial class FourStrokeWindow : Window
     {
         populating = true;
         editorTemplate = configuration;
-        PhysicsModel.SelectedIndex = ModelIndex(configuration.Thermochemistry);
+        PhysicsModel.SelectedIndex = ModelIndex(configuration);
         foreach (var p in EngineParameter.All) fields[p.Key].Text = (p.Get(configuration) * p.Scale).ToString("R", CultureInfo.InvariantCulture);
         foreach(var parameter in EngineParameter.All.Where(p=>p.Group=="Comb. v2")) fields[parameter.Key].IsEnabled=configuration.Thermochemistry?.BurnLaw==BurnLaw.ConditionScaledWiebe;
+        foreach (var parameter in EngineParameter.All.Where(p => p.Group == "Conductos"))
+            fields[parameter.Key].IsEnabled = configuration.Ducts is not null;
+        fields["LocalTolerance"].IsEnabled = configuration.Ducts is null;
         void Label(string key,string text)=>((TextBlock)((Label)FindName("Label_"+key)).Content).Text=text;
         Label("Duration",configuration.Thermochemistry?.BurnLaw==BurnLaw.ConditionScaledWiebe?"Duración de referencia [ms]":"Duración prescrita [ms]");
         Label("BurnEfficiency",configuration.Thermochemistry is null?"Fracción de energía liberada [0–1]":"Conversión de combustible [0–1]");
         fields["Lhv"].IsReadOnly=configuration.Thermochemistry is not null;
         fields["Lhv"].ToolTip=configuration.Thermochemistry is null?"PCI prescrito del modelo de referencia":"PCI del iso-octano gaseoso derivado de entalpías NASA; no se añade de nuevo al balance total.";
         evidenceEditor.Populate(configuration.Thermochemistry);
-        ModelNotice.Text=configuration.Thermochemistry is null
+        ModelNotice.Text = configuration.Ducts is not null
+            ? "Conductos según Euler 1D, con transición lineal de diámetro. Paredes adiabáticas y sin rozamiento. Simulación numérica sin validación experimental."
+            : configuration.Thermochemistry is null
             ? "Referencia v1: pseudoaire con cp(T), Wiebe prescrita, depósitos sin ondas y pérdidas empíricas. Sin validación experimental de motor."
             : configuration.Thermochemistry.UsesEquilibrium
                 ? "Iso-octano vaporizado. Equilibrio reducido CO/H₂ durante combustión y expansión cerrada; composición congelada desde apertura de escape. Wiebe y pérdidas requieren identificación. Sin validación experimental de motor."
@@ -163,12 +172,14 @@ public partial class FourStrokeWindow : Window
         try
         {
             var config=ReadConfiguration(false);
+            bool ducts = PhysicsModel.SelectedIndex >= 5;
+            config = config with { Ducts = ducts ? config.Ducts ?? GasPath.Example : null };
             if(PhysicsModel.SelectedIndex==0) config=config with{Thermochemistry=null};
             else
             {
                 bool wasLegacy=config.Thermochemistry is null;
                 var settings=config.Thermochemistry??ThermochemicalOptions.Default;
-                settings=settings with{BurnLaw=PhysicsModel.SelectedIndex is 1 or 4 ? BurnLaw.PrescribedWiebe : BurnLaw.ConditionScaledWiebe,
+                settings=settings with{BurnLaw=PhysicsModel.SelectedIndex is 1 or 4 or 5 ? BurnLaw.PrescribedWiebe : BurnLaw.ConditionScaledWiebe,
                     Products=PhysicsModel.SelectedIndex >= 3 ? ProductChemistry.ClosedCycleEquilibrium : ProductChemistry.Frozen,
                     CombustionEvidence=settings.CombustionEvidence with{Status=EvidenceStatus.Estimated},
                     HeatTransferEvidence=settings.HeatTransferEvidence with{Status=EvidenceStatus.Estimated},
@@ -182,7 +193,7 @@ public partial class FourStrokeWindow : Window
         }
         catch(Exception ex) when(Expected(ex))
         {
-            populating=true;PhysicsModel.SelectedIndex=ModelIndex(editorTemplate.Thermochemistry);populating=false;
+            populating=true;PhysicsModel.SelectedIndex=ModelIndex(editorTemplate);populating=false;
             Status.Text="No se cambió el modelo: "+ex.Message;
         }
     }
@@ -232,13 +243,18 @@ public partial class FourStrokeWindow : Window
             Ti_Nm = p.IndicatedTorqueNm, Tb_Nm = p.BrakeTorqueNm, BMEP_bar = p.BmepPa / 1e5, VE = p.VolumetricEfficiency, p.Cycles }).ToArray();
         var comparison = OriginalResult is not null && r is not null ? EngineComparison.Compare(OriginalResult, r) : null;
         ComparisonGrid.ItemsSource = comparison?.Select(p => new { p.Rpm, A_kW = p.OriginalBrakePowerW / 1000, B_kW = p.VariantBrakePowerW / 1000,
-            Delta_kW = p.PowerDifferenceW / 1000, A_Nm = p.OriginalBrakeTorqueNm, B_Nm = p.VariantBrakeTorqueNm, Delta_Nm = p.TorqueDifferenceNm }).ToArray();
+            Delta_kW = p.PowerDifferenceW / 1000, A_Nm = p.OriginalBrakeTorqueNm, B_Nm = p.VariantBrakeTorqueNm, Delta_Nm = p.TorqueDifferenceNm, Delta_VE = p.FillingDifference }).ToArray();
         ComparisonNotice.Text = comparison is null ? "Conserve A, modifique un parámetro y vuelva a simular. El original no cambia al editar." :
             $"B − A: {comparison.Count} RPM comunes exactas; sin interpolación. Se comparan estimaciones al cigüeñal. " +
             (comparison is not null && OriginalResult!.Model!=r!.Model?"A/B usan modelos diferentes: no atribuya la diferencia a una modificación mecánica.":"Positivo = aumenta, negativo = disminuye en el modelo; no demuestra una ganancia experimental.");
         TraceRpm.ItemsSource = r?.Points.Select(p => p.Rpm).ToArray();
         if (r is not null) TraceRpm.SelectedItem = r.Points.Any(p => p.Rpm == 3000) ? 3000 : r.Points[0].Rpm;
         else { PressureChart.SetLines([]); PvChart.SetLines([]); CycleDiagnostics.Text = ""; }
+        if (r?.Configuration.Ducts is null)
+        {
+            PortChart.SetLines([]);
+            PortCaption.Text = "Seleccione un modelo 1D y simule para ver la presión de los conductos.";
+        }
         Diagnostics.Text = BuildDiagnostics(r);
     }
 
@@ -263,6 +279,14 @@ public partial class FourStrokeWindow : Window
         var p = CurrentResult.Points.Single(p => p.Rpm == rpm);
         PressureChart.SetLines([new("Presión [bar]", p.Trace.Select(s => new Point(s.AngleDeg, s.PressurePa / 1e5)).ToArray(), Brushes.SteelBlue)]);
         PvChart.SetLines([new("p-V", p.Trace.Select(s => new Point(s.VolumeM3 * 1e6, s.PressurePa / 1e5)).ToArray(), Brushes.DarkOrange)]);
+        if (p.GasDynamics is not null)
+        {
+            PortChart.SetLines([
+                new("Admisión", p.Trace.Select(s => new Point(s.AngleDeg, s.IntakePortPressurePa / 1e5)).ToArray(), Brushes.SteelBlue),
+                new("Escape", p.Trace.Select(s => new Point(s.AngleDeg, s.ExhaustPortPressurePa / 1e5)).ToArray(), Brushes.DarkOrange)
+            ]);
+            PortCaption.Text = $"{rpm} RPM · Admisión en azul, escape en naranja. Cambie el régimen en Ciclo.";
+        }
         CycleDiagnostics.Text = FormattableString.Invariant($"{p.Cycles} ciclos · residual masa {p.MassResidualKg:E2} kg · residual energía {p.EnergyResidualJ:E2} J · periodicidad {p.PeriodicError:E2}. Se muestra el último ciclo convergido; sin promedios entre ciclos.");
     }
 

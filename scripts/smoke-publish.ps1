@@ -57,6 +57,24 @@ try {
         throw "Runtime was not loaded from the distribution: $runtimePath"
     }
     Write-Output "PASS bundled runtime: $runtimePath"
+    $root = [System.Windows.Automation.AutomationElement]::FromHandle($applicationProcess.MainWindowHandle)
+    $models = Find-Control 'PhysicsModel'
+    $dropdown = $models.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+    $dropdown.Expand()
+    $ductModelCondition = [System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::NameProperty, 'v4 · Conductos 1D · Wiebe prescrita')
+    $ductModel = $models.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $ductModelCondition)
+    if ($null -eq $ductModel) { throw 'Published v4 model not found' }
+    $ductModel.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    $dropdown.Collapse()
+    (Find-Control 'CalculateButton').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    $deadline = [DateTime]::UtcNow.AddSeconds(55)
+    do {
+        Start-Sleep -Milliseconds 250
+        $status = (Find-Control 'Status').Current.Name
+    } while (!$status.Contains('four-stroke-isooctane-ducts-v4') -and !$status.StartsWith('No se completó') -and [DateTime]::UtcNow -lt $deadline)
+    if (!$status.Contains('four-stroke-isooctane-ducts-v4')) { throw "Published v4 calculation failed: $status" }
+    Write-Output "PASS published 1D calculation: $status"
 }
 finally {
     $applicationProcess.Refresh()
