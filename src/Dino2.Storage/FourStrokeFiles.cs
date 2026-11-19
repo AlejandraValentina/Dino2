@@ -54,13 +54,13 @@ public static class FourStrokeFiles
     public static void Export(string path, FourStrokeResult result)
     {
         var text = new StringBuilder(); Metadata(text, result);
-        text.AppendLine("rpm,indicated_power_W,brake_power_W,indicated_torque_Nm,brake_torque_Nm,bmep_Pa,volumetric_efficiency,indicated_efficiency,brake_efficiency,fuel_kg,gross_work_J,pumping_work_J,net_work_J,friction_work_J,peak_pressure_Pa,peak_temperature_K,heat_released_J,wall_heat_J,flow_enthalpy_J,mass_residual_kg,energy_residual_J,periodic_error,cycles,accepted_steps,rejected_steps,elapsed_ms");
+        text.AppendLine("rpm,indicated_power_W,brake_power_W,indicated_torque_Nm,brake_torque_Nm,bmep_Pa,volumetric_efficiency,indicated_efficiency,brake_efficiency,fuel_kg,gross_work_J,pumping_work_J,net_work_J,friction_work_J,peak_pressure_Pa,peak_temperature_K,heat_released_J,wall_heat_J,flow_enthalpy_J,mass_residual_kg,energy_residual_J,periodic_error,cycles,accepted_steps,rejected_steps,rhs_evaluations,elapsed_ms");
         foreach (var p in result.Points)
             text.AppendLine(string.Join(",", new double[] { p.Rpm, p.IndicatedPowerW, p.BrakePowerW, p.IndicatedTorqueNm,
                 p.BrakeTorqueNm, p.BmepPa, p.VolumetricEfficiency, p.IndicatedEfficiency, p.BrakeEfficiency, p.FuelMassKg,
                 p.GrossWorkJ, p.PumpingWorkJ, p.NetWorkJ, p.FrictionWorkJ, p.PeakPressurePa, p.PeakTemperatureK,
                 p.HeatReleasedJ, p.WallHeatJ, p.FlowEnthalpyJ, p.MassResidualKg, p.EnergyResidualJ, p.PeriodicError,
-                p.Cycles, p.AcceptedSteps, p.RejectedSteps, p.ElapsedMilliseconds }.Select(Number)));
+                p.Cycles, p.AcceptedSteps, p.RejectedSteps, p.RhsEvaluations, p.ElapsedMilliseconds }.Select(Number)));
         File.WriteAllText(path, text.ToString(), new UTF8Encoding(false));
     }
     public static void ExportTrace(string path, FourStrokeResult result, int rpm)

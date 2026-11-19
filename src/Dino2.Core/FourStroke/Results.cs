@@ -1,6 +1,6 @@
 namespace Dino2.Core.FourStroke;
 
-public sealed record CycleSample(double AngleDeg, double VolumeM3, double MassKg, double TemperatureK,
+public readonly record struct CycleSample(double AngleDeg, double VolumeM3, double MassKg, double TemperatureK,
     double PressurePa, double FreshMassKg, double IntakeLiftM, double ExhaustLiftM,
     double IntakeFlowKgPerS, double ExhaustFlowKgPerS, double InternalEnergyJ, double WorkJ,
     double HeatReleasedJ, double WallHeatJ, double FlowEnthalpyJ);
@@ -11,7 +11,7 @@ public sealed record FourStrokePoint(int Rpm, double IndicatedPowerW, double Bra
     double IndicatedEfficiency, double BrakeEfficiency, double FuelMassKg,
     double PeakPressurePa, double PeakTemperatureK, double HeatReleasedJ, double WallHeatJ,
     double FlowEnthalpyJ, double MassResidualKg, double EnergyResidualJ, double PeriodicError,
-    int Cycles, int AcceptedSteps, int RejectedSteps, double ElapsedMilliseconds,
+    int Cycles, int AcceptedSteps, int RejectedSteps, int RhsEvaluations, double ElapsedMilliseconds,
     IReadOnlyList<CycleSample> Trace);
 
 public sealed record FourStrokeResult(FourStrokeConfiguration Configuration,

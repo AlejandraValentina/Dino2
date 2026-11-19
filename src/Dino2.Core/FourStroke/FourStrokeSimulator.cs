@@ -25,6 +25,7 @@ public static class FourStrokeSimulator
         if (!c.Speeds.Values().Contains(rpm)) throw new ArgumentException("RPM fuera de la malla configurada.");
         var clock = Stopwatch.StartNew();
         var equations = new CylinderEquations(c, rpm);
+        OdeFunction derivative = equations.Evaluate;
         const int n = CylinderEquations.Dimension;
         var y = new double[n];
         var full = new double[n]; var half = new double[n]; var refined = new double[n];
@@ -64,9 +65,9 @@ public static class FourStrokeSimulator
                     double error = double.PositiveInfinity;
                     try
                     {
-                        RungeKutta.Step(equations.Evaluate, angle, y, step, full, workspace);
-                        RungeKutta.Step(equations.Evaluate, angle, y, step / 2, half, workspace);
-                        RungeKutta.Step(equations.Evaluate, angle + step / 2, half, step / 2, refined, workspace);
+                        RungeKutta.Step(derivative, angle, y, step, full, workspace);
+                        RungeKutta.Step(derivative, angle, y, step / 2, half, workspace);
+                        RungeKutta.Step(derivative, angle + step / 2, half, step / 2, refined, workspace);
                         AirProperties.Temperature(refined[1] / refined[0]);
                         error = 0;
                         for (int i = 0; i < n; i++)
@@ -115,7 +116,7 @@ public static class FourStrokeSimulator
                 fuelEnergy > 0 ? y[3] / fuelEnergy : double.NaN, fuelEnergy > 0 ? brakeWork / fuelEnergy : double.NaN,
                 equations.FuelMassKg, peakP, peakT, y[7], y[5], y[6],
                 y[0] - initial[0] - y[8] + y[9], y[1] - initial[1] - y[7] + y[5] - y[6] + y[3],
-                periodic, cycle, accepted, rejected, clock.Elapsed.TotalMilliseconds, Array.AsReadOnly(trace.ToArray()));
+                periodic, cycle, accepted, rejected, equations.Evaluations, clock.Elapsed.TotalMilliseconds, Array.AsReadOnly(trace.ToArray()));
         }
         throw new ArithmeticException($"{rpm} RPM: no convergió en {c.Solver.MaximumCycles} ciclos (residual relativo {periodic:E3}).");
     }

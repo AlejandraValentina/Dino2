@@ -245,9 +245,27 @@ Test("Measured full sweep and reusable numerical artifacts", () =>
     File.WriteAllText(Path.Combine(output, "numerical-study.json"), System.Text.Json.JsonSerializer.Serialize(new { grid = study, periodic = periodicStudy }, options));
     var benchmark = new { runtime = Environment.Version.ToString(), logicalProcessors = Environment.ProcessorCount,
         elapsedMs = elapsed, medianMs = elapsed.Order().ElementAt(1), allocatedBytes = allocations,
-        rpmPoints = result!.Points.Count, acceptedSteps = result.Points.Sum(p => p.AcceptedSteps), rejectedSteps = result.Points.Sum(p => p.RejectedSteps) };
+        rpmPoints = result!.Points.Count, acceptedSteps = result.Points.Sum(p => p.AcceptedSteps), rejectedSteps = result.Points.Sum(p => p.RejectedSteps),
+        rhsEvaluations = result.Points.Sum(p => p.RhsEvaluations) };
     File.WriteAllText(Path.Combine(output, "benchmark.json"), System.Text.Json.JsonSerializer.Serialize(benchmark, options));
     Console.WriteLine("BENCHMARK " + System.Text.Json.JsonSerializer.Serialize(benchmark));
+    var kernels = new Dictionary<string, double>();
+    const int iterations = 200000;
+    double sink = 0;
+    void Measure(string name, Action<int> action)
+    {
+        for (int i = 0; i < 10000; i++) action(i);
+        var timer = Stopwatch.StartNew();
+        for (int i = 0; i < iterations; i++) action(i);
+        kernels[name] = timer.Elapsed.TotalMilliseconds;
+    }
+    Measure("energy_inversion", i => sink += AirProperties.Temperature(AirProperties.InternalEnergy(300 + i % 2800)));
+    Measure("compressible_flow", i => sink += ValveFlow.MassRate(.0001, 100000, 320, 30000 + i % 60000, 700));
+    Measure("slider_crank", i => sink += SliderCrank.At(c.Geometry, i % 720).VolumeM3);
+    var equations = new CylinderEquations(c, 3000);
+    double[] state = new double[10], rates = new double[10]; state[0] = .0004; state[1] = state[0] * AirProperties.InternalEnergy(400);
+    Measure("whole_rhs_at_intake", i => { equations.Evaluate(100, state, rates); sink += rates[1]; });
+    File.WriteAllText(Path.Combine(output, "kernel-benchmark.json"), System.Text.Json.JsonSerializer.Serialize(new { iterations, milliseconds = kernels, sink }, options));
 });
 
 int failures = 0;
