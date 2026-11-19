@@ -49,7 +49,7 @@ internal static class Program
             using var stream = File.Create(Path.Combine(output, name));
             encoder.Save(stream);
         }
-        window.Loaded += (_, _) => window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+        window.Loaded += (_, _) => window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(async () =>
         {
             try
             {
@@ -105,6 +105,7 @@ internal static class Program
                 Calculate();
                 ResultCsv.Save(Path.Combine(output, "ui-results.csv"), window.Result!);
                 window.SaveTo(path); // clean state avoids a close prompt
+                await FourStrokeSmoke.Run(output);
                 Console.WriteLine("Desktop smoke checks passed; images in " + output);
                 exit = 0;
             }

@@ -1,0 +1,248 @@
+using System.Globalization;
+using System.IO;
+using System.Text;
+using System.Text.Json;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using Dino2.Core.FourStroke;
+using Dino2.Storage;
+using Microsoft.Win32;
+
+namespace Dino2.Desktop;
+
+public partial class FourStrokeWindow : Window
+{
+    private readonly Dictionary<string, TextBox> fields = [];
+    private FourStrokeConfiguration? original;
+    private bool populating, dirty, busy;
+    private CancellationTokenSource? cancellation;
+    private readonly Func<bool>? confirmDiscard;
+    internal FourStrokeResult? CurrentResult { get; private set; }
+    internal FourStrokeResult? OriginalResult { get; private set; }
+
+    public FourStrokeWindow() : this(null) { }
+    internal FourStrokeWindow(Func<bool>? confirmDiscard)
+    {
+        this.confirmDiscard = confirmDiscard;
+        InitializeComponent();
+        PowerChart.Caption = "Potencia [kW]"; TorqueChart.Caption = "Par [N·m]";
+        PressureChart.Caption = "Presión absoluta [bar]"; PressureChart.XLabel = "Ángulo [°]";
+        PvChart.Caption = "Presión absoluta [bar]"; PvChart.XLabel = "Volumen [cm³]";
+        foreach (var grid in new[] { ResultGrid, ComparisonGrid })
+            grid.AutoGeneratingColumn += (_, e) =>
+            {
+                e.Column.Header = e.PropertyName == "Rpm" ? "RPM" : e.PropertyName.Replace('_', ' ');
+                if (e.PropertyType == typeof(double) && e.Column is DataGridTextColumn column)
+                    column.Binding = new System.Windows.Data.Binding(e.PropertyName) { StringFormat = "G6", ConverterCulture = CultureInfo.InvariantCulture };
+            };
+        foreach (var group in EngineParameter.All.GroupBy(p => p.Group))
+        {
+            var panel = new StackPanel { Margin = new Thickness(10) };
+            foreach (var parameter in group)
+            {
+                var input = new TextBox { Name = "Field_" + parameter.Key };
+                var label = new Label { Content = new TextBlock { Text = parameter.Label, TextWrapping = TextWrapping.Wrap }, Target = input,
+                    Padding = new Thickness(0, 10, 0, 4) };
+                RegisterName(input.Name, input);
+                System.Windows.Automation.AutomationProperties.SetName(input, parameter.Label);
+                fields.Add(parameter.Key, input); panel.Children.Add(label); panel.Children.Add(input);
+                input.TextChanged += (_, _) =>
+                {
+                    if (populating) return;
+                    dirty = true; CurrentResult = null;
+                    Title = "Dino2 · configuración modificada *";
+                    RenderResults();
+                    Status.Text = "Configuración modificada. A se conserva; vuelva a simular para obtener la curva actual.";
+                };
+            }
+            ParameterTabs.Items.Add(new TabItem { Header = group.Key, Content = new ScrollViewer
+                { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } });
+        }
+        Populate(FourStrokeConfiguration.Example);
+        Closing += (_, e) =>
+        {
+            if (busy) { cancellation?.Cancel(); e.Cancel = true; Status.Text = "Cancelando; cierre la ventana cuando termine el cálculo."; }
+            else if (!ConfirmDiscard()) e.Cancel = true;
+        };
+    }
+
+    private void Populate(FourStrokeConfiguration configuration)
+    {
+        populating = true;
+        foreach (var p in EngineParameter.All) fields[p.Key].Text = (p.Get(configuration) * p.Scale).ToString("R", CultureInfo.InvariantCulture);
+        populating = false;
+        CurrentResult = null;
+        RenderResults();
+    }
+
+    private FourStrokeConfiguration ReadConfiguration()
+    {
+        var config = FourStrokeConfiguration.Example;
+        foreach (var parameter in EngineParameter.All)
+        {
+            if (!double.TryParse(fields[parameter.Key].Text.Trim().Replace(',', '.'), NumberStyles.Float,
+                CultureInfo.InvariantCulture, out double value) || !double.IsFinite(value))
+                throw new ArgumentException("Número inválido en " + parameter.Label);
+            if (parameter.Integer && (value != Math.Truncate(value) || value < int.MinValue || value > int.MaxValue))
+                throw new ArgumentException("Se requiere un entero en " + parameter.Label);
+            config = parameter.Set(config, value / parameter.Scale);
+        }
+        config.Validate();
+        return config;
+    }
+
+    internal async Task SimulateAsync()
+    {
+        if (busy) return;
+        try
+        {
+            var config = ReadConfiguration(); // Immutable input captured before leaving the UI thread.
+            cancellation = new CancellationTokenSource();
+            busy = true; Commands.IsEnabled = ParameterTabs.IsEnabled = false; CancelButton.IsEnabled = true;
+            CurrentResult = null; RenderResults();
+            var token = cancellation.Token;
+            var progress = new Progress<string>(message => { if (busy && !token.IsCancellationRequested) Status.Text = message; });
+            if (original is not null && OriginalResult is null)
+                OriginalResult = await Task.Run(() => FourStrokeSimulator.Run(original, token, progress), token);
+            CurrentResult = await Task.Run(() => FourStrokeSimulator.Run(config, token, progress), token);
+            RenderResults();
+            Status.Text = $"{CurrentResult.Points.Count} RPM · {CurrentResult.ElapsedMilliseconds:F0} ms · {FourStrokeResult.ModelId}. Predicción sin validación experimental.";
+        }
+        catch (OperationCanceledException) { Status.Text = "Simulación cancelada. A se conserva; no se publican resultados parciales."; }
+        catch (Exception ex) when (Expected(ex)) { Status.Text = "No se completó la simulación: " + ex.Message; }
+        finally
+        {
+            busy = false; Commands.IsEnabled = ParameterTabs.IsEnabled = true; CancelButton.IsEnabled = false;
+            cancellation?.Dispose(); cancellation = null;
+            RenderResults();
+            KeepOriginalButton.IsEnabled = ExportButton.IsEnabled = CurrentResult is not null;
+        }
+    }
+    private async void Simulate_Click(object sender, RoutedEventArgs e) => await SimulateAsync();
+    private void Cancel_Click(object sender, RoutedEventArgs e) => cancellation?.Cancel();
+
+    internal void KeepOriginal()
+    {
+        if (CurrentResult is null) throw new InvalidOperationException("Simule antes de conservar el original.");
+        original = CurrentResult.Configuration;
+        OriginalResult = CurrentResult;
+        dirty = true;
+        Title = "Dino2 · original A conservado *";
+        RenderResults();
+        Status.Text = "Original A conservado. Edite una característica para simular B; A permanecerá intacto.";
+    }
+    private void Keep_Click(object sender, RoutedEventArgs e) => KeepOriginal();
+    private void RemoveOriginal_Click(object sender, RoutedEventArgs e)
+    {
+        original = null; OriginalResult = null; dirty = true; RenderResults();
+        Status.Text = "Se quitó la referencia A del proyecto.";
+    }
+
+    private List<PlotLine> SweepLines(bool power)
+    {
+        var lines = new List<PlotLine>();
+        void Explicit(FourStrokeResult? r, string name, Brush color)
+        {
+            if (r is null) return;
+            lines.Add(new(name + " indicada", r.Points.Select(p => new Point(p.Rpm, power ? p.IndicatedPowerW / 1000 : p.IndicatedTorqueNm)).ToArray(), color, true));
+            lines.Add(new(name + " cigüeñal", r.Points.Select(p => new Point(p.Rpm, power ? p.BrakePowerW / 1000 : p.BrakeTorqueNm)).ToArray(), color));
+        }
+        Explicit(OriginalResult, "A", Brushes.SteelBlue);
+        Explicit(CurrentResult, original is null ? "Actual" : "B", Brushes.DarkOrange);
+        return lines;
+    }
+
+    private void RenderResults()
+    {
+        PowerChart.SetLines(SweepLines(true));
+        TorqueChart.SetLines(SweepLines(false));
+        KeepOriginalButton.IsEnabled = ExportButton.IsEnabled = CurrentResult is not null && !busy;
+        var r = CurrentResult;
+        Summary.Text = r is null ? (OriginalResult is null ? "Sin simulación para la configuración actual." : "Original A conservado. La configuración actual requiere simulación.") :
+            FormattableString.Invariant($"{r.Configuration.Geometry.DisplacementM3 * 1e6:F2} cm³ · {r.Points.Count} RPM · {r.ElapsedMilliseconds:F0} ms · Pico {r.Points.Max(p => p.PeakTemperatureK):F0} K. A mayor temperatura, mayor incertidumbre por química omitida.");
+        ResultGrid.ItemsSource = r?.Points.Select(p => new { p.Rpm, Pi_kW = p.IndicatedPowerW / 1000, Pb_kW = p.BrakePowerW / 1000,
+            Ti_Nm = p.IndicatedTorqueNm, Tb_Nm = p.BrakeTorqueNm, BMEP_bar = p.BmepPa / 1e5, VE = p.VolumetricEfficiency, p.Cycles }).ToArray();
+        var comparison = OriginalResult is not null && r is not null ? EngineComparison.Compare(OriginalResult, r) : null;
+        ComparisonGrid.ItemsSource = comparison?.Select(p => new { p.Rpm, A_kW = p.OriginalBrakePowerW / 1000, B_kW = p.VariantBrakePowerW / 1000,
+            Delta_kW = p.PowerDifferenceW / 1000, A_Nm = p.OriginalBrakeTorqueNm, B_Nm = p.VariantBrakeTorqueNm, Delta_Nm = p.TorqueDifferenceNm }).ToArray();
+        ComparisonNotice.Text = comparison is null ? "Conserve A, modifique un parámetro y vuelva a simular. El original no cambia al editar." :
+            $"B − A: positivo = gana, negativo = pierde. {comparison.Count} RPM comunes exactas; sin interpolación. Se comparan estimaciones al cigüeñal.";
+        TraceRpm.ItemsSource = r?.Points.Select(p => p.Rpm).ToArray();
+        if (r is not null) TraceRpm.SelectedItem = r.Points.Any(p => p.Rpm == 3000) ? 3000 : r.Points[0].Rpm;
+        else { PressureChart.SetLines([]); PvChart.SetLines([]); CycleDiagnostics.Text = ""; }
+        Diagnostics.Text = BuildDiagnostics(r);
+    }
+
+    private static string BuildDiagnostics(FourStrokeResult? r)
+    {
+        if (r is null) return "Sin resultados actuales. La referencia A, si existe, se conserva por separado.";
+        var text = new StringBuilder();
+        text.AppendLine("MODELO: " + FourStrokeResult.ModelId);
+        text.AppendLine("0° = PMS de intercambio; combustión alrededor de 360°. Admisión 0–180°, compresión 180–360°, expansión 360–540°, escape 540–720°.");
+        text.AppendLine("Pi: trabajo neto del gas en 720°. Pb: Pi menos fricción. Bombeo se integra en 0–180° y 540–720°; ya está incluido en Pi. BMEP usa trabajo al cigüeñal. VE usa aire fresco retenido al cierre de admisión y densidad del depósito de admisión.");
+        text.AppendLine("No hay datos calibrados. Cd y combustión son entradas asumidas. Fricción del ejemplo: transferencia de coeficientes de literatura, no calibración de este cilindro. El modelo no incluye ondas, química, detonación, fugas ni accesorios separados.");
+        text.AppendLine("Valores negativos de par/potencia se conservan: no se recortan a cero. El ejemplo es sintético; sus cifras no especifican una precisión predictiva.");
+        foreach (var p in r.Points)
+            text.AppendLine(FormattableString.Invariant($"\n{p.Rpm} RPM · {p.Cycles} ciclos · periodicidad {p.PeriodicError:E3} · {p.AcceptedSteps} pasos aceptados / {p.RejectedSteps} rechazados · {p.ElapsedMilliseconds:F1} ms\nResidual masa {p.MassResidualKg:E3} kg; energía {p.EnergyResidualJ:E3} J\nTrabajo bruto {p.GrossWorkJ:F4} J; bombeo {p.PumpingWorkJ:F4} J; neto {p.NetWorkJ:F4} J; fricción {p.FrictionWorkJ:F4} J\nQ liberado {p.HeatReleasedJ:F4} J; pared {p.WallHeatJ:F4} J; entalpía neta {p.FlowEnthalpyJ:F4} J; T pico {p.PeakTemperatureK:F1} K."));
+        return text.ToString();
+    }
+
+    private void TraceRpm_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (CurrentResult is null || TraceRpm.SelectedItem is not int rpm) return;
+        var p = CurrentResult.Points.Single(p => p.Rpm == rpm);
+        PressureChart.SetLines([new("Presión [bar]", p.Trace.Select(s => new Point(s.AngleDeg, s.PressurePa / 1e5)).ToArray(), Brushes.SteelBlue)]);
+        PvChart.SetLines([new("p-V", p.Trace.Select(s => new Point(s.VolumeM3 * 1e6, s.PressurePa / 1e5)).ToArray(), Brushes.DarkOrange)]);
+        CycleDiagnostics.Text = FormattableString.Invariant($"{p.Cycles} ciclos · residual masa {p.MassResidualKg:E2} kg · residual energía {p.EnergyResidualJ:E2} J · periodicidad {p.PeriodicError:E2}. Se muestra el último ciclo convergido; sin promedios entre ciclos.");
+    }
+
+    internal void SaveTo(string path)
+    {
+        FourStrokeFiles.Save(path, new(ReadConfiguration(), original)); dirty = false;
+        Title = "Dino2 · " + Path.GetFileName(path); Status.Text = "Proyecto guardado: " + path;
+    }
+    internal void LoadFrom(string path)
+    {
+        var project = FourStrokeFiles.Load(path);
+        original = project.Original; OriginalResult = null; Populate(project.Current); dirty = false;
+        Title = "Dino2 · " + Path.GetFileName(path); Status.Text = "Proyecto recuperado. Pulse Simular para reconstruir las curvas A y actual.";
+    }
+    private bool ConfirmDiscard() => !dirty || (confirmDiscard?.Invoke() ?? (MessageBox.Show(this, "Hay cambios del proyecto sin guardar. ¿Desea descartarlos?",
+        "Dino2", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes));
+    private static bool Expected(Exception e) => e is ArgumentException or ArithmeticException or IOException or InvalidDataException or UnauthorizedAccessException or JsonException;
+    private void Guard(Action action) { try { action(); } catch (Exception e) when (Expected(e)) { Status.Text = "No se completó la operación: " + e.Message; } }
+    private void Example_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ConfirmDiscard()) return;
+        original = null; OriginalResult = null; Populate(FourStrokeConfiguration.Example); dirty = false;
+        Title = "Dino2 · ejemplo 4T"; Status.Text = "Caso sintético cargado. Pulse Simular.";
+    }
+    private void Open_Click(object sender, RoutedEventArgs e) => Guard(() =>
+    {
+        if (!ConfirmDiscard()) return;
+        var dialog = new OpenFileDialog { Filter = "Proyecto 4T (*.json)|*.json" };
+        if (dialog.ShowDialog(this) == true) LoadFrom(dialog.FileName);
+    });
+    private void Save_Click(object sender, RoutedEventArgs e) => Guard(() =>
+    {
+        var dialog = new SaveFileDialog { Filter = "Proyecto 4T (*.json)|*.json", FileName = "motor-4t.json" };
+        if (dialog.ShowDialog(this) == true) SaveTo(dialog.FileName);
+    });
+    private void Export_Click(object sender, RoutedEventArgs e) => Guard(() =>
+    {
+        if (CurrentResult is null) return;
+        var dialog = new SaveFileDialog { Filter = "Resultados CSV (*.csv)|*.csv", FileName = "motor-4t.csv" };
+        if (dialog.ShowDialog(this) != true) return;
+        FourStrokeFiles.Export(dialog.FileName, CurrentResult);
+        int rpm = TraceRpm.SelectedItem is int selected ? selected : CurrentResult.Points[0].Rpm;
+        FourStrokeFiles.ExportTrace(Path.ChangeExtension(dialog.FileName, ".trace.csv"), CurrentResult, rpm);
+        if (OriginalResult is not null)
+        {
+            FourStrokeFiles.Export(Path.ChangeExtension(dialog.FileName, ".original.csv"), OriginalResult);
+            FourStrokeFiles.ExportComparison(Path.ChangeExtension(dialog.FileName, ".comparison.csv"), OriginalResult, CurrentResult);
+        }
+        Status.Text = "Se exportaron curvas, traza del régimen seleccionado y comparación cuando existe A: " + dialog.FileName;
+    });
+    private void Otto_Click(object sender, RoutedEventArgs e) => new MainWindow().Show();
+}

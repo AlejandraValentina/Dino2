@@ -1,0 +1,66 @@
+<Window x:Class="Dino2.Desktop.FourStrokeWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Dino2.Desktop"
+        Title="Dino2 · Simulación 4T" Width="1350" Height="900" MinWidth="1080" MinHeight="750" FontFamily="Segoe UI" FontSize="14" Background="#F2F5F8">
+  <DockPanel Margin="20">
+    <StackPanel DockPanel.Dock="Top">
+      <TextBlock Text="Dino2  /  Motor 4T" FontSize="26" FontWeight="SemiBold" Foreground="#142F43"/>
+      <TextBlock Text="Cilindro 0D · Válvulas compresibles · Ciclo periódico de 720°" Margin="0,2,0,12"/>
+      <WrapPanel x:Name="Commands" Margin="0,0,0,10">
+        <Button Content="Ejemplo" Click="Example_Click"/>
+        <Button Content="Abrir…" Click="Open_Click"/>
+        <Button Content="Guardar proyecto…" Click="Save_Click"/>
+        <Button x:Name="CalculateButton" Content="Simular" Click="Simulate_Click" Background="#176B8C" Foreground="White"/>
+        <Button x:Name="KeepOriginalButton" Content="Conservar como A" Click="Keep_Click" IsEnabled="False"/>
+        <Button Content="Quitar A" Click="RemoveOriginal_Click"/>
+        <Button x:Name="ExportButton" Content="Exportar CSV…" Click="Export_Click" IsEnabled="False"/>
+        <Button x:Name="OttoReferenceButton" Content="Otto de referencia" Click="Otto_Click"/>
+      </WrapPanel>
+      <Border Background="#FFF3CF" Padding="10" Margin="0,0,0,10">
+        <TextBlock TextWrapping="Wrap" Text="Predicción aproximada sin validación experimental: pseudoaire con cp(T), combustión Wiebe prescrita, depósitos sin ondas, Hohenberg y fricción empírica sin calibrar. No calcula detonación ni límites mecánicos. El cigüeñal es una estimación dependiente de las pérdidas ingresadas."/>
+      </Border>
+    </StackPanel>
+    <Grid DockPanel.Dock="Bottom" Margin="0,12,0,0" Background="#E1EAF0">
+      <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <TextBlock x:Name="Status" Margin="10" TextWrapping="Wrap" Text="Configure el motor y pulse Simular. El ejemplo es sintético."/>
+      <Button x:Name="CancelButton" Grid.Column="1" Content="Cancelar" Click="Cancel_Click" IsEnabled="False" Margin="8"/>
+    </Grid>
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="315"/><ColumnDefinition Width="16"/><ColumnDefinition/></Grid.ColumnDefinitions>
+      <TabControl x:Name="ParameterTabs" TabStripPlacement="Left"/>
+      <TabControl x:Name="AnalysisTabs" Grid.Column="2">
+        <TabItem Header="Curvas">
+          <Grid Background="White" Margin="8">
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+            <TextBlock x:Name="Summary" Text="Sin simulación para la configuración actual." TextWrapping="Wrap" Margin="8"/>
+            <TextBlock Grid.Row="1" Text="A original: azul · B / actual: naranja · Indicada: discontinua · Cigüeñal: continua" TextWrapping="Wrap" Margin="8,0,8,8"/>
+            <local:ScientificPlot x:Name="PowerChart" Grid.Row="2"/>
+            <local:ScientificPlot x:Name="TorqueChart" Grid.Row="3"/>
+          </Grid>
+        </TabItem>
+        <TabItem Header="Resultados">
+          <DataGrid x:Name="ResultGrid" IsReadOnly="True" AutoGenerateColumns="True" CanUserAddRows="False" MinColumnWidth="105" ColumnHeaderHeight="35" RowHeight="30"/>
+        </TabItem>
+        <TabItem Header="A / B">
+          <DockPanel Background="White">
+            <TextBlock x:Name="ComparisonNotice" DockPanel.Dock="Top" Margin="12" TextWrapping="Wrap" Text="Simule y conserve A. Modifique un parámetro y vuelva a simular para comparar B − A. El original no cambia al editar."/>
+            <DataGrid x:Name="ComparisonGrid" IsReadOnly="True" AutoGenerateColumns="True" CanUserAddRows="False" MinColumnWidth="125" RowHeight="30" ColumnHeaderHeight="35"/>
+          </DockPanel>
+        </TabItem>
+        <TabItem Header="Ciclo">
+          <Grid Background="White" Margin="8">
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <StackPanel Orientation="Horizontal" Margin="8">
+              <TextBlock Text="RPM del ciclo actual: " VerticalAlignment="Center"/>
+              <ComboBox x:Name="TraceRpm" Width="120" SelectionChanged="TraceRpm_Changed"/>
+            </StackPanel>
+            <local:ScientificPlot x:Name="PressureChart" Grid.Row="1"/>
+            <local:ScientificPlot x:Name="PvChart" Grid.Row="2"/>
+            <TextBlock x:Name="CycleDiagnostics" Grid.Row="3" Margin="8" TextWrapping="Wrap"/>
+          </Grid>
+        </TabItem>
+        <TabItem Header="Diagnósticos">
+          <ScrollViewer VerticalScrollBarVisibility="Auto"><TextBlock x:Name="Diagnostics" Margin="16" TextWrapping="Wrap" Text="Se mostrarán balances, convergencia, tiempos y limitaciones del cálculo."/></ScrollViewer>
+        </TabItem>
+      </TabControl>
+    </Grid>
+  </DockPanel>
+</Window>

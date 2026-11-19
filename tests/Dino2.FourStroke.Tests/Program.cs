@@ -229,11 +229,22 @@ Test("Measured full sweep and reusable numerical artifacts", () =>
     FourStrokeFiles.ExportComparison(Path.Combine(output, "lift-4mm.comparison.csv"), result!, lift);
     FourStrokeFiles.ExportComparison(Path.Combine(output, "spark-5deg.comparison.csv"), result!, spark);
     var study = new List<object>();
+    var mediumGrid = new Dictionary<int, FourStrokePoint>();
+    var fineGrid = new Dictionary<int, FourStrokePoint>();
     foreach (double h in new[] { 2.0, 1, .5, .25, .125 })
     foreach (int rpm in new[] { 1000, 3000, 6000 })
     {
         var point = FourStrokeSimulator.Simulate(c with { Speeds = new(rpm, rpm, 1), Solver = c.Solver with { MaximumStepDeg = h, RelativeTolerance = 2e-8 } }, rpm);
         study.Add(new { h, rpm, point.NetWorkJ, point.PeakPressurePa, point.VolumetricEfficiency, point.PeriodicError, point.AcceptedSteps });
+        if (h == .5) mediumGrid[rpm] = point;
+        if (h == .125) fineGrid[rpm] = point;
+    }
+    foreach (int rpm in fineGrid.Keys)
+    {
+        var medium = mediumGrid[rpm]; var fine = fineGrid[rpm];
+        Assert(Math.Abs(medium.NetWorkJ - fine.NetWorkJ) < .003 * Math.Abs(fine.NetWorkJ), "Work sensitivity exceeds 0.3%");
+        Assert(Math.Abs(medium.PeakPressurePa - fine.PeakPressurePa) < .005 * fine.PeakPressurePa, "Peak-pressure sensitivity exceeds 0.5%");
+        Assert(Math.Abs(medium.VolumetricEfficiency - fine.VolumetricEfficiency) < .001, "Filling sensitive to discretization");
     }
     var periodicStudy = new List<object>();
     foreach (double tolerance in new[] { 1e-4, 1e-6, 1e-8 })

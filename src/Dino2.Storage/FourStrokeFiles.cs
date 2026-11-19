@@ -47,7 +47,7 @@ public static class FourStrokeFiles
     private static void Metadata(StringBuilder text, FourStrokeResult result)
     {
         text.AppendLine("# model=" + FourStrokeResult.ModelId);
-        text.AppendLine("# evidence=uncalibrated synthetic example; pseudo-air 0D; prescribed Wiebe; Hohenberg; empirical friction; no experimental validation");
+        text.AppendLine("# evidence=model prediction; pseudo-air 0D; prescribed Wiebe; Hohenberg; empirical friction requires calibration; no experimental validation; input measurements not certified");
         text.AppendLine("# configuration_SI=" + JsonSerializer.Serialize(result.Configuration, FlatOptions));
         text.AppendLine("# units=SI; angle in degrees; NA=undefined (e.g. efficiency with zero fuel energy)");
     }

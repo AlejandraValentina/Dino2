@@ -161,7 +161,7 @@ public partial class MainWindow : Window
     private void Guard(Action action)
     {
         try { action(); }
-        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception ex) when (ex is ArgumentException or IOException or InvalidDataException or UnauthorizedAccessException or JsonException)
         {
             Status.Text = "No se completó la operación: " + ex.Message;
         }
