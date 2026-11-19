@@ -51,19 +51,19 @@ public static partial class TwoStrokeFiles
         var baseline = run.Evaluations.FirstOrDefault(r => r.Id == 0)?.Sweep;
         using var csv = File.CreateText(path);
         var axes = plan.Definition.Axes.Select(a => TwoStrokeParameters.Get(a.Parameter).ToString());
-        csv.WriteLine("model,id,status,objective,score,unit,low_margin_nm,verification_vs_a,rpm,shaft_w,shaft_nm,trapped_kg,periodic_error," +
+        csv.WriteLine("model,id,status,objective,score,unit,low_margin_nm,verification_vs_a,result_revision,verification_revision,rpm,shaft_w,shaft_nm,trapped_kg,periodic_error,point_status,diagnostic," +
             string.Join(",", axes.Select(Quote)));
         foreach (var row in run.Evaluations)
         {
             var score = plan.Score(row, baseline);
             var check = run.Checks?.LastOrDefault(c => c.CandidateId == row.Id && c.ReferenceId == 0);
-            var prefix = FormattableString.Invariant($"{TwoStrokeConfiguration.ModelId},{row.Id},{row.Status},{run.Definition.Objective.Kind},{score.Score:R},{Quote(run.Definition.Objective.Unit)},{score.LowMarginNm:R},{check?.Verdict}");
+            var prefix = FormattableString.Invariant($"{TwoStrokeConfiguration.ModelId},{row.Id},{row.Status},{run.Definition.Objective.Kind},{score.Score:R},{Quote(run.Definition.Objective.Unit)},{score.LowMarginNm:R},{check?.Verdict},{Quote(row.Sweep?.NumericalRevision ?? (row.Sweep is null ? "" : "stage6"))},{Quote(check?.NumericalRevision ?? (check is null ? "" : "stage6"))}");
             var parameters = plan.Variants[row.Id].Values;
             var suffix = string.Join(",", parameters.Count == 0 ? axes.Select(_ => "") :
                 parameters.Select(value => value.ToString("R", CultureInfo.InvariantCulture)));
-            if (row.Sweep is null || row.Sweep.Runs.Count == 0) csv.WriteLine($"{prefix},,,,,,{suffix}");
+            if (row.Sweep is null || row.Sweep.Runs.Count == 0) csv.WriteLine($"{prefix},,,,,,,{Quote(row.Error ?? "")},{suffix}");
             else foreach (var point in row.Sweep.Runs)
-                csv.WriteLine(FormattableString.Invariant($"{prefix},{point.Rpm},{point.Point?.ShaftPowerW:R},{point.Point?.ShaftTorqueNm:R},{point.Point?.FreshTrappedKg:R},{point.Point?.PeriodicError:R},{suffix}"));
+                csv.WriteLine(FormattableString.Invariant($"{prefix},{point.Rpm},{point.Point?.ShaftPowerW:R},{point.Point?.ShaftTorqueNm:R},{point.Point?.FreshTrappedKg:R},{point.Point?.PeriodicError:R},{point.Status},{Quote(point.Failure ?? "")},{suffix}"));
         }
     }
 

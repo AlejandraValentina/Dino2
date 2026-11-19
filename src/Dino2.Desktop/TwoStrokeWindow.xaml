@@ -46,7 +46,7 @@
         </TabItem>
         <TabItem x:Name="TwoStrokeABTab" Header="A / B">
           <DockPanel Margin="8">
-            <TextBlock DockPanel.Dock="Top" Text="Diferencias B − A en regímenes comunes. Resolución de par y potencia al mismo régimen." TextWrapping="Wrap"/>
+            <TextBlock x:Name="ComparisonNotice" DockPanel.Dock="Top" Text="Diferencias B − A en regímenes comunes. Resolución de par y potencia al mismo régimen." TextWrapping="Wrap"/>
             <WrapPanel x:Name="ComparisonControls" DockPanel.Dock="Top" Margin="0,8,0,4">
               <ComboBox x:Name="ComparisonRpm" Width="90" AutomationProperties.Name="RPM de contraste A B"/>
               <Button x:Name="CheckTwoStrokeAB" Content="Verificar malla A/B" Click="VerifyAB_Click"/>

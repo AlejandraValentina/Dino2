@@ -12,6 +12,25 @@ var example = TwoStrokeConfiguration.Example;
 var config = example with { Speeds = new(5000, 5000, 1) };
 var definition = new TwoStrokeStudyDefinition(config, [new(TwoStrokeParameter.DiffuserLength, 250, 290, 40)],
     new(ObjectiveKind.PeakTorque));
+if (args is ["--stage7", var campaign])
+{
+    Stage7Campaign.Run(campaign);
+    return;
+}
+
+if (args.Contains("--stage7-profile"))
+{
+    Console.WriteLine("run,rpm,total_ms,duct_prepare_ms,interface_ms,duct_balance_ms,cylinder_ms,crankcase_ms,evaluations,cycles,steps,shaft_w,allocated");
+    double Ms(long ticks) => TwoStrokeProfile.Milliseconds(ticks);
+    for (int i = 0; i < 4; i++)
+    {
+        long alloc = GC.GetAllocatedBytesForCurrentThread();
+        var (point, profile) = TwoStrokeSimulator.ProfileOperatingPoint(config, 5000);
+        Console.WriteLine($"{i},{point.Rpm},{Ms(profile.Total):F3},{Ms(profile.DuctPreparation):F3},{Ms(profile.InterfaceFlux):F3},{Ms(profile.DuctBalance):F3},{Ms(profile.CylinderThermo):F3},{Ms(profile.CrankcaseThermo):F3},{profile.Evaluations},{point.Cycles},{point.TotalAcceptedSteps},{point.ShaftPowerW:R},{GC.GetAllocatedBytesForCurrentThread() - alloc}");
+    }
+    return;
+}
+
 if (args.Contains("--sensitivity"))
 {
     var cases = new (string label, TwoStrokeConfiguration caseConfig)[]
@@ -111,6 +130,7 @@ double lift = config.Reed.ThroatM2 * 1000 / config.Reed.StiffnessNPerM;
 Near(config.Reed.EffectiveArea(1000 + config.Reed.OpeningPressurePa), config.Reed.Cd * config.Reed.PerimeterM * lift, 1e-16, "reed static");
 SegmentedMesh(config.Expansion);
 ExpansionReflection();
+Stage7Campaign.CheckAnalyticLimits();
 
 var watch = Stopwatch.StartNew();
 var pointA = TwoStrokeSimulator.Simulate(config, 5000);
@@ -127,6 +147,8 @@ Near(pointA.FreshTrappedKg, pointA.FreshDeliveredKg + pointA.FreshExhaustReturnK
     pointA.FreshTransferReturnKg - pointA.FreshExhaustOutKg, 1e-13, "scavenging accounting");
 Near(pointA.ShaftPowerW, pointA.ShaftTorqueNm * 2 * Math.PI * pointA.Rpm / 60, 1e-10, "one revolution per cycle");
 Balance(pointA);
+Near(pointA.FreshAccountingResidualKg, 0, 1e-13, "net fresh accounting");
+Near(pointA.DeliveryRatio * pointA.TrappingPerTransferDelivery!.Value, pointA.ChargingEfficiency, 1e-13, "charge and delivery identity");
 var pointRepeat = TwoStrokeSimulator.Simulate(config, 5000, false);
 Check(pointA with { Trace = pointRepeat.Trace } == pointRepeat, "deterministic point including all diagnostics");
 var variant = config with { Expansion = config.Expansion with { DiffuserM = .29, Cells = 33 }, FreshExtractionRatio = .75 };
@@ -139,7 +161,15 @@ Check(cold.FuelBurnedKg == 0 && cold.PeakTemperatureK < pointA.PeakTemperatureK 
 Balance(cold);
 
 var failure = TwoStrokeSimulator.Sweep(config with { Numerics = config.Numerics with { MaximumCycles = 3 } });
-Check(!failure.Complete && failure.Runs[0].Status == TwoStrokeRunStatus.NonConverged && failure.Runs[0].Point is null, "nonconvergence");
+Check(!failure.Complete && failure.Runs[0].Status == TwoStrokeRunStatus.NonConverged &&
+    failure.Runs[0].Point is null && failure.Runs[0].Convergence is { Cycles: 3, Residual: > 0, PreviousResidual: > 0 },
+    "nonconvergence diagnostic and unpublished power");
+var invalidOperatingPoint = config with { Speeds = new(5000, 10000, 5000),
+    Combustion = config.Combustion with { DurationS = .002 } };
+var partialDomain = TwoStrokeSimulator.Sweep(invalidOperatingPoint, false);
+Check(partialDomain.Runs[0].Status == TwoStrokeRunStatus.Periodic &&
+    partialDomain.Runs[1].Status == TwoStrokeRunStatus.OutsideDomain && partialDomain.Runs[1].Point is null &&
+    !partialDomain.Complete, "out-of-domain RPM preserves adjacent periodic result");
 var plan = TwoStrokeStudy.Create(definition with { Axes = [.. definition.Axes, new(TwoStrokeParameter.SparkAdvance, 19, 20, 1)] });
 Check(plan.Variants.Count == 5 && plan.Variants[4].Configuration.Combustion.AdvanceDeg == 20 &&
     config.Expansion.DiffuserM == .27 && config.Combustion.AdvanceDeg == 19, "Cartesian and immutable baseline");
@@ -171,6 +201,17 @@ try
     TwoStrokeFiles.ExportTrace(Path.Combine(temporary, "trace.csv"), pointA);
     Check(File.ReadLines(Path.Combine(temporary, "compare.csv")).Count() == 2, "comparison export");
     Check(File.ReadLines(Path.Combine(temporary, "trace.csv")).Count() == pointA.Trace.Count + 1, "trace export");
+    string partial = Path.Combine(temporary, "partial.json");
+    TwoStrokeFiles.Save(partial, new(invalidOperatingPoint, null, partialDomain));
+    var replay = TwoStrokeFiles.Load(partial).CurrentResult!;
+    Check(replay.NumericalRevision == TwoStrokeConfiguration.NumericalRevision &&
+        replay.Runs[0].Convergence == partialDomain.Runs[0].Convergence &&
+        replay.Runs[1].Status == TwoStrokeRunStatus.OutsideDomain, "partial RPM persistence and numerical revision");
+    string partialCsv = Path.Combine(temporary, "partial.csv");
+    TwoStrokeFiles.Export(partialCsv, replay);
+    var lines = File.ReadAllLines(partialCsv);
+    Check(lines.All(line => line.Count(c => c == ',') == lines[0].Count(c => c == ',')) &&
+        lines[2].Contains("OutsideDomain"), "complete schema for failed RPM rows");
     var studyPath = Path.Combine(temporary, "study.json");
     TwoStrokeFiles.SaveStudy(studyPath, failedStudy);
     var restored = TwoStrokeFiles.LoadStudy(studyPath);

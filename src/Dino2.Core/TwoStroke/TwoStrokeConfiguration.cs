@@ -68,6 +68,7 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
     RpmRange Speeds, TwoStrokeNumerics Numerics)
 {
     public const string ModelId = "two-stroke-reed-expansion-isooctane-v1";
+    public const string NumericalRevision = "two-stroke-ssprk2-passive-limiter-v2";
     public double TrappedCompressionRatio =>
         SliderCrank.At(Geometry, 360 - Exhaust.Opening(Geometry)).VolumeM3 / TwoStrokeGeometry.Clearance(Geometry);
     public double PrimaryCompressionRatio => 1 + Geometry.DisplacementM3 / CrankcaseMinimumM3;
@@ -78,7 +79,7 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
         new(.031, .022, .036, .0008, .74), new(.14, .031, .031, 12),
         new(.035, .17, .27, .085, .13, .20, .018, .13, 32), 1,
         new(19, .00016, .0011, SpeciesThermodynamics.StoichiometricAfr, .96, 2, true),
-        new(440, 1), new(42000, .004, 4500, 45), new(4000, 6000, 1000), new(.65, .44, 5e-5, 100, DuctScheme.Muscl));
+        new(440, 1), new(42000, .004, 4500, 45), new(4000, 6000, 1000), new(.65, .44, 5e-5, 160, DuctScheme.Muscl));
 
     public void Validate()
     {
@@ -140,13 +141,16 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
         if (Speeds.Start < 500 || Speeds.End > 10000 || Speeds.End < Speeds.Start || Speeds.Step is < 1 or > 10000 ||
             (Speeds.End - Speeds.Start) / Speeds.Step + 1 > 100)
             throw new ArgumentException("Rango 2T: 500–10000 RPM, fin ≥ inicio, paso positivo y hasta 100 puntos.");
-        double open = Exhaust.Opening(Geometry);
-        foreach (int rpm in Speeds.Values())
-        {
-            double start = 360 - Combustion.AdvanceDeg + 6 * rpm * Combustion.DelayS;
-            if (start <= 360 - open || start + 6 * rpm * Combustion.DurationS >= 360 + open)
-                throw new ArgumentException($"Combustión fuera del tramo con lumbreras cerradas a {rpm} RPM.");
-        }
+    }
+
+    internal void ValidateOperatingPoint(int rpm)
+    {
+        double opening = Exhaust.Opening(Geometry);
+        double start = 360 - Combustion.AdvanceDeg + 6 * rpm * Combustion.DelayS;
+        double end = start + 6 * rpm * Combustion.DurationS;
+        if (start <= 360 - opening || end >= 360 + opening)
+            throw new ModelDomainException(
+                $"A {rpm} RPM, la combustión prevista ({start:F2}–{end:F2}°) sale del tramo con lumbreras cerradas ({360 - opening:F2}–{360 + opening:F2}°).");
     }
 
     private static void Check(double value, double min, double max, string label)

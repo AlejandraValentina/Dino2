@@ -67,11 +67,18 @@ internal sealed partial class DuctMesh
         {
             double dl = central[k] - previous[k], dr = following[k] - central[k];
             slope[k] = .5 * Minmod(2 * dl, Minmod(.5 * (dl + dr), 2 * dr));
-            if (k < n || k == n + 3)
+            if (k < n || (k == n + 3 && !boundedPassiveTag))
                 fraction = Bound(fraction, Math.Max(0, center[k]), slope[k]);
             if (k == n + 1) fraction = Bound(fraction, .99 * center[k], slope[k]);
             if (n > 1 && k == n + 2)
                 fraction = Bound(fraction, Math.Min(center[k] - 200, 6000 - center[k]), slope[k]);
+        }
+        // A passive mass fraction has its own bounds. Its slope must not reduce hydro slopes.
+        if (boundedPassiveTag)
+        {
+            double tag = center[n + 3];
+            double room = Math.Max(0, Math.Min(tag, 1 - tag));
+            slope[n + 3] = Math.Clamp(slope[n + 3], -room, room);
         }
         for (int side = valveOnly ? 1 : 0; side < 2; side++)
         {
@@ -84,6 +91,8 @@ internal sealed partial class DuctMesh
                 sum += edge[k];
             }
             for (int k = 0; k < n; k++) edge[k] /= sum;
+            if (boundedPassiveTag)
+                edge[n + 3] = Math.Clamp(center[n + 3] + (side == 0 ? -1 : 1) * slope[n + 3], 0, 1);
             int index = 2 * i + side;
             var reconstructed = equation.EncodeFace(faceValues.AsSpan(index * width, width), edge[..n],
                 edge[n + 1], edge[n + 2], edge[n], edge[n + 3]);

@@ -7,7 +7,7 @@ public enum StudyVerdict { Superior, Inferior, Indistinguishable, Discretization
 public sealed record StudyLevel(int Scale, double? CandidateScore, double? ReferenceScore,
     double? Advantage, double? CandidateLowMarginNm, double? ReferenceLowMarginNm, string? Error);
 public sealed record StudyCheck(int CandidateId, int ReferenceId, StudyVerdict Verdict, double? ObservedBand,
-    IReadOnlyList<StudyLevel> Levels, double Milliseconds, int Workers = 1);
+    IReadOnlyList<StudyLevel> Levels, double Milliseconds, int Workers = 1, string? NumericalRevision = null);
 
 public static class StudyVerification
 {

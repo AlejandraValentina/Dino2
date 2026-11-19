@@ -8,7 +8,7 @@ public sealed record TwoStrokeComparisonEvidence(int Rpm, StudyCheck Check);
 public static class TwoStrokeComparison
 {
     public static StudyCheck Verify(TwoStrokeConfiguration a, TwoStrokeConfiguration b, TwoStrokePoint pa,
-        TwoStrokePoint pb, CancellationToken cancellation = default, IProgress<string>? progress = null)
+        TwoStrokePoint pb, CancellationToken cancellation = default, IProgress<string>? progress = null, bool refreshBaseline = false)
     {
         if (pa.Rpm != pb.Rpm || !a.Speeds.Values().Contains(pa.Rpm) || !b.Speeds.Values().Contains(pb.Rpm))
             throw new ArgumentException("El contraste requiere el mismo régimen en A y B.");
@@ -21,6 +21,13 @@ public static class TwoStrokeComparison
             !SimilarSpacing(a.Expansion.LengthM, a.Expansion.Cells, b.Expansion.LengthM, b.Expansion.Cells))
             throw new ArgumentException("Igualá aproximadamente el tamaño de celda en A y B antes de contrastar.");
         var clock = Stopwatch.StartNew();
+        int rpm = pa.Rpm;
+        if (refreshBaseline)
+        {
+            progress?.Report($"A/B a {rpm} RPM · actualizando malla base");
+            pa = TwoStrokeSimulator.Simulate(a, rpm, false, cancellation);
+            pb = a == b ? pa : TwoStrokeSimulator.Simulate(b, rpm, false, cancellation);
+        }
         var levels = new List<StudyLevel> { Level(1, pa, pb) };
         foreach (int scale in new[] { 2, 4 })
         {
@@ -39,7 +46,8 @@ public static class TwoStrokeComparison
             }
         }
         var (verdict, band) = StudyVerification.Classify(levels);
-        return new(1, 0, verdict, band, levels.AsReadOnly(), clock.Elapsed.TotalMilliseconds);
+        return new(1, 0, verdict, band, levels.AsReadOnly(), clock.Elapsed.TotalMilliseconds,
+            NumericalRevision: TwoStrokeConfiguration.NumericalRevision);
     }
 
     private static StudyLevel Level(int scale, TwoStrokePoint a, TwoStrokePoint b) =>

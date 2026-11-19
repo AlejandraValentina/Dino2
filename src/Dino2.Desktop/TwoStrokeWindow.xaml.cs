@@ -141,9 +141,9 @@ public partial class TwoStrokeWindow : Window
             {
                 if (operation?.Token != token) return;
                 pending.Add(run);
-                curve = new(config, pending.ToArray());
+                curve = new(config, pending.ToArray(), TwoStrokeConfiguration.NumericalRevision);
                 Render();
-                ShowStatus($"{run.Rpm} RPM · {run.Status} · {pending.Count}/{config.Speeds.Values().Count()}");
+                ShowStatus($"{run.Rpm} RPM · {StateLabel(run.Status)} · {pending.Count}/{config.Speeds.Values().Count()}");
             });
             try
             {
@@ -166,7 +166,7 @@ public partial class TwoStrokeWindow : Window
             }
             catch (OperationCanceledException)
             {
-                if (pending.Count > 0) { curve = new(config, pending.ToArray()); dirty = true; }
+                if (pending.Count > 0) { curve = new(config, pending.ToArray(), TwoStrokeConfiguration.NumericalRevision); dirty = true; }
                 Render();
                 ShowStatus($"Cálculo cancelado. {pending.Count} regímenes procesados.");
             }
@@ -178,12 +178,14 @@ public partial class TwoStrokeWindow : Window
         if (ComparisonRpm.SelectedItem is not int rpm || original is null || curve is null) return;
         var a = original;
         var b = curve.Configuration;
+        bool refreshBaseline = baseline?.NumericalRevision != TwoStrokeConfiguration.NumericalRevision ||
+            curve.NumericalRevision != TwoStrokeConfiguration.NumericalRevision;
         var pa = baseline!.Runs.Single(r => r.Rpm == rpm).Point!;
         var pb = curve.Runs.Single(r => r.Rpm == rpm).Point!;
         await Execute("Verificando malla A/B…", async token =>
         {
             var progress = new Progress<string>(ShowStatus);
-            var result = await Task.Run(() => TwoStrokeComparison.Verify(a, b, pa, pb, token, progress));
+            var result = await Task.Run(() => TwoStrokeComparison.Verify(a, b, pa, pb, token, progress, refreshBaseline));
             comparisonEvidence = new(rpm, result);
             dirty = true;
             RenderResolution();
@@ -200,9 +202,10 @@ public partial class TwoStrokeWindow : Window
     private void RenderResolution()
     {
         if (comparisonEvidence is not { Rpm: var rpm, Check: var result }) return;
+        string revision = result.NumericalRevision == TwoStrokeConfiguration.NumericalRevision ? "" : " · evidencia histórica";
         Resolution.Text = $"{rpm} RPM · {StudyLabel(result.Verdict)} · " +
             string.Join(" / ", result.Levels.Select(l => $"×{l.Scale} {F(l.Advantage)}")) +
-            $" N·m · banda observada {F(result.ObservedBand)} N·m " +
+            $" N·m · banda observada {F(result.ObservedBand)} N·m{revision} " +
             string.Join(" ", result.Levels.Select(l => l.Error).Where(x => x is not null).Distinct());
     }
 
@@ -310,6 +313,10 @@ public partial class TwoStrokeWindow : Window
             A_Nm = a.ShaftTorqueNm, B_Nm = b.ShaftTorqueNm, Delta_Nm = b.ShaftTorqueNm - a.ShaftTorqueNm,
             Delta_atrapada_mg = (b.FreshTrappedKg - a.FreshTrappedKg) * 1e6
         }).ToArray();
+        ComparisonNotice.Text = baseline is not null && curve is not null &&
+            baseline.NumericalRevision != curve.NumericalRevision
+            ? "A y B se calcularon con revisiones numéricas distintas. Verificar malla recalcula ambos casos con la revisión actual."
+            : "Diferencias B − A en regímenes comunes. Resolución de par y potencia al mismo régimen.";
         ComparisonGrid.ItemsSource = pairs;
         FillRpm(ComparisonRpm, pairs.Select(p => p.RPM));
         FillRpm(TraceRpm, Points(curve).Where(p => p.Trace.Count > 0).Select(p => p.Rpm));
@@ -324,16 +331,26 @@ public partial class TwoStrokeWindow : Window
         var p = run.Point;
         return new
         {
-            RPM = run.Rpm, Estado = run.Status, Indicada_neta_W = F(p?.IndicatedPowerW), Cigüeñal_W = F(p?.ShaftPowerW),
+            RPM = run.Rpm, Estado = StateLabel(run.Status), Indicada_neta_W = F(p?.IndicatedPowerW), Cigüeñal_W = F(p?.ShaftPowerW),
             Par_Nm = F(p?.ShaftTorqueNm), IMEP_bar = F(p?.ImepPa / 1e5), BMEP_bar = F(p?.BmepPa / 1e5),
             BSFC_g_kWh = F(p?.BsfcGPerKwh), Entrega = F(p?.DeliveryRatio), Atrapamiento = F(p?.TrappingEfficiency),
             Barrido = F(p?.ScavengingEfficiency), Carga = F(p?.ChargingEfficiency), Fresca_mg = F(p?.FreshTrappedKg * 1e6),
             Residual_mg = F(p?.ResidualMassKg * 1e6), Cortocircuito_bruto_mg = F(p?.FreshExhaustOutKg * 1e6),
             Retorno_escape_mg = F(p?.FreshExhaustReturnKg * 1e6), Pmáx_bar = F(p?.PeakPressurePa / 1e5),
             Tmáx_K = F(p?.PeakTemperatureK), Ciclos = p?.Cycles, Error_periódico = F(p?.PeriodicError),
-            Balance_J = F(p?.Balance.EnergyJ), Diagnóstico = run.Failure
+            Balance_J = F(p?.Balance.EnergyJ), Cortocircuito_neto_mg = F(p?.NetFreshExhaustKg * 1e6),
+            Atrapada_por_entrega = F(p?.TrappingPerTransferDelivery), Ciclos_completados = run.Convergence?.Cycles,
+            Residuo_final = F(run.Convergence?.Residual), Componente_dominante = run.Convergence?.Dominant, Diagnóstico = run.Failure
         };
     }
+
+    private static string StateLabel(TwoStrokeRunStatus status) => status switch
+    {
+        TwoStrokeRunStatus.Periodic => "Periódico",
+        TwoStrokeRunStatus.NonConverged => "No convergió",
+        TwoStrokeRunStatus.OutsideDomain => "Fuera de dominio",
+        _ => "Fallo numérico"
+    };
 
     internal static string F(double? value) => value?.ToString("G6", CultureInfo.CurrentCulture) ?? "—";
 
