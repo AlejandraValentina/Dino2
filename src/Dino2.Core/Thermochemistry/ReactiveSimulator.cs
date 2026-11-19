@@ -105,7 +105,7 @@ public static class ReactiveSimulator
                     catch (NumericalStateException) { }
                     if (error <= 1)
                     {
-                        Array.Copy(refined, y, n); angle += step; accepted++;
+                        (y, refined) = (refined, y); angle += step; accepted++;
                         if (eq.Ducts is null || angle >= nextSample - 1e-9 || angle >= boundary - 1e-9)
                         {
                             trace.Add(eq.Sample(angle, y, consumed));

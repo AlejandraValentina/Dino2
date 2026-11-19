@@ -145,6 +145,28 @@ internal static class DuctChecks
             }
         }
 
+        var sod = new List<object>();
+        double previousSod = double.PositiveInfinity;
+        foreach (int cells in new[] { 50, 100, 200 })
+        {
+            var (state, balance) = Evolve(new(1, .04, .04, cells), .2 / Math.Sqrt(1e5), .3, (x, q) =>
+            {
+                double rho = x < .5 ? 1 : .125, p = x < .5 ? 1e5 : 1e4;
+                Gas.Encode(q, Pure, p, p / (287 * rho), 0, x < .5 ? 1 : 0);
+            }, false, DuctScheme.Muscl);
+            double densityL1 = 0;
+            for (int i = 0; i < cells; i++)
+                densityL1 += Math.Abs(state[i * Gas.Size] - SodDensity(((i + .5) / cells - .5) / .2)) / cells;
+            Check(densityL1 < previousSod && densityL1 < .024 && balance < 1e-11, "MUSCL Sod regression.");
+            previousSod = densityL1;
+            sod.Add(new { cells, densityL1, balance });
+        }
+
+        var (passed, openBalance) = Evolve(new(1, .04, .04, 200), 1.05 / sound, .35, Initialize, true, DuctScheme.Muscl);
+        double reflectedAtReservoir = Enumerable.Range(0, 200)
+            .Max(i => Math.Abs(Gas.Decode(passed.AsSpan(i * Gas.Size, Gas.Size)).Pressure - pressure));
+        Check(reflectedAtReservoir < .1 && openBalance < 1e-11, $"Pulse reflected at matched reservoir: {reflectedAtReservoir} Pa.");
+
         var (shock, shockBalance) = Evolve(new(1, .04, .04, 160), .00025, .25,
             (x, q) => Gas.Encode(q, Pure, x < .5 ? 1e6 : 1e4, x < .5 ? 1000 : 250, 0, x < .5 ? 1 : 0),
             false, DuctScheme.Muscl);
@@ -157,7 +179,7 @@ internal static class DuctChecks
             restBalance < 1e-11, "MUSCL area source loses pressure equilibrium.");
 
         Directory.CreateDirectory("artifacts/stage4-closure");
-        File.WriteAllText("artifacts/stage4-closure/waves.json", JsonSerializer.Serialize(new { comparisons, minPressure, shockBalance },
+        File.WriteAllText("artifacts/stage4-closure/waves.json", JsonSerializer.Serialize(new { comparisons, sod, minPressure, shockBalance, reflectedAtReservoir, openBalance },
             new JsonSerializerOptions { WriteIndented = true }));
     }
 

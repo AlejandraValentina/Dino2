@@ -63,7 +63,7 @@ internal sealed class GasEquation(int speciesCount)
             throw new NumericalStateException("Estado del conducto fuera de 200–6000 K.");
     }
 
-    internal GasState Decode(ReadOnlySpan<double> cell)
+    internal GasState Decode(ReadOnlySpan<double> cell, double temperatureGuess = 600)
     {
         var masses = cell[..speciesCount];
         double density = 0;
@@ -85,7 +85,11 @@ internal sealed class GasEquation(int speciesCount)
         }
         else
         {
-            t = SpeciesThermodynamics.Temperature(masses, internalEnergy, 600);
+            try { t = SpeciesThermodynamics.Temperature(masses, internalEnergy, temperatureGuess); }
+            catch (NumericalStateException) when (temperatureGuess != 600)
+            {
+                t = SpeciesThermodynamics.Temperature(masses, internalEnergy, 600);
+            }
             gamma = SpeciesThermodynamics.Gamma(masses, t);
             r = SpeciesThermodynamics.GasConstant(masses);
         }
@@ -107,6 +111,32 @@ internal sealed class GasEquation(int speciesCount)
         destination[Tag] = density * tag;
         double gamma = speciesCount == 1 ? 1.4 : SpeciesThermodynamics.Gamma(fractions, t);
         return new(density, u, p, destination[Energy], Math.Sqrt(gamma * r * t), t, gamma, r);
+    }
+
+    internal GasState EncodeFace(Span<double> destination, ReadOnlySpan<double> fractions, double p, double t, double u, double tag)
+    {
+        if (speciesCount == 1) return Encode(destination, fractions, p, t, u, tag);
+        double mixtureR = 0, cp = 0, cv = 0;
+        for (int i = 0; i < speciesCount; i++)
+        {
+            var species = SpeciesData.All[i];
+            double speciesCp = species.Cp(t);
+            mixtureR += fractions[i] * species.R;
+            cp += fractions[i] * speciesCp;
+            cv += fractions[i] * (speciesCp - species.R);
+        }
+        double density = p / (mixtureR * t), energy = 0;
+        for (int i = 0; i < speciesCount; i++)
+        {
+            double partial = fractions[i] * density;
+            destination[i] = partial;
+            energy += partial * SpeciesData.All[i].U(t);
+        }
+        destination[Momentum] = density * u;
+        destination[Energy] = energy + .5 * density * u * u;
+        destination[Tag] = density * tag;
+        double gamma = cp / cv;
+        return new(density, u, p, destination[Energy], Math.Sqrt(gamma * p / density), t, gamma, mixtureR);
     }
 
     internal void Flux(ReadOnlySpan<double> left, GasState l, ReadOnlySpan<double> right, GasState r, Span<double> result)

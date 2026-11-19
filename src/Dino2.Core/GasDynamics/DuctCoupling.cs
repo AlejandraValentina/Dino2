@@ -119,7 +119,7 @@ internal sealed class DuctCoupling
             Span<double> edge, Span<double> flux)
         {
             var tube = state.Slice(end.Offset, end.Mesh.Size);
-            end.Mesh.Prepare(tube);
+            end.Mesh.PrepareValve(tube);
             var edgeState = end.Mesh.BoundaryState(tube, true, edge);
             ValveFlux(end, angle, edge, edgeState, cylinder, chamber, flux);
             return (MassFlux(flux), edgeState.Pressure);
