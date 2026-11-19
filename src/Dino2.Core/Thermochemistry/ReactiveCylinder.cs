@@ -74,7 +74,7 @@ public sealed class ReactiveCylinder
         if (SocResidual is < 0 and > -1e-10) SocResidual = 0;
         BurnDuration = 6 * rpm * ConditionedBurn.DurationSeconds(config, rpm, SocT, SocP, SocResidual);
         if (!double.IsFinite(BurnDuration) || BurnDuration <= 0 || BurnStart + BurnDuration >= config.ExhaustValve.OpensDeg)
-            throw new ArithmeticException($"{rpm} RPM: la combustión condicionada no termina antes del escape. Revise duración y condiciones.");
+            throw new ModelDomainException($"{rpm} RPM: la combustión condicionada no termina antes del escape. Revise duración y condiciones.");
         TargetFuel = config.Combustion.HeatReleaseEfficiency * Math.Min(state[0], state[1] / -SpeciesThermodynamics.ReactionMassRatio(1));
         ReactionActive = true;
         equilibrating = useEquilibrium && TargetFuel > 0;
