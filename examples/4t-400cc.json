@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "model": "four-stroke-0d-air-v1",
+  "project": {
+    "current": {
+      "geometry": {
+        "boreM": 0.08,
+        "strokeM": 0.08,
+        "rodLengthM": 0.135,
+        "compressionRatio": 10
+      },
+      "intake": {
+        "pressurePa": 100000,
+        "temperatureK": 320
+      },
+      "exhaust": {
+        "pressurePa": 105000,
+        "temperatureK": 800
+      },
+      "intakeValve": {
+        "diameterM": 0.032,
+        "maximumLiftM": 0.008,
+        "count": 1,
+        "dischargeCoefficient": 0.7,
+        "opensDeg": -10,
+        "closesDeg": 220
+      },
+      "exhaustValve": {
+        "diameterM": 0.028,
+        "maximumLiftM": 0.007,
+        "count": 1,
+        "dischargeCoefficient": 0.7,
+        "opensDeg": 500,
+        "closesDeg": 730
+      },
+      "combustion": {
+        "sparkAdvanceDeg": 20,
+        "ignitionDelayS": 0.0003,
+        "durationS": 0.002,
+        "airFuelRatio": 14.7,
+        "lowerHeatingValueJPerKg": 43000000,
+        "heatReleaseEfficiency": 0.95,
+        "wiebeExponent": 2
+      },
+      "thermal": {
+        "wallTemperatureK": 450,
+        "hohenbergMultiplier": 1
+      },
+      "friction": {
+        "constantPa": 50000,
+        "peakPressureFactor": 0.006,
+        "speedPaPerMPerS": 9000,
+        "speedSquaredPaPerM2PerS2": 45
+      },
+      "speeds": {
+        "start": 1000,
+        "end": 6000,
+        "step": 500
+      },
+      "solver": {
+        "maximumStepDeg": 0.5,
+        "relativeTolerance": 2E-07,
+        "periodicTolerance": 1E-06,
+        "maximumCycles": 60
+      }
+    },
+    "original": null
+  }
+}
