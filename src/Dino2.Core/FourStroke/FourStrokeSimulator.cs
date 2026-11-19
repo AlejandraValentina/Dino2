@@ -120,6 +120,6 @@ public static class FourStrokeSimulator
                 y[0] - initial[0] - y[8] + y[9], y[1] - initial[1] - y[7] + y[5] - y[6] + y[3],
                 periodic, cycle, accepted, rejected, equations.Evaluations, clock.Elapsed.TotalMilliseconds, Array.AsReadOnly(trace.ToArray()));
         }
-        throw new ArithmeticException($"{rpm} RPM: no convergió en {c.Solver.MaximumCycles} ciclos (residual relativo {periodic:E3}).");
+        throw new CycleConvergenceException($"{rpm} RPM: no convergió en {c.Solver.MaximumCycles} ciclos (residual relativo {periodic:E3}).");
     }
 }

@@ -1,0 +1,108 @@
+<UserControl x:Class="Dino2.Desktop.StudyPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Dino2.Desktop">
+  <DockPanel Margin="8" Background="White">
+    <StackPanel DockPanel.Dock="Top">
+      <WrapPanel Margin="0,0,0,5">
+        <Button x:Name="StudyStart" Content="Ejecutar estudio" Click="Start_Click" Margin="0,0,6,4" Padding="8,4" IsEnabled="False"/>
+        <Button x:Name="StudyCancel" Content="Cancelar" Click="Cancel_Click" Margin="0,0,6,4" Padding="8,4" IsEnabled="False"/>
+        <Button x:Name="StudyOpen" Content="Abrir estudio…" Click="Open_Click" Margin="0,0,6,4" Padding="8,4"/>
+        <Button x:Name="StudySave" Content="Guardar estudio…" Click="Save_Click" Margin="0,0,6,4" Padding="8,4" IsEnabled="False"/>
+        <Button x:Name="StudyExport" Content="Exportar CSV…" Click="Export_Click" Margin="0,0,6,4" Padding="8,4" IsEnabled="False"/>
+      </WrapPanel>
+      <TextBlock x:Name="StudyMessage" Margin="0,0,0,5" TextWrapping="Wrap" Text="Tomá un motor base para preparar el estudio."/>
+      <TextBlock x:Name="Preview" Margin="0,0,0,5" TextWrapping="Wrap" FontWeight="SemiBold"/>
+      <ProgressBar x:Name="RunProgress" Height="5" Minimum="0" Maximum="1" Value="0"/>
+    </StackPanel>
+    <TabControl x:Name="Pages" Margin="0,7,0,0">
+      <TabItem Header="Plan">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel x:Name="PlanFields" Margin="8">
+            <WrapPanel>
+              <Button x:Name="StudyUseCurrent" Content="Tomar motor actual" Click="UseCurrent_Click" Padding="8,4" Margin="0,0,5,0"/>
+              <Button Content="Tomar original A" Click="UseOriginal_Click" Padding="8,4"/>
+            </WrapPanel>
+            <TextBlock x:Name="BaseLabel" Margin="0,7,0,9" TextWrapping="Wrap" Text="Sin motor base."/>
+            <TextBlock Text="Parámetro y unidades · Inicio · Fin · Incremento" FontWeight="SemiBold"/>
+            <StackPanel x:Name="AxesEditor"/>
+            <TextBlock Text="Grilla RPM · Inicio · Fin · Paso" Margin="0,10,0,4" FontWeight="SemiBold"/>
+            <WrapPanel>
+              <TextBox x:Name="RpmStart" Width="85" Margin="0,0,7,0"/>
+              <TextBox x:Name="RpmEnd" Width="85" Margin="0,0,7,0"/>
+              <TextBox x:Name="RpmStep" Width="85"/>
+            </WrapPanel>
+            <TextBlock Text="Objetivo al cigüeñal" Margin="0,10,0,4" FontWeight="SemiBold"/>
+            <WrapPanel>
+              <ComboBox x:Name="ObjectiveBox" Width="300" HorizontalAlignment="Left" Margin="0,0,8,4"/>
+              <CheckBox x:Name="UseBand" Content="Usar una banda de RPM" VerticalAlignment="Center"/>
+            </WrapPanel>
+            <WrapPanel x:Name="BandFields" Margin="0,5,0,0" Visibility="Collapsed">
+              <TextBlock Text="Banda objetivo" Width="136" VerticalAlignment="Center"/>
+              <TextBox x:Name="BandStart" Width="85" Margin="0,0,7,0"/>
+              <TextBox x:Name="BandEnd" Width="85"/>
+            </WrapPanel>
+            <WrapPanel x:Name="LowFields" Margin="0,5,0,0" Visibility="Collapsed">
+              <TextBlock Text="Banda baja" Width="136" VerticalAlignment="Center"/>
+              <TextBox x:Name="LowStart" Width="85" Margin="0,0,7,0"/>
+              <TextBox x:Name="LowEnd" Width="85" Margin="0,0,7,0"/>
+              <TextBlock Text="Pérdida máxima [N·m]" Margin="5,0" VerticalAlignment="Center"/>
+              <TextBox x:Name="LowLoss" Text="0" Width="70"/>
+            </WrapPanel>
+            <WrapPanel Margin="0,12,0,0">
+              <TextBlock Text="Simulaciones simultáneas" Margin="0,0,7,0" VerticalAlignment="Center"/>
+              <ComboBox x:Name="WorkersBox" Width="60"/>
+            </WrapPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem Header="Resultados">
+        <DockPanel Margin="8">
+          <TextBlock x:Name="ResultNote" DockPanel.Dock="Top" Margin="0,0,0,6" TextWrapping="Wrap"/>
+          <WrapPanel DockPanel.Dock="Top">
+            <Button x:Name="StudyApply" Content="Aplicar selección como B" Click="Apply_Click" Padding="8,4" Margin="0,0,6,4" IsEnabled="False"/>
+            <Button x:Name="StudyCheckButton" Content="Contrastar resolución" Click="Check_Click" Padding="8,4" Margin="0,0,6,4" IsEnabled="False"/>
+            <TextBlock Text="contra" VerticalAlignment="Center" Margin="0,0,5,0"/>
+            <ComboBox x:Name="ReferenceBox" Width="125" VerticalAlignment="Center"/>
+          </WrapPanel>
+          <TextBlock x:Name="CheckText" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,5,0,6"/>
+          <DataGrid x:Name="StudyRows" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Caso" Binding="{Binding Label}" Width="60"/>
+              <DataGridTextColumn Header="Puesto" Binding="{Binding Rank}" Width="65"/>
+              <DataGridTextColumn Header="Parámetros" Binding="{Binding Parameters}" Width="2*">
+                <DataGridTextColumn.ElementStyle>
+                  <Style TargetType="{x:Type TextBlock}"><Setter Property="TextWrapping" Value="Wrap"/></Style>
+                </DataGridTextColumn.ElementStyle>
+              </DataGridTextColumn>
+              <DataGridTextColumn Header="Objetivo" Binding="{Binding Score, StringFormat=G8}" Width="100"/>
+              <DataGridTextColumn Header="Estado" Binding="{Binding Status}" Width="*"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </TabItem>
+      <TabItem Header="Curvas">
+        <Grid Margin="8">
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+          <TextBlock x:Name="CurveNote" TextWrapping="Wrap" Margin="0,0,0,4"/>
+          <local:ScientificPlot x:Name="StudyPower" Grid.Row="1"/>
+          <local:ScientificPlot x:Name="StudyTorque" Grid.Row="2"/>
+        </Grid>
+      </TabItem>
+      <TabItem Header="Puntos">
+        <DataGrid x:Name="PointRows" IsReadOnly="True" CanUserAddRows="False" AutoGenerateColumns="True" MinColumnWidth="100"/>
+      </TabItem>
+      <TabItem Header="Sensibilidad">
+        <DockPanel Margin="8">
+          <TextBlock x:Name="SensitivityNote" DockPanel.Dock="Top" TextWrapping="Wrap" Margin="0,0,0,5"/>
+          <Grid>
+            <local:ScientificPlot x:Name="SensitivityPlot" Visibility="Collapsed"/>
+            <ScrollViewer x:Name="MapScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+              <Grid x:Name="MapGrid" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+            </ScrollViewer>
+          </Grid>
+        </DockPanel>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</UserControl>

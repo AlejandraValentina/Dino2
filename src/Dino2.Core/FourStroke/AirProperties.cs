@@ -42,3 +42,5 @@ public static class AirProperties
 }
 
 public sealed class NumericalStateException(string message) : ArithmeticException(message);
+public sealed class CycleConvergenceException(string message) : ArithmeticException(message);
+public sealed class ModelDomainException(string message) : ArithmeticException(message);

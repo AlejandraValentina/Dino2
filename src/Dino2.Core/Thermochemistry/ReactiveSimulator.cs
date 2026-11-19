@@ -190,7 +190,7 @@ public static class ReactiveSimulator
                     : "Productos congelados, sin disociación; iso-octano vaporizado; Wiebe prescrita o escalada, sin propagación de llama. Parámetros de pérdidas requieren evidencia propia.")
             };
         }
-        throw new ArithmeticException($"{rpm} RPM: no convergió la composición y energía en {c.Solver.MaximumCycles} ciclos (residual {periodic:E3}).");
+        throw new CycleConvergenceException($"{rpm} RPM: no convergió la composición y energía en {c.Solver.MaximumCycles} ciclos (residual {periodic:E3}).");
     }
     // Two FV stages use exactly the same valve flux for both subsystems.
     private static bool CoupledStep(ReactiveCylinder cylinder, double angle, ref double step,
