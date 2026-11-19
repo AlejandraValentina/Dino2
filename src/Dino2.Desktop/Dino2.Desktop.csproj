@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Dino2.Core/Dino2.Core.csproj" />
+    <ProjectReference Include="../Dino2.Storage/Dino2.Storage.csproj" />
+    <InternalsVisibleTo Include="Dino2.Desktop.Tests" />
+  </ItemGroup>
+</Project>

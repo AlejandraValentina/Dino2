@@ -2,9 +2,11 @@
   <Folder Name="/src/">
     <Project Path="src/Dino2.Cli/Dino2.Cli.csproj" />
     <Project Path="src/Dino2.Core/Dino2.Core.csproj" />
+    <Project Path="src/Dino2.Desktop/Dino2.Desktop.csproj" />
     <Project Path="src/Dino2.Storage/Dino2.Storage.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Dino2.Desktop.Tests/Dino2.Desktop.Tests.csproj" />
     <Project Path="tests/Dino2.Tests/Dino2.Tests.csproj" />
   </Folder>
 </Solution>

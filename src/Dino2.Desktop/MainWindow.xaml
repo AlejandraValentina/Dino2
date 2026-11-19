@@ -1,0 +1,68 @@
+<Window x:Class="Dino2.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Dino2.Desktop"
+        Title="Dino2" Width="1200" Height="850" MinWidth="960" MinHeight="680" Background="#F2F5F8" FontFamily="Segoe UI" FontSize="14">
+  <DockPanel Margin="24">
+    <StackPanel DockPanel.Dock="Top">
+      <TextBlock Text="Dino2  /  Laboratorio de ciclos" FontSize="27" FontWeight="SemiBold" Foreground="#142F43"/>
+      <TextBlock Text="Monocilíndrico 4T · Otto ideal de aire · Modelo v1" Margin="0,4,0,14" Foreground="#415A6B"/>
+      <WrapPanel Margin="0,0,0,12">
+        <Button Content="Ejemplo" Click="Example_Click"/>
+        <Button x:Name="OpenButton" Content="Abrir…" Click="Open_Click"/>
+        <Button x:Name="SaveButton" Content="Guardar como…" Click="Save_Click"/>
+        <Button x:Name="CalculateButton" Content="Calcular" Click="Calculate_Click" Background="#176B8C" Foreground="White"/>
+        <Button x:Name="ExportButton" Content="Exportar CSV…" Click="Export_Click" IsEnabled="False"/>
+      </WrapPanel>
+      <Border Background="#FFF3CF" Padding="12" Margin="0,0,0,14">
+        <TextBlock TextWrapping="Wrap" Text="Resultado indicado ideal, sin validación experimental. Sin intercambio de gases, fricción ni combustión finita: par constante y potencia proporcional a RPM. No predice potencia al freno ni límites de giro."/>
+      </Border>
+    </StackPanel>
+    <Border DockPanel.Dock="Bottom" Background="#E1EAF0" Padding="10" Margin="0,12,0,0">
+      <TextBlock x:Name="Status" Text="Configure el ciclo y pulse Calcular. El ejemplo es ilustrativo." TextWrapping="Wrap"/>
+    </Border>
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="295"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Border Background="White" Padding="16">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <TextBlock Text="Configuración" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,10"/>
+            <TextBlock Text="Presión absoluta al inicio de compresión. Calor por kg de aire; no es PCI de combustible." TextWrapping="Wrap" Foreground="#415A6B" Margin="0,0,0,8"/>
+            <StackPanel x:Name="Fields"/>
+            <TextBlock Text="Acepta coma o punto decimal, sin separadores de miles. RPM enteras. Fin incluido si lo alcanza el paso. Máximo 2000 puntos." TextWrapping="Wrap" FontSize="12" Foreground="#415A6B" Margin="0,12,0,0"/>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+      <TabControl x:Name="ResultTabs" Grid.Column="2">
+        <TabItem Header="Potencia y par">
+          <Grid Background="White" Margin="8">
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+            <TextBlock x:Name="Summary" Margin="10" TextWrapping="Wrap" Text="Sin resultados. Todas las magnitudes se calculan a partir de la configuración."/>
+            <local:CurvePlot x:Name="PowerPlot" Grid.Row="1" Power="True"/>
+            <local:CurvePlot x:Name="TorquePlot" Grid.Row="2"/>
+          </Grid>
+        </TabItem>
+        <TabItem Header="Tabla RPM">
+          <DataGrid x:Name="ResultsTable" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False" RowHeight="30" ColumnHeaderHeight="34">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="RPM" Binding="{Binding Rpm}" Width="*" MinWidth="100"/>
+              <DataGridTextColumn Header="Par indicado [N·m]" Binding="{Binding IndicatedTorqueNm, StringFormat=F4}" Width="*" MinWidth="160"/>
+              <DataGridTextColumn Header="Potencia indicada [W]" Binding="{Binding IndicatedPowerW, StringFormat=F4}" Width="*" MinWidth="180"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </TabItem>
+        <TabItem Header="Estados y balance">
+          <StackPanel Background="White">
+            <TextBlock x:Name="Balance" Text="Calcule para inspeccionar el ciclo." TextWrapping="Wrap" Margin="16"/>
+            <DataGrid x:Name="StatesTable" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False" RowHeight="30" ColumnHeaderHeight="34">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Estado" Binding="{Binding Number}" Width="*" MinWidth="65"/>
+                <DataGridTextColumn Header="Volumen [m³]" Binding="{Binding VolumeM3, StringFormat=G7}" Width="*" MinWidth="150"/>
+                <DataGridTextColumn Header="T [K]" Binding="{Binding TemperatureK, StringFormat=F3}" Width="*" MinWidth="110"/>
+                <DataGridTextColumn Header="p absoluta [Pa]" Binding="{Binding PressurePa, StringFormat=F2}" Width="*" MinWidth="150"/>
+              </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock Text="1→2: compresión isentrópica; 2→3: calor a volumen constante; 3→4: expansión isentrópica; 4→1: rechazo de calor a volumen constante. Un ciclo por cada dos revoluciones." TextWrapping="Wrap" Margin="16"/>
+          </StackPanel>
+        </TabItem>
+      </TabControl>
+    </Grid>
+  </DockPanel>
+</Window>
