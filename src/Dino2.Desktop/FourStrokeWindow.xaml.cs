@@ -36,6 +36,7 @@ public partial class FourStrokeWindow : Window
     {
         this.confirmDiscard = confirmDiscard;
         InitializeComponent();
+        Studies.Configure(() => ReadConfiguration(), () => original, ApplyStudyVariant);
         PowerChart.Caption = "Potencia [kW]"; TorqueChart.Caption = "Par [N·m]";
         PressureChart.Caption = "Presión absoluta [bar]"; PressureChart.XLabel = "Ángulo [°]";
         PortChart.Caption = "Presión junto a la válvula [bar]"; PortChart.XLabel = "Ángulo [°]";
@@ -82,7 +83,8 @@ public partial class FourStrokeWindow : Window
         Populate(ThermochemicalOptions.EquilibriumExample);
         Closing += (_, e) =>
         {
-            if (busy) { cancellation?.Cancel(); e.Cancel = true; Status.Text = "Cancelando; cierre la ventana cuando termine el cálculo."; }
+            if (Studies.IsBusy) { Studies.Cancel(); e.Cancel = true; Status.Text = "Cancelando el estudio."; }
+            else if (busy) { cancellation?.Cancel(); e.Cancel = true; Status.Text = "Cancelando; cierre la ventana cuando termine el cálculo."; }
             else if (!ConfirmDiscard()) e.Cancel = true;
         };
     }
@@ -376,6 +378,16 @@ public partial class FourStrokeWindow : Window
     private async void ResolveMesh_Click(object sender, RoutedEventArgs e)
     {
         if (ResolutionRpm.SelectedItem is int rpm) await CheckResolutionAsync(rpm);
+    }
+
+    private void ApplyStudyVariant(FourStrokeConfiguration configuration)
+    {
+        if (busy) throw new ArgumentException("Esperá a que termine el cálculo A/B antes de aplicar una variante.");
+        Populate(configuration);
+        dirty = true;
+        AnalysisTabs.SelectedIndex = 0;
+        Title = "Dino2 · variante de estudio *";
+        Status.Text = "Variante aplicada. Simulá para regenerar el ciclo y compararla con el original A si existe.";
     }
 
     internal void SaveTo(string path)

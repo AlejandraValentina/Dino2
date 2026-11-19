@@ -106,6 +106,7 @@ internal static class Program
                 ResultCsv.Save(Path.Combine(output, "ui-results.csv"), window.Result!);
                 window.SaveTo(path); // clean state avoids a close prompt
                 await FourStrokeSmoke.Run(output);
+                await StudySmoke.Run(output);
                 Console.WriteLine("Desktop smoke checks passed; images in " + output);
                 exit = 0;
             }

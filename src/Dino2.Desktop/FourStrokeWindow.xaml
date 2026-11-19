@@ -88,6 +88,9 @@
             </Grid>
           </DockPanel>
         </TabItem>
+        <TabItem x:Name="StudyTab" Header="Estudios">
+          <local:StudyPanel x:Name="Studies"/>
+        </TabItem>
         <TabItem Header="Diagnósticos">
           <ScrollViewer VerticalScrollBarVisibility="Auto"><TextBlock x:Name="Diagnostics" Margin="16" TextWrapping="Wrap" Text="Se mostrarán balances, convergencia, tiempos y limitaciones del cálculo."/></ScrollViewer>
         </TabItem>

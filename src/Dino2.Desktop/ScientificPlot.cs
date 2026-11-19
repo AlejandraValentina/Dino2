@@ -5,7 +5,7 @@ using System.Windows.Media;
 
 namespace Dino2.Desktop;
 
-public sealed record PlotLine(string Name, IReadOnlyList<Point> Points, Brush Color, bool Dashed = false);
+public sealed record PlotLine(string Name, IReadOnlyList<Point> Points, Brush Color, bool Dashed = false, bool MarkersOnly = false);
 
 public sealed class ScientificPlot : FrameworkElement
 {
@@ -67,7 +67,7 @@ public sealed class ScientificPlot : FrameworkElement
             }
             path.Freeze();
             var pen = new Pen(line.Color, 2) { DashStyle = line.Dashed ? DashStyles.Dash : DashStyles.Solid };
-            dc.DrawGeometry(null, pen, path);
+            if (!line.MarkersOnly) dc.DrawGeometry(null, pen, path);
             if (line.Points.Count <= 100)
                 foreach (var p in line.Points) dc.DrawEllipse(line.Color, null, Map(p), 2.5, 2.5);
         }
