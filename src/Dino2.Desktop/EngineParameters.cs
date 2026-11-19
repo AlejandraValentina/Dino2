@@ -1,4 +1,5 @@
 using Dino2.Core.FourStroke;
+using Dino2.Core.Thermochemistry;
 
 namespace Dino2.Desktop;
 
@@ -31,6 +32,13 @@ internal sealed record EngineParameter(string Key, string Group, string Label,
         new("Lhv", "Combustión", "PCI [MJ/kg combustible]", c => c.Combustion.LowerHeatingValueJPerKg, (c,v) => c with { Combustion = c.Combustion with { LowerHeatingValueJPerKg = v } }, 1e-6),
         new("BurnEfficiency", "Combustión", "Fracción de energía liberada [0–1]", c => c.Combustion.HeatReleaseEfficiency, (c,v) => c with { Combustion = c.Combustion with { HeatReleaseEfficiency = v } }),
         new("Wiebe", "Combustión", "Exponente Wiebe", c => c.Combustion.WiebeExponent, (c,v) => c with { Combustion = c.Combustion with { WiebeExponent = v } }),
+        new("ReferenceT", "Comb. v2", "T de referencia [K]", c => (c.Thermochemistry??ThermochemicalOptions.Default).ReferenceTemperatureK, (c,v) => c.Thermochemistry is null?c:c with{Thermochemistry=c.Thermochemistry with{ReferenceTemperatureK=v}}),
+        new("ReferenceP", "Comb. v2", "p de referencia [kPa]", c => (c.Thermochemistry??ThermochemicalOptions.Default).ReferencePressurePa, (c,v) => c.Thermochemistry is null?c:c with{Thermochemistry=c.Thermochemistry with{ReferencePressurePa=v}},.001),
+        new("ReferenceResidual", "Comb. v2", "Residuo de referencia [0–0.2]", c => (c.Thermochemistry??ThermochemicalOptions.Default).ReferenceResidualFraction, (c,v) => c.Thermochemistry is null?c:c with{Thermochemistry=c.Thermochemistry with{ReferenceResidualFraction=v}}),
+        new("ReferencePhi", "Comb. v2", "Equivalencia de referencia [0.8–1]", c => (c.Thermochemistry??ThermochemicalOptions.Default).ReferenceEquivalenceRatio, (c,v) => c.Thermochemistry is null?c:c with{Thermochemistry=c.Thermochemistry with{ReferenceEquivalenceRatio=v}}),
+        new("ReferenceSpeed", "Comb. v2", "Up de referencia [m/s]", c => (c.Thermochemistry??ThermochemicalOptions.Default).ReferenceMeanPistonSpeedMPerS, (c,v) => c.Thermochemistry is null?c:c with{Thermochemistry=c.Thermochemistry with{ReferenceMeanPistonSpeedMPerS=v}}),
+        new("ReferenceBore", "Comb. v2", "Diámetro de referencia [mm]", c => (c.Thermochemistry??ThermochemicalOptions.Default).ReferenceBoreM, (c,v) => c.Thermochemistry is null?c:c with{Thermochemistry=c.Thermochemistry with{ReferenceBoreM=v}},1000),
+        new("Turbulence", "Comb. v2", "u turbulenta / Up (estimado)", c => (c.Thermochemistry??ThermochemicalOptions.Default).TurbulenceToPistonSpeed, (c,v) => c.Thermochemistry is null?c:c with{Thermochemistry=c.Thermochemistry with{TurbulenceToPistonSpeed=v}}),
         new("IntakePressure", "Contornos", "Depósito admisión [kPa absolutos]", c => c.Intake.PressurePa, (c,v) => c with { Intake = c.Intake with { PressurePa = v } }, .001),
         new("IntakeTemperature", "Contornos", "Depósito admisión [K]", c => c.Intake.TemperatureK, (c,v) => c with { Intake = c.Intake with { TemperatureK = v } }),
         new("ExhaustPressure", "Contornos", "Depósito escape [kPa absolutos]", c => c.Exhaust.PressurePa, (c,v) => c with { Exhaust = c.Exhaust with { PressurePa = v } }, .001),

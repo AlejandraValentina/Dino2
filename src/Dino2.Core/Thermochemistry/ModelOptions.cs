@@ -17,7 +17,7 @@ public sealed record ParameterEvidence(EvidenceStatus Status, string Source, str
 public sealed record ThermochemicalOptions(BurnLaw BurnLaw, double ReferenceTemperatureK, double ReferencePressurePa,
     double ReferenceResidualFraction, double ReferenceMeanPistonSpeedMPerS, double ReferenceBoreM,
     double TurbulenceToPistonSpeed, ParameterEvidence CombustionEvidence,
-    ParameterEvidence HeatTransferEvidence, ParameterEvidence FrictionEvidence)
+    ParameterEvidence HeatTransferEvidence, ParameterEvidence FrictionEvidence, double ReferenceEquivalenceRatio = 1)
 {
     public const string ModelId = "four-stroke-isooctane-frozen-v2";
     public static ThermochemicalOptions Default => new(BurnLaw.ConditionScaledWiebe, 650, 2e6, .05, 8, .08, .3,
@@ -37,7 +37,7 @@ public sealed record ThermochemicalOptions(BurnLaw BurnLaw, double ReferenceTemp
             throw new ArgumentException("El PCI reactivo se deriva de las entalpías NASA del iso-octano gaseoso; no admite un PCI independiente.");
         if (!FiniteRange(ReferenceTemperatureK, 298, 700) || !FiniteRange(ReferencePressurePa, .4 * 101325, 50 * 101325) ||
             !FiniteRange(ReferenceResidualFraction, 0, .2) || !FiniteRange(ReferenceMeanPistonSpeedMPerS, 0, 40) ||
-            !FiniteRange(ReferenceBoreM, .02, .2) || !FiniteRange(TurbulenceToPistonSpeed, 0, 2))
+            !FiniteRange(ReferenceBoreM, .02, .2) || !FiniteRange(TurbulenceToPistonSpeed, 0, 2) || !FiniteRange(ReferenceEquivalenceRatio,.8,1))
             throw new ArgumentException("Referencias de combustión fuera de rango: T 298–700 K, p 0.4–50 atm, residuo 0–0.2, turbulencia/Up 0–2.");
     }
     private static bool FiniteRange(double value, double lo, double hi) => double.IsFinite(value) && value >= lo && value <= hi;

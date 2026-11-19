@@ -71,12 +71,12 @@ SL = SL0 (Tu/298 K)^α (pu/101325 Pa)^β (1−2,1 fres)
 
 Rango experimental publicado: φ=0,8–1,5, T=298–700 K, p=0,4–50 atm; ensayos de dilución f=0–0,2 para mezcla estequiométrica. El código restringe φ fresca a 0,8–1 para su química y no admite f>0,2 en la ley escalada. Evalúa la correlación fuera del rango térmico/de presión **con un diagnóstico visible de extrapolación**; también marca que aplicar la dilución ajustada a mezcla pobre es una extrapolación. No transfiere el error de ajuste de esa correlación a una supuesta precisión del motor.
 
-La duración se escala mediante:
+La duración se escala mediante una referencia fija que incluye su propia equivalencia φref (1 por defecto), sin renormalizarla a la mezcla actual al cambiar AFR:
 
 ```text
 Up = 2 S RPM / 60
 Seff = SL + Ct Up
-τ = τref · (B/Bref) · (SLref + Ct Upref)/(SLsoc + Ct Up)
+τ = τref · (B/Bref) · (SL(Tref,pref,φref,fref) + Ct Upref)/(SLsoc + Ct Up)
 Δθcomb = 6 RPM τ
 SOC = 360° − avance + 6 RPM · retraso_ignición
 ```

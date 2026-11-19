@@ -31,6 +31,8 @@ try {
         $summary = (Find-Control 'Summary').Current.Name
     } while (!$summary.Contains('402.12') -and [DateTime]::UtcNow -lt $deadline)
     if (!$summary.Contains('402.12')) { throw "Published 4T calculation failed: $summary" }
+    $modelStatus=(Find-Control 'Status').Current.Name
+    if(!$modelStatus.Contains('four-stroke-isooctane-frozen-v2')) { throw "Published default thermochemical model missing: $modelStatus" }
     Write-Output "PASS published 4T app opens and calculates: $summary"
     $reference = Find-Control 'OttoReferenceButton'
     $reference.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()

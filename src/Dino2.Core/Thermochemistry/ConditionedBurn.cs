@@ -19,7 +19,7 @@ public static class ConditionedBurn
         var settings = c.Thermochemistry ?? throw new ArgumentException("Faltan opciones termoquímicas.");
         if (settings.BurnLaw == BurnLaw.PrescribedWiebe) return c.Combustion.DurationS;
         double phi = Math.Clamp(SpeciesThermodynamics.StoichiometricAfr / c.Combustion.AirFuelRatio, .8, 1);
-        double reference = LaminarSpeed(settings.ReferenceTemperatureK, settings.ReferencePressurePa, phi, settings.ReferenceResidualFraction) +
+        double reference = LaminarSpeed(settings.ReferenceTemperatureK, settings.ReferencePressurePa, settings.ReferenceEquivalenceRatio, settings.ReferenceResidualFraction) +
             settings.TurbulenceToPistonSpeed * settings.ReferenceMeanPistonSpeedMPerS;
         double speed = LaminarSpeed(temperature, pressure, phi, residual) +
             settings.TurbulenceToPistonSpeed * 2 * c.Geometry.StrokeM * rpm / 60;

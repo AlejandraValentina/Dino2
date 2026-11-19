@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Dino2.Core.FourStroke;
+using Dino2.Core.Thermochemistry;
 using Dino2.Storage;
 using Microsoft.Win32;
 
@@ -15,6 +16,8 @@ public partial class FourStrokeWindow : Window
 {
     private readonly Dictionary<string, TextBox> fields = [];
     private FourStrokeConfiguration? original;
+    private FourStrokeConfiguration editorTemplate = ThermochemicalOptions.Example;
+    private EvidenceEditor evidenceEditor = null!;
     private bool populating, dirty, busy;
     private CancellationTokenSource? cancellation;
     private readonly Func<bool>? confirmDiscard;
@@ -44,12 +47,14 @@ public partial class FourStrokeWindow : Window
                 var input = new TextBox { Name = "Field_" + parameter.Key };
                 var label = new Label { Content = new TextBlock { Text = parameter.Label, TextWrapping = TextWrapping.Wrap }, Target = input,
                     Padding = new Thickness(0, 10, 0, 4) };
+                RegisterName("Label_"+parameter.Key,label);
                 RegisterName(input.Name, input);
                 System.Windows.Automation.AutomationProperties.SetName(input, parameter.Label);
                 fields.Add(parameter.Key, input); panel.Children.Add(label); panel.Children.Add(input);
                 input.TextChanged += (_, _) =>
                 {
                     if (populating) return;
+                    evidenceEditor.InvalidateCalibration(parameter.Group);
                     dirty = true; CurrentResult = null;
                     Title = "Dino2 · configuración modificada *";
                     RenderResults();
@@ -59,7 +64,13 @@ public partial class FourStrokeWindow : Window
             ParameterTabs.Items.Add(new TabItem { Header = group.Key, Content = new ScrollViewer
                 { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } });
         }
-        Populate(FourStrokeConfiguration.Example);
+        evidenceEditor = new EvidenceEditor(() =>
+        {
+            if(populating)return;
+            dirty=true;CurrentResult=null;RenderResults();Status.Text="Evidencia modificada; vuelva a simular. La procedencia declarada no certifica validación.";
+        });
+        ParameterTabs.Items.Add(evidenceEditor.Tab);
+        Populate(ThermochemicalOptions.Example);
         Closing += (_, e) =>
         {
             if (busy) { cancellation?.Cancel(); e.Cancel = true; Status.Text = "Cancelando; cierre la ventana cuando termine el cálculo."; }
@@ -70,15 +81,27 @@ public partial class FourStrokeWindow : Window
     private void Populate(FourStrokeConfiguration configuration)
     {
         populating = true;
+        editorTemplate = configuration;
+        PhysicsModel.SelectedIndex = configuration.Thermochemistry is null ? 0 : configuration.Thermochemistry.BurnLaw == BurnLaw.PrescribedWiebe ? 1 : 2;
         foreach (var p in EngineParameter.All) fields[p.Key].Text = (p.Get(configuration) * p.Scale).ToString("R", CultureInfo.InvariantCulture);
+        foreach(var parameter in EngineParameter.All.Where(p=>p.Group=="Comb. v2")) fields[parameter.Key].IsEnabled=configuration.Thermochemistry?.BurnLaw==BurnLaw.ConditionScaledWiebe;
+        void Label(string key,string text)=>((TextBlock)((Label)FindName("Label_"+key)).Content).Text=text;
+        Label("Duration",configuration.Thermochemistry?.BurnLaw==BurnLaw.ConditionScaledWiebe?"Duración de referencia [ms]":"Duración prescrita [ms]");
+        Label("BurnEfficiency",configuration.Thermochemistry is null?"Fracción de energía liberada [0–1]":"Conversión de combustible [0–1]");
+        fields["Lhv"].IsReadOnly=configuration.Thermochemistry is not null;
+        fields["Lhv"].ToolTip=configuration.Thermochemistry is null?"PCI prescrito del modelo de referencia":"PCI del iso-octano gaseoso derivado de entalpías NASA; no se añade de nuevo al balance total.";
+        evidenceEditor.Populate(configuration.Thermochemistry);
+        ModelNotice.Text=configuration.Thermochemistry is null
+            ? "Referencia v1: pseudoaire con cp(T), Wiebe prescrita, depósitos sin ondas y pérdidas empíricas. Sin validación experimental de motor."
+            : "Iso-octano vaporizado y productos congelados: conserva especies y energía química, omite disociación y ondas. Wiebe prescrita o escalada; no predice propagación de llama. Evidencia/calibración declaradas por el usuario; sin validación independiente del motor.";
         populating = false;
         CurrentResult = null;
         RenderResults();
     }
 
-    private FourStrokeConfiguration ReadConfiguration()
+    private FourStrokeConfiguration ReadConfiguration(bool validate = true)
     {
-        var config = FourStrokeConfiguration.Example;
+        var config = editorTemplate;
         foreach (var parameter in EngineParameter.All)
         {
             if (!double.TryParse(fields[parameter.Key].Text.Trim().Replace(',', '.'), NumberStyles.Float,
@@ -88,7 +111,8 @@ public partial class FourStrokeWindow : Window
                 throw new ArgumentException("Se requiere un entero en " + parameter.Label);
             config = parameter.Set(config, value / parameter.Scale);
         }
-        config.Validate();
+        if(config.Thermochemistry is not null) config=config with{Thermochemistry=evidenceEditor.Read(config.Thermochemistry)};
+        if(validate) config.Validate();
         return config;
     }
 
@@ -99,21 +123,21 @@ public partial class FourStrokeWindow : Window
         {
             var config = ReadConfiguration(); // Immutable input captured before leaving the UI thread.
             cancellation = new CancellationTokenSource();
-            busy = true; Commands.IsEnabled = ParameterTabs.IsEnabled = false; CancelButton.IsEnabled = true;
+            busy = true; Commands.IsEnabled = ParameterTabs.IsEnabled = PhysicsModel.IsEnabled = false; CancelButton.IsEnabled = true;
             CurrentResult = null; RenderResults();
             var token = cancellation.Token;
             var progress = new Progress<string>(message => { if (busy && !token.IsCancellationRequested) Status.Text = message; });
             if (original is not null && OriginalResult is null)
-                OriginalResult = await Task.Run(() => FourStrokeSimulator.Run(original, token, progress), token);
-            CurrentResult = await Task.Run(() => FourStrokeSimulator.Run(config, token, progress), token);
+                OriginalResult = await Task.Run(() => EngineSimulation.Run(original, token, progress), token);
+            CurrentResult = await Task.Run(() => EngineSimulation.Run(config, token, progress), token);
             RenderResults();
-            Status.Text = $"{CurrentResult.Points.Count} RPM · {CurrentResult.ElapsedMilliseconds:F0} ms · {FourStrokeResult.ModelId}. Predicción sin validación experimental.";
+            Status.Text = $"{CurrentResult.Points.Count} RPM · {CurrentResult.ElapsedMilliseconds:F0} ms · {CurrentResult.Model}. Sin validación experimental de motor.";
         }
         catch (OperationCanceledException) { Status.Text = "Simulación cancelada. A se conserva; no se publican resultados parciales."; }
         catch (Exception ex) when (Expected(ex)) { Status.Text = "No se completó la simulación: " + ex.Message; }
         finally
         {
-            busy = false; Commands.IsEnabled = ParameterTabs.IsEnabled = true; CancelButton.IsEnabled = false;
+            busy = false; Commands.IsEnabled = ParameterTabs.IsEnabled = PhysicsModel.IsEnabled = true; CancelButton.IsEnabled = false;
             cancellation?.Dispose(); cancellation = null;
             RenderResults();
             KeepOriginalButton.IsEnabled = ExportButton.IsEnabled = CurrentResult is not null;
@@ -121,6 +145,33 @@ public partial class FourStrokeWindow : Window
     }
     private async void Simulate_Click(object sender, RoutedEventArgs e) => await SimulateAsync();
     private void Cancel_Click(object sender, RoutedEventArgs e) => cancellation?.Cancel();
+
+    private void PhysicsModel_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if(populating || evidenceEditor is null || PhysicsModel.SelectedIndex<0) return;
+        try
+        {
+            var config=ReadConfiguration(false);
+            if(PhysicsModel.SelectedIndex==0) config=config with{Thermochemistry=null};
+            else
+            {
+                bool wasLegacy=config.Thermochemistry is null;
+                var settings=config.Thermochemistry??ThermochemicalOptions.Default;
+                settings=settings with{BurnLaw=PhysicsModel.SelectedIndex==1?BurnLaw.PrescribedWiebe:BurnLaw.ConditionScaledWiebe,
+                    CombustionEvidence=settings.CombustionEvidence with{Status=EvidenceStatus.Estimated}};
+                config=config with{Thermochemistry=settings,Combustion=config.Combustion with{
+                    LowerHeatingValueJPerKg=SpeciesThermodynamics.LowerHeatingValue,
+                    AirFuelRatio=wasLegacy?SpeciesThermodynamics.StoichiometricAfr:config.Combustion.AirFuelRatio}};
+            }
+            Populate(config);dirty=true;Title="Dino2 · modelo modificado *";
+            Status.Text="Modelo cambiado. Al activar iso-octano desde v1 se fijan AFR estequiométrico y PCI NASA. Revise entradas y evidencia; A se conserva.";
+        }
+        catch(Exception ex) when(Expected(ex))
+        {
+            populating=true;PhysicsModel.SelectedIndex=editorTemplate.Thermochemistry is null?0:editorTemplate.Thermochemistry.BurnLaw==BurnLaw.PrescribedWiebe?1:2;populating=false;
+            Status.Text="No se cambió el modelo: "+ex.Message;
+        }
+    }
 
     internal void KeepOriginal()
     {
@@ -161,13 +212,16 @@ public partial class FourStrokeWindow : Window
         var r = CurrentResult;
         Summary.Text = r is null ? (OriginalResult is null ? "Sin simulación para la configuración actual." : "Original A conservado. La configuración actual requiere simulación.") :
             FormattableString.Invariant($"{r.Configuration.Geometry.DisplacementM3 * 1e6:F2} cm³ · {r.Points.Count} RPM · {r.ElapsedMilliseconds:F0} ms · Pico {r.Points.Max(p => p.PeakTemperatureK):F0} K. A mayor temperatura, mayor incertidumbre por química omitida.");
+        if(r?.Configuration.Thermochemistry is not null)
+            Summary.Text+=$" Correlación extrapolada en {r.Points.Count(p=>p.Chemistry!.FlameCorrelationExtrapolated)} de {r.Points.Count} regímenes; revisar diagnósticos.";
         ResultGrid.ItemsSource = r?.Points.Select(p => new { p.Rpm, Pi_kW = p.IndicatedPowerW / 1000, Pb_kW = p.BrakePowerW / 1000,
             Ti_Nm = p.IndicatedTorqueNm, Tb_Nm = p.BrakeTorqueNm, BMEP_bar = p.BmepPa / 1e5, VE = p.VolumetricEfficiency, p.Cycles }).ToArray();
         var comparison = OriginalResult is not null && r is not null ? EngineComparison.Compare(OriginalResult, r) : null;
         ComparisonGrid.ItemsSource = comparison?.Select(p => new { p.Rpm, A_kW = p.OriginalBrakePowerW / 1000, B_kW = p.VariantBrakePowerW / 1000,
             Delta_kW = p.PowerDifferenceW / 1000, A_Nm = p.OriginalBrakeTorqueNm, B_Nm = p.VariantBrakeTorqueNm, Delta_Nm = p.TorqueDifferenceNm }).ToArray();
         ComparisonNotice.Text = comparison is null ? "Conserve A, modifique un parámetro y vuelva a simular. El original no cambia al editar." :
-            $"B − A: positivo = gana, negativo = pierde. {comparison.Count} RPM comunes exactas; sin interpolación. Se comparan estimaciones al cigüeñal.";
+            $"B − A: {comparison.Count} RPM comunes exactas; sin interpolación. Se comparan estimaciones al cigüeñal. " +
+            (comparison is not null && OriginalResult!.Model!=r!.Model?"A/B usan modelos diferentes: no atribuya la diferencia a una modificación mecánica.":"Positivo = aumenta, negativo = disminuye en el modelo; no demuestra una ganancia experimental.");
         TraceRpm.ItemsSource = r?.Points.Select(p => p.Rpm).ToArray();
         if (r is not null) TraceRpm.SelectedItem = r.Points.Any(p => p.Rpm == 3000) ? 3000 : r.Points[0].Rpm;
         else { PressureChart.SetLines([]); PvChart.SetLines([]); CycleDiagnostics.Text = ""; }
@@ -177,6 +231,7 @@ public partial class FourStrokeWindow : Window
     private static string BuildDiagnostics(FourStrokeResult? r)
     {
         if (r is null) return "Sin resultados actuales. La referencia A, si existe, se conserva por separado.";
+        if(r.Configuration.Thermochemistry is not null) return ReactiveDiagnosticText.Build(r);
         var text = new StringBuilder();
         text.AppendLine("MODELO: " + FourStrokeResult.ModelId);
         text.AppendLine("0° = PMS de intercambio; combustión alrededor de 360°. Admisión 0–180°, compresión 180–360°, expansión 360–540°, escape 540–720°.");
@@ -215,7 +270,7 @@ public partial class FourStrokeWindow : Window
     private void Example_Click(object sender, RoutedEventArgs e)
     {
         if (!ConfirmDiscard()) return;
-        original = null; OriginalResult = null; Populate(FourStrokeConfiguration.Example); dirty = false;
+        original = null; OriginalResult = null; Populate(ThermochemicalOptions.Example); dirty = false;
         Title = "Dino2 · ejemplo 4T"; Status.Text = "Caso sintético cargado. Pulse Simular.";
     }
     private void Open_Click(object sender, RoutedEventArgs e) => Guard(() =>

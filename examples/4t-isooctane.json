@@ -88,7 +88,8 @@
           "source": "Chen-Flynn; coeficientes transferidos MVM2012-026; D con incertidumbre dimensional de origen",
           "calibrationDataset": "",
           "applicableRange": "Sin ensayos de fricci\u00F3n del motor objetivo"
-        }
+        },
+        "referenceEquivalenceRatio": 1
       }
     },
     "original": null

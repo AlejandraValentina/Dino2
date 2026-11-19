@@ -15,7 +15,7 @@ public sealed class ScientificPlot : FrameworkElement
     private double xMin, xMax, yMin, yMax;
     public ScientificPlot()
     {
-        MinHeight = 160;
+        MinHeight = 140;
         MouseMove += Inspect;
         MouseLeave += (_, _) => ToolTip = null;
     }

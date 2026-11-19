@@ -76,6 +76,8 @@ Test("Laminar correlation and conditioned duration respond to temperature, press
     Assert(ConditionedBurn.LaminarSpeed(600,3e6,1,.05)<speed, "Pressure trend wrong");
     Assert(ConditionedBurn.LaminarSpeed(600,2e6,1,.1)<speed, "Dilution trend wrong");
     Assert(ConditionedBurn.DurationSeconds(c,6000,600,2e6,.05)<ConditionedBurn.DurationSeconds(c,3000,600,2e6,.05), "No RPM dependence of burn duration");
+    Assert(ConditionedBurn.DurationSeconds(c with{Combustion=c.Combustion with{AirFuelRatio=SpeciesThermodynamics.StoichiometricAfr/.8}},3000,600,2e6,.05)>
+        ConditionedBurn.DurationSeconds(c,3000,600,2e6,.05),"Reference normalization canceled the lean-mixture flame-speed response");
     double[] phi = [.8,1,1.2], measured = [.1925,.2700,.2763];
     Save("published-correlation-reproduction.json", phi.Select((f,i)=>new { phi=f, publishedFitReferenceSpeed=measured[i], implementedCorrelationSpeed=ConditionedBurn.LaminarSpeed(298,101325,f,0),
         note="Same-paper fitted data, NOT independent engine validation" }).ToArray());
@@ -174,7 +176,9 @@ Test("Reproducible reference-v1, frozen-v2 and conditioned-v2 comparisons and se
         ("lift4mm",c with{IntakeValve=c.IntakeValve with{MaximumLiftM=.004}}),
         ("ivc260",c with{IntakeValve=c.IntakeValve with{ClosesDeg=260}}),
         ("intake80kPa",c with{Intake=c.Intake with{PressurePa=80000}}),
-        ("exhaust125kPa",c with{Exhaust=c.Exhaust with{PressurePa=125000}})];
+        ("exhaust125kPa",c with{Exhaust=c.Exhaust with{PressurePa=125000}}),
+        ("intake300K",c with{Intake=c.Intake with{TemperatureK=300}}),
+        ("exhaust900K",c with{Exhaust=c.Exhaust with{TemperatureK=900}})];
     var study=new List<object>();
     var sensitivityConvergence=new List<object>();
     var fineBase=EngineSimulation.Run(c with{Speeds=new(3500,3500,1),Solver=c.Solver with{MaximumStepDeg=.25,RelativeTolerance=2e-8}}).Points[0];
@@ -184,7 +188,8 @@ Test("Reproducible reference-v1, frozen-v2 and conditioned-v2 comparisons and se
         foreach(var p in result.Points)
         {
             var a=reactive.Points.Single(q=>q.Rpm==p.Rpm);
-            Assert(Math.Abs(p.BrakePowerW-a.BrakePowerW)>1,"Modification has no represented effect: "+name);
+            // Downstream exhaust temperature need not affect a cycle without reverse flow.
+            if(name!="exhaust900K") Assert(Math.Abs(p.BrakePowerW-a.BrakePowerW)>1,"Modification has no represented effect: "+name);
             Near(p.Chemistry!.MaximumElementResidualKg,0,1e-12); Near(p.EnergyResidualJ,0,1e-7);
             study.Add(new{name,p.Rpm,p.IndicatedPowerW,p.BrakePowerW,p.BrakeTorqueNm,p.PeakTemperatureK,p.VolumetricEfficiency,deltaBrakeW=p.BrakePowerW-a.BrakePowerW,p.Chemistry});
         }

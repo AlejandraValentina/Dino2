@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Dino2.Desktop;
 using Dino2.Storage;
+using Dino2.Core.Thermochemistry;
 
 namespace Dino2.Desktop.Tests;
 
@@ -43,6 +44,8 @@ internal static class FourStrokeSmoke
             Assert(!((TabControl)window.FindName("ParameterTabs")).IsEnabled, "Inputs disabled during background calculation");
             await pending;
             Assert(window.CurrentResult?.Points.Count == 3, "3 RPM simulated off the UI thread");
+            Assert(window.CurrentResult!.Model==ThermochemicalOptions.ModelId&&window.CurrentResult.Points.All(p=>p.Chemistry is not null),"Default model includes species and chemical-energy diagnostics");
+            Assert(Field("Lhv").IsReadOnly,"Reactive heating value is derived, not an independent heat input");
             var a = window.CurrentResult!;
             window.KeepOriginal();
             Field("IntakeLift").Text = "4,0";
@@ -75,6 +78,19 @@ internal static class FourStrokeSmoke
             FourStrokeFiles.Export(Path.Combine(output, "4t-ui.csv"), window.CurrentResult!);
             FourStrokeFiles.ExportComparison(Path.Combine(output, "4t-ui.comparison.csv"), window.OriginalResult!, window.CurrentResult!);
             window.Width = 1080; window.Height = 750; Capture("4t-minimum.png");
+            window.Width=1350;window.Height=900;
+            var savedOriginal=window.OriginalResult;
+            ((ComboBox)window.FindName("PhysicsModel")).SelectedIndex=0;
+            await window.SimulateAsync();
+            Assert(window.CurrentResult!.Model!=window.OriginalResult!.Model&&ReferenceEquals(window.OriginalResult,savedOriginal),
+                "Reference v1 remains selectable while preserving saved original A");
+            Assert(((TextBlock)window.FindName("ComparisonNotice")).Text.Contains("modelos diferentes"),"Cross-model A/B cannot masquerade as a mechanical gain");
+            ((ComboBox)window.FindName("PhysicsModel")).SelectedIndex=1;
+            await window.SimulateAsync();
+            Assert(window.CurrentResult!.Configuration.Thermochemistry!.BurnLaw==BurnLaw.PrescribedWiebe,"Frozen species model supports prescribed reference combustion");
+            window.LoadFrom(file);await window.SimulateAsync();
+            var parameterTabs=(TabControl)window.FindName("ParameterTabs");parameterTabs.SelectedIndex=parameterTabs.Items.Count-1;
+            Capture("stage2-evidence.png");parameterTabs.SelectedIndex=0;
             window.SaveTo(file);
             Console.WriteLine($"{count}/{count} 4T desktop checks passed.");
         }

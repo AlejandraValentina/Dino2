@@ -11,6 +11,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Physics/storage checks failed' }
     & $dotnetExe run --project tests/Dino2.FourStroke.Tests -c Release --no-build
     if ($LASTEXITCODE -ne 0) { throw '4T physical/numerical checks failed' }
+    & $dotnetExe run --project tests/Dino2.Reactive.Tests -c Release --no-build
+    if ($LASTEXITCODE -ne 0) { throw 'Reactive species/energy/convergence checks failed' }
     if (!$SkipDesktop) {
         & $dotnetExe run --project tests/Dino2.Desktop.Tests -c Release --no-build
         if ($LASTEXITCODE -ne 0) { throw 'Desktop checks failed' }
