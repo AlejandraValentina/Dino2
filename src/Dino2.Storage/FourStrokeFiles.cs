@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Dino2.Core.FourStroke;
+using Dino2.Core.Thermochemistry;
 
 namespace Dino2.Storage;
 
@@ -15,9 +16,11 @@ public static class FourStrokeFiles
     {
         WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         RespectRequiredConstructorParameters = true, UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-        IgnoreReadOnlyProperties = true
+        IgnoreReadOnlyProperties = true,
+        Converters = { new JsonStringEnumConverter() }
     };
     private static readonly JsonSerializerOptions FlatOptions = new(Options) { WriteIndented = false };
+    private static readonly JsonSerializerOptions DiagnosticOptions = new(FlatOptions) { IgnoreReadOnlyProperties = false };
     public static void Save(string path, FourStrokeProject project)
     {
         project.Current.Validate(); project.Original?.Validate();
@@ -26,7 +29,8 @@ public static class FourStrokeFiles
         {
             using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write))
             {
-                JsonSerializer.Serialize(stream, new Document(1, FourStrokeResult.ModelId, project), Options);
+                string model = project.Current.Thermochemistry is not null || project.Original?.Thermochemistry is not null ? ThermochemicalOptions.ModelId : FourStrokeResult.ModelId;
+                JsonSerializer.Serialize(stream, new Document(1, model, project), Options);
                 stream.Flush(true);
             }
             File.Move(temporary, destination, true);
@@ -38,16 +42,24 @@ public static class FourStrokeFiles
         using var stream = File.OpenRead(path);
         var document = JsonSerializer.Deserialize<Document>(stream, Options)
             ?? throw new InvalidDataException("Archivo 4T vacío.");
-        if (document.SchemaVersion != 1 || document.Model != FourStrokeResult.ModelId || document.Project?.Current is null)
+        if (document.SchemaVersion != 1 || (document.Model != FourStrokeResult.ModelId && document.Model != ThermochemicalOptions.ModelId) || document.Project?.Current is null)
             throw new InvalidDataException("Modelo, versión o proyecto 4T incompatible.");
+        bool reactive = document.Project.Current.Thermochemistry is not null || document.Project.Original?.Thermochemistry is not null;
+        if (reactive != (document.Model == ThermochemicalOptions.ModelId)) throw new InvalidDataException("El modelo declarado no coincide con las opciones termoquímicas.");
         document.Project.Current.Validate(); document.Project.Original?.Validate();
         return document.Project;
     }
     private static string Number(double value) => double.IsFinite(value) ? value.ToString("R", CultureInfo.InvariantCulture) : "NA";
     private static void Metadata(StringBuilder text, FourStrokeResult result)
     {
-        text.AppendLine("# model=" + FourStrokeResult.ModelId);
-        text.AppendLine("# evidence=model prediction; pseudo-air 0D; prescribed Wiebe; Hohenberg; empirical friction requires calibration; no experimental validation; input measurements not certified");
+        string expected=result.Configuration.Thermochemistry is null?FourStrokeResult.ModelId:ThermochemicalOptions.ModelId;
+        if(result.Model!=expected)throw new InvalidDataException("El resultado y la configuración declaran modelos diferentes.");
+        text.AppendLine("# model=" + result.Model);
+        text.AppendLine(result.Configuration.Thermochemistry is null
+            ? "# evidence=model prediction; pseudo-air 0D; prescribed Wiebe; Hohenberg; empirical friction requires calibration; no experimental validation; input measurements not certified"
+            : "# evidence=five-species frozen products; total energy includes formation enthalpy; semiempirical burn law; no experimental engine validation; parameter provenance is user declared");
+        if (result.Configuration.Thermochemistry is not null)
+            text.AppendLine("# chemical_energy=internal_energy_J and flow_enthalpy_J include formation energies; heat_released_J is diagnostic ONLY, never add it to the total-energy balance");
         text.AppendLine("# configuration_SI=" + JsonSerializer.Serialize(result.Configuration, FlatOptions));
         text.AppendLine("# units=SI; angle in degrees; NA=undefined (e.g. efficiency with zero fuel energy)");
     }
@@ -61,6 +73,8 @@ public static class FourStrokeFiles
                 p.GrossWorkJ, p.PumpingWorkJ, p.NetWorkJ, p.FrictionWorkJ, p.PeakPressurePa, p.PeakTemperatureK,
                 p.HeatReleasedJ, p.WallHeatJ, p.FlowEnthalpyJ, p.MassResidualKg, p.EnergyResidualJ, p.PeriodicError,
                 p.Cycles, p.AcceptedSteps, p.RejectedSteps, p.RhsEvaluations, p.ElapsedMilliseconds }.Select(Number)));
+        foreach (var p in result.Points.Where(p => p.Chemistry is not null))
+            text.AppendLine("# chemistry_diagnostics=" + JsonSerializer.Serialize(new { p.Rpm, p.Chemistry }, DiagnosticOptions));
         File.WriteAllText(path, text.ToString(), new UTF8Encoding(false));
     }
     public static void ExportTrace(string path, FourStrokeResult result, int rpm)
@@ -68,17 +82,21 @@ public static class FourStrokeFiles
         var p = result.Points.Single(p => p.Rpm == rpm);
         var text = new StringBuilder(); Metadata(text, result);
         text.AppendLine("# rpm=" + rpm);
-        text.AppendLine("angle_deg,volume_m3,mass_kg,temperature_K,pressure_Pa,fresh_mass_kg,intake_lift_m,exhaust_lift_m,intake_flow_kg_s,exhaust_flow_kg_s,internal_energy_J,work_J,heat_released_J,wall_heat_J,flow_enthalpy_J");
+        bool reactive = result.Configuration.Thermochemistry is not null;
+        text.AppendLine("angle_deg,volume_m3,mass_kg,temperature_K,pressure_Pa,fresh_mass_kg,intake_lift_m,exhaust_lift_m,intake_flow_kg_s,exhaust_flow_kg_s,internal_energy_J,work_J,heat_released_J,wall_heat_J,flow_enthalpy_J" +
+            (reactive ? ",fuel_kg,oxygen_kg,nitrogen_kg,carbon_dioxide_kg,water_kg" : ""));
         foreach (var s in p.Trace)
             text.AppendLine(string.Join(",", new double[] { s.AngleDeg, s.VolumeM3, s.MassKg, s.TemperatureK, s.PressurePa,
                 s.FreshMassKg, s.IntakeLiftM, s.ExhaustLiftM, s.IntakeFlowKgPerS, s.ExhaustFlowKgPerS,
-                s.InternalEnergyJ, s.WorkJ, s.HeatReleasedJ, s.WallHeatJ, s.FlowEnthalpyJ }.Select(Number)));
+                s.InternalEnergyJ, s.WorkJ, s.HeatReleasedJ, s.WallHeatJ, s.FlowEnthalpyJ }.Select(Number)) +
+                (reactive ? "," + string.Join(",", s.Composition.ToArray().Select(Number)) : ""));
         File.WriteAllText(path, text.ToString(), new UTF8Encoding(false));
     }
     public static void ExportComparison(string path, FourStrokeResult original, FourStrokeResult variant)
     {
         var text = new StringBuilder(); Metadata(text, variant);
         text.AppendLine("# original_configuration_SI=" + JsonSerializer.Serialize(original.Configuration, FlatOptions));
+        text.AppendLine("# original_model="+original.Model);
         text.AppendLine("# exact common RPM only; no interpolation; difference=B-A");
         text.AppendLine("rpm,original_brake_power_W,variant_brake_power_W,power_difference_W,original_brake_torque_Nm,variant_brake_torque_Nm,torque_difference_Nm");
         foreach (var p in EngineComparison.Compare(original, variant))

@@ -36,7 +36,7 @@ public sealed record SolverSettings(double MaximumStepDeg, double RelativeTolera
 public sealed record FourStrokeConfiguration(CylinderGeometry Geometry,
     Reservoir Intake, Reservoir Exhaust, PoppetValve IntakeValve, PoppetValve ExhaustValve,
     Combustion Combustion, ThermalBoundary Thermal, MechanicalLosses Friction,
-    RpmRange Speeds, SolverSettings Solver)
+    RpmRange Speeds, SolverSettings Solver, Thermochemistry.ThermochemicalOptions? Thermochemistry = null)
 {
     public static FourStrokeConfiguration Example => new(
         new(.08, .08, .135, 10), new(100000, 320), new(105000, 800),
@@ -88,10 +88,12 @@ public sealed record FourStrokeConfiguration(CylinderGeometry Geometry,
         Range(Solver.PeriodicTolerance, 1e-9, 1e-3, "Tolerancia periódica relativa");
         if (Solver.MaximumCycles < 3 || Solver.MaximumCycles > 200) throw new ArgumentException("Máximo de ciclos entre 3 y 200.");
         Speeds.Validate();
+        Thermochemistry?.Validate(this);
         foreach (int rpm in Speeds.Values())
         {
             var start = 360 - Combustion.SparkAdvanceDeg + 6 * rpm * Combustion.IgnitionDelayS;
-            if (start <= IntakeValve.ClosesDeg || start + 6 * rpm * Combustion.DurationS >= ExhaustValve.OpensDeg)
+            if (start <= IntakeValve.ClosesDeg || start >= ExhaustValve.OpensDeg ||
+                ((Thermochemistry is null || Thermochemistry.BurnLaw == Core.Thermochemistry.BurnLaw.PrescribedWiebe) && start + 6 * rpm * Combustion.DurationS >= ExhaustValve.OpensDeg))
                 throw new ArgumentException($"A {rpm} RPM la combustión sale del intervalo con válvulas cerradas. Revise avance, duración y distribución.");
         }
     }

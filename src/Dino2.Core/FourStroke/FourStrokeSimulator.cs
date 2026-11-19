@@ -9,6 +9,7 @@ public static class FourStrokeSimulator
         IProgress<string>? progress = null)
     {
         configuration.Validate();
+        if(configuration.Thermochemistry is not null) throw new ArgumentException("Use EngineSimulation para opciones termoquímicas; FourStrokeSimulator conserva la referencia de pseudoaire.");
         var clock = Stopwatch.StartNew();
         var results = new List<FourStrokePoint>();
         foreach (int rpm in configuration.Speeds.Values())
@@ -22,6 +23,7 @@ public static class FourStrokeSimulator
     public static FourStrokePoint Simulate(FourStrokeConfiguration c, int rpm, CancellationToken cancellation = default)
     {
         c.Validate();
+        if(c.Thermochemistry is not null) throw new ArgumentException("El solver de referencia no admite opciones termoquímicas.");
         if (!c.Speeds.Values().Contains(rpm)) throw new ArgumentException("RPM fuera de la malla configurada.");
         var clock = Stopwatch.StartNew();
         var equations = new CylinderEquations(c, rpm);

@@ -3,7 +3,10 @@ namespace Dino2.Core.FourStroke;
 public readonly record struct CycleSample(double AngleDeg, double VolumeM3, double MassKg, double TemperatureK,
     double PressurePa, double FreshMassKg, double IntakeLiftM, double ExhaustLiftM,
     double IntakeFlowKgPerS, double ExhaustFlowKgPerS, double InternalEnergyJ, double WorkJ,
-    double HeatReleasedJ, double WallHeatJ, double FlowEnthalpyJ);
+    double HeatReleasedJ, double WallHeatJ, double FlowEnthalpyJ)
+{
+    public Thermochemistry.SpeciesMasses Composition { get; init; }
+}
 
 public sealed record FourStrokePoint(int Rpm, double IndicatedPowerW, double BrakePowerW,
     double IndicatedTorqueNm, double BrakeTorqueNm, double GrossWorkJ, double PumpingWorkJ,
@@ -12,12 +15,16 @@ public sealed record FourStrokePoint(int Rpm, double IndicatedPowerW, double Bra
     double PeakPressurePa, double PeakTemperatureK, double HeatReleasedJ, double WallHeatJ,
     double FlowEnthalpyJ, double MassResidualKg, double EnergyResidualJ, double PeriodicError,
     int Cycles, int AcceptedSteps, int RejectedSteps, int RhsEvaluations, double ElapsedMilliseconds,
-    IReadOnlyList<CycleSample> Trace);
+    IReadOnlyList<CycleSample> Trace)
+{
+    public Thermochemistry.ReactiveDiagnostics? Chemistry { get; init; }
+}
 
 public sealed record FourStrokeResult(FourStrokeConfiguration Configuration,
     IReadOnlyList<FourStrokePoint> Points, double ElapsedMilliseconds)
 {
     public const string ModelId = "four-stroke-0d-air-v1";
+    public string Model { get; init; } = ModelId;
 }
 
 public sealed record ComparisonPoint(int Rpm, double OriginalBrakePowerW, double VariantBrakePowerW,

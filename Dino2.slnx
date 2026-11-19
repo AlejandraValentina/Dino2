@@ -8,6 +8,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Dino2.Desktop.Tests/Dino2.Desktop.Tests.csproj" />
     <Project Path="tests/Dino2.FourStroke.Tests/Dino2.FourStroke.Tests.csproj" />
+    <Project Path="tests/Dino2.Reactive.Tests/Dino2.Reactive.Tests.csproj" />
     <Project Path="tests/Dino2.Tests/Dino2.Tests.csproj" />
   </Folder>
 </Solution>
