@@ -44,7 +44,7 @@ internal static class FourStrokeSmoke
             Assert(!((TabControl)window.FindName("ParameterTabs")).IsEnabled, "Inputs disabled during background calculation");
             await pending;
             Assert(window.CurrentResult?.Points.Count == 3, "3 RPM simulated off the UI thread");
-            Assert(window.CurrentResult!.Model==ThermochemicalOptions.ModelId&&window.CurrentResult.Points.All(p=>p.Chemistry is not null),"Default model includes species and chemical-energy diagnostics");
+            Assert(window.CurrentResult!.Model==ThermochemicalOptions.EquilibriumModelId&&window.CurrentResult.Points.All(p=>p.Chemistry is not null),"Default model includes species and chemical-energy diagnostics");
             Assert(Field("Lhv").IsReadOnly,"Reactive heating value is derived, not an independent heat input");
             var a = window.CurrentResult!;
             window.KeepOriginal();
@@ -87,7 +87,7 @@ internal static class FourStrokeSmoke
             Assert(((TextBlock)window.FindName("ComparisonNotice")).Text.Contains("modelos diferentes"),"Cross-model A/B cannot masquerade as a mechanical gain");
             ((ComboBox)window.FindName("PhysicsModel")).SelectedIndex=1;
             await window.SimulateAsync();
-            Assert(window.CurrentResult!.Configuration.Thermochemistry!.BurnLaw==BurnLaw.PrescribedWiebe,"Frozen species model supports prescribed reference combustion");
+            Assert(window.CurrentResult!.Model == ThermochemicalOptions.ModelId && window.CurrentResult.Configuration.Thermochemistry!.BurnLaw==BurnLaw.PrescribedWiebe,"Frozen species model supports prescribed reference combustion");
             window.LoadFrom(file);await window.SimulateAsync();
             var parameterTabs=(TabControl)window.FindName("ParameterTabs");parameterTabs.SelectedIndex=parameterTabs.Items.Count-1;
             Capture("stage2-evidence.png");parameterTabs.SelectedIndex=0;

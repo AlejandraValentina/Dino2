@@ -16,7 +16,7 @@ public partial class FourStrokeWindow : Window
 {
     private readonly Dictionary<string, TextBox> fields = [];
     private FourStrokeConfiguration? original;
-    private FourStrokeConfiguration editorTemplate = ThermochemicalOptions.Example;
+    private FourStrokeConfiguration editorTemplate = ThermochemicalOptions.EquilibriumExample;
     private EvidenceEditor evidenceEditor = null!;
     private bool populating, dirty, busy;
     private CancellationTokenSource? cancellation;
@@ -70,7 +70,7 @@ public partial class FourStrokeWindow : Window
             dirty=true;CurrentResult=null;RenderResults();Status.Text="Evidencia modificada; vuelva a simular. La procedencia declarada no certifica validación.";
         });
         ParameterTabs.Items.Add(evidenceEditor.Tab);
-        Populate(ThermochemicalOptions.Example);
+        Populate(ThermochemicalOptions.EquilibriumExample);
         Closing += (_, e) =>
         {
             if (busy) { cancellation?.Cancel(); e.Cancel = true; Status.Text = "Cancelando; cierre la ventana cuando termine el cálculo."; }
@@ -78,11 +78,20 @@ public partial class FourStrokeWindow : Window
         };
     }
 
+    private static int ModelIndex(ThermochemicalOptions? options) => options switch
+    {
+        null => 0,
+        { UsesEquilibrium: true, BurnLaw: BurnLaw.PrescribedWiebe } => 4,
+        { UsesEquilibrium: true } => 3,
+        { BurnLaw: BurnLaw.PrescribedWiebe } => 1,
+        _ => 2
+    };
+
     private void Populate(FourStrokeConfiguration configuration)
     {
         populating = true;
         editorTemplate = configuration;
-        PhysicsModel.SelectedIndex = configuration.Thermochemistry is null ? 0 : configuration.Thermochemistry.BurnLaw == BurnLaw.PrescribedWiebe ? 1 : 2;
+        PhysicsModel.SelectedIndex = ModelIndex(configuration.Thermochemistry);
         foreach (var p in EngineParameter.All) fields[p.Key].Text = (p.Get(configuration) * p.Scale).ToString("R", CultureInfo.InvariantCulture);
         foreach(var parameter in EngineParameter.All.Where(p=>p.Group=="Comb. v2")) fields[parameter.Key].IsEnabled=configuration.Thermochemistry?.BurnLaw==BurnLaw.ConditionScaledWiebe;
         void Label(string key,string text)=>((TextBlock)((Label)FindName("Label_"+key)).Content).Text=text;
@@ -93,7 +102,9 @@ public partial class FourStrokeWindow : Window
         evidenceEditor.Populate(configuration.Thermochemistry);
         ModelNotice.Text=configuration.Thermochemistry is null
             ? "Referencia v1: pseudoaire con cp(T), Wiebe prescrita, depósitos sin ondas y pérdidas empíricas. Sin validación experimental de motor."
-            : "Iso-octano vaporizado y productos congelados: conserva especies y energía química, omite disociación y ondas. Wiebe prescrita o escalada; no predice propagación de llama. Evidencia/calibración declaradas por el usuario; sin validación independiente del motor.";
+            : configuration.Thermochemistry.UsesEquilibrium
+                ? "Iso-octano vaporizado. Equilibrio reducido CO/H₂ durante combustión y expansión cerrada; composición congelada desde apertura de escape. Wiebe y pérdidas requieren identificación. Sin validación experimental de motor."
+                : "Iso-octano vaporizado y productos congelados: conserva especies y energía química, omite disociación y ondas. Wiebe prescrita o escalada; no predice propagación de llama. Evidencia/calibración declaradas por el usuario; sin validación independiente del motor.";
         populating = false;
         CurrentResult = null;
         RenderResults();
@@ -157,8 +168,11 @@ public partial class FourStrokeWindow : Window
             {
                 bool wasLegacy=config.Thermochemistry is null;
                 var settings=config.Thermochemistry??ThermochemicalOptions.Default;
-                settings=settings with{BurnLaw=PhysicsModel.SelectedIndex==1?BurnLaw.PrescribedWiebe:BurnLaw.ConditionScaledWiebe,
-                    CombustionEvidence=settings.CombustionEvidence with{Status=EvidenceStatus.Estimated}};
+                settings=settings with{BurnLaw=PhysicsModel.SelectedIndex is 1 or 4 ? BurnLaw.PrescribedWiebe : BurnLaw.ConditionScaledWiebe,
+                    Products=PhysicsModel.SelectedIndex >= 3 ? ProductChemistry.ClosedCycleEquilibrium : ProductChemistry.Frozen,
+                    CombustionEvidence=settings.CombustionEvidence with{Status=EvidenceStatus.Estimated},
+                    HeatTransferEvidence=settings.HeatTransferEvidence with{Status=EvidenceStatus.Estimated},
+                    FrictionEvidence=settings.FrictionEvidence with{Status=EvidenceStatus.Estimated}};
                 config=config with{Thermochemistry=settings,Combustion=config.Combustion with{
                     LowerHeatingValueJPerKg=SpeciesThermodynamics.LowerHeatingValue,
                     AirFuelRatio=wasLegacy?SpeciesThermodynamics.StoichiometricAfr:config.Combustion.AirFuelRatio}};
@@ -168,7 +182,7 @@ public partial class FourStrokeWindow : Window
         }
         catch(Exception ex) when(Expected(ex))
         {
-            populating=true;PhysicsModel.SelectedIndex=editorTemplate.Thermochemistry is null?0:editorTemplate.Thermochemistry.BurnLaw==BurnLaw.PrescribedWiebe?1:2;populating=false;
+            populating=true;PhysicsModel.SelectedIndex=ModelIndex(editorTemplate.Thermochemistry);populating=false;
             Status.Text="No se cambió el modelo: "+ex.Message;
         }
     }
@@ -270,7 +284,7 @@ public partial class FourStrokeWindow : Window
     private void Example_Click(object sender, RoutedEventArgs e)
     {
         if (!ConfirmDiscard()) return;
-        original = null; OriginalResult = null; Populate(ThermochemicalOptions.Example); dirty = false;
+        original = null; OriginalResult = null; Populate(ThermochemicalOptions.EquilibriumExample); dirty = false;
         Title = "Dino2 · ejemplo 4T"; Status.Text = "Caso sintético cargado. Pulse Simular.";
     }
     private void Open_Click(object sender, RoutedEventArgs e) => Guard(() =>

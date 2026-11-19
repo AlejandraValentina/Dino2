@@ -11,9 +11,14 @@ if (args.Length is < 2 or > 4)
 }
 try
 {
-    if ((args[0] == "--example-4t" || args[0] == "--example-reactive") && args.Length == 2)
+    if ((args[0] == "--example-4t" || args[0] == "--example-reactive" || args[0] == "--example-equilibrium") && args.Length == 2)
     {
-        FourStrokeFiles.Save(args[1], new(args[0] == "--example-reactive" ? ThermochemicalOptions.Example : FourStrokeConfiguration.Example, null));
+        FourStrokeFiles.Save(args[1], new(args[0] switch
+        {
+            "--example-equilibrium" => ThermochemicalOptions.EquilibriumExample,
+            "--example-reactive" => ThermochemicalOptions.Example,
+            _ => FourStrokeConfiguration.Example
+        }, null));
         return 0;
     }
     if (args[0] == "--4t" && args.Length >= 3)

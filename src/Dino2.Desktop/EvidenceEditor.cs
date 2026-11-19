@@ -60,13 +60,15 @@ internal static class ReactiveDiagnosticText
     {
         var text=new System.Text.StringBuilder(); var o=r.Configuration.Thermochemistry!;
         text.AppendLine("MODELO: "+r.Model);
-        text.AppendLine("Iso-octano gaseoso + O2 + N2 → CO2 + H2O; productos congelados, sin disociación. cp(T), entalpías de formación y R de mezcla variable. No representa evaporación ni mezclas ricas.");
+        text.AppendLine(o.UsesEquilibrium
+            ? "Siete especies. Equilibrio UV de CO₂/CO y H₂O/H₂ desde el inicio de combustión hasta la apertura de escape. Fuera de ese tramo se transporta composición congelada. Sin predicción de NOx ni CO de escape."
+            : "Iso-octano gaseoso + O2 + N2 → CO2 + H2O; productos congelados, sin disociación. cp(T), entalpías de formación y R de mezcla variable. No representa evaporación ni mezclas ricas.");
         text.AppendLine("ENERGÍA TOTAL: ΔU = Hflujo − Qpared − W. U y h incluyen energía química. La energía química convertida es un diagnóstico; NO se suma otra vez como calor al balance total.");
         text.AppendLine("Combustión: "+o.BurnLaw+". La duración escalada usa condiciones al inicio de combustión y una aproximación de turbulencia. No es un solver de propagación de llama ni predice detonación.");
         text.AppendLine("Pi neta ya incluye bombeo; Pb resta FMEP. VE usa aire fresco retenido al cierre de admisión y densidad del aire seco del depósito. Las eficiencias usan combustible neto admitido, incluida su energía química. No se recortan pérdidas ni potencias negativas.");
         void Evidence(string name,ParameterEvidence e)=>text.AppendLine($"\n{name}: {e.Status} (declaración del usuario)\nFuente: {e.Source}\nCalibración: {e.CalibrationDataset}\nRango: {e.ApplicableRange}");
         Evidence("Combustión",o.CombustionEvidence);Evidence("Calor",o.HeatTransferEvidence);Evidence("Fricción",o.FrictionEvidence);
-        text.AppendLine("\nSin validación experimental de motor. Una diferencia A/B es una sensibilidad del modelo, no una ganancia mecánica demostrada. Evaluación independiente de disociación: ver informe de etapa 2.");
+        text.AppendLine("\nSin validación experimental de motor. Una diferencia A/B es una sensibilidad del modelo, no una ganancia mecánica demostrada. Evaluación de disociación y alcance: ver informe de etapa 3.");
         foreach(var p in r.Points)
         {
             var d=p.Chemistry!;

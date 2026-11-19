@@ -20,6 +20,8 @@
           <ComboBoxItem Content="Pseudoaire v1 · referencia"/>
           <ComboBoxItem Content="Iso-octano v2 · Wiebe prescrita"/>
           <ComboBoxItem Content="Iso-octano v2 · Wiebe escalada (estimada)"/>
+          <ComboBoxItem Content="Iso-octano v3 · Equilibrio UV · Wiebe escalada"/>
+          <ComboBoxItem Content="Iso-octano v3 · Equilibrio UV · Wiebe prescrita"/>
         </ComboBox>
       </StackPanel>
       <Border Background="#FFF3CF" Padding="10" Margin="0,0,0,10">
