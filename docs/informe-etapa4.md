@@ -86,8 +86,8 @@ dotnet run --project tests/Dino2.FourStroke.Tests -c Release -- --duct-only
 dotnet run --project tests/Dino2.Reactive.Tests -c Release -- --coupled-only
 dotnet run --project src/Dino2.Cli -c Release -- --4t examples/4t-ducts.json curvas.csv traza.csv
 python scripts/plot-stage4.py
-.\scripts\publish.ps1
-.\scripts\smoke-publish.ps1
+.\scripts\publish.ps1 -Destination artifacts/stage4-win-x64 -Archive artifacts/Dino2-stage4-win-x64.zip
+.\scripts\smoke-publish.ps1 -Application artifacts/stage4-win-x64/Dino2.Desktop.exe
 ```
 
 En este espacio se puede sustituir dotnet por el SDK local .tools/dotnet/dotnet.exe. El gráfico requiere matplotlib. Los artefactos de las pruebas están en artifacts/stage4. En Windows, elegí v4 · Conductos 1D · Wiebe prescrita o abrí el ejemplo JSON. En la pestaña Conductos se editan las geometrías y se pueden ver las presiones de las últimas celdas desde el panel de análisis. La tabla A/B muestra potencia, par y diferencia de VE. Conviene conservar el modelo y la ley de combustión al comparar geometrías.

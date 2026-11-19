@@ -1,20 +1,27 @@
+param(
+    [string]$Destination = 'artifacts/win-x64',
+    [string]$Archive = 'artifacts/Dino2-win-x64.zip'
+)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 try {
     $dotnetExe = if (Test-Path -LiteralPath '.tools/dotnet/dotnet.exe') { Join-Path $repoRoot '.tools/dotnet/dotnet.exe' } else { 'dotnet' }
-    & $dotnetExe publish src/Dino2.Desktop -c Release -r win-x64 --self-contained true -o artifacts/win-x64 -p:DebugType=None -p:DebugSymbols=false
+    & $dotnetExe publish src/Dino2.Desktop -c Release -r win-x64 --self-contained true -o $Destination -p:DebugType=None -p:DebugSymbols=false
     if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
-    New-Item -ItemType Directory -Force artifacts/win-x64/examples, artifacts/win-x64/docs | Out-Null
-    Copy-Item -Path examples/*.json -Destination artifacts/win-x64/examples
-    Copy-Item -LiteralPath README.md -Destination artifacts/win-x64/README.md
-    Copy-Item -Path docs/*.md -Destination artifacts/win-x64/docs
+    $examples = Join-Path $Destination 'examples'
+    $docs = Join-Path $Destination 'docs'
+    New-Item -ItemType Directory -Force $examples, $docs | Out-Null
+    Copy-Item -Path examples/*.json -Destination $examples
+    Copy-Item -LiteralPath README.md -Destination (Join-Path $Destination 'README.md')
+    Copy-Item -Path docs/*.md -Destination $docs
     if (Test-Path -LiteralPath docs/figures) {
-        New-Item -ItemType Directory -Force artifacts/win-x64/docs/figures | Out-Null
-        Copy-Item -Path docs/figures/* -Destination artifacts/win-x64/docs/figures
+        $figures = Join-Path $docs 'figures'
+        New-Item -ItemType Directory -Force $figures | Out-Null
+        Copy-Item -Path docs/figures/* -Destination $figures
     }
-    Compress-Archive -Path artifacts/win-x64/* -DestinationPath artifacts/Dino2-win-x64.zip -Force
-    Write-Output 'Distribucion: artifacts/Dino2-win-x64.zip; ejecutar Dino2.Desktop.exe tras extraer todo el ZIP.'
+    Compress-Archive -Path (Join-Path $Destination '*') -DestinationPath $Archive -Force
+    Write-Output "Distribucion: $Archive. Ejecutar Dino2.Desktop.exe tras extraer todo el ZIP."
 }
 finally { Pop-Location }

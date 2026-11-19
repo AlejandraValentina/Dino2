@@ -1,10 +1,12 @@
 # Exercises the actual self-contained entry point using Windows UI Automation.
+param([string]$Application = 'artifacts/win-x64/Dino2.Desktop.exe')
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$applicationPath = Join-Path $repoRoot 'artifacts/win-x64/Dino2.Desktop.exe'
+$applicationPath = if ([System.IO.Path]::IsPathRooted($Application)) { $Application }
+    else { [System.IO.Path]::GetFullPath((Join-Path $repoRoot $Application)) }
 $applicationProcess = Start-Process -FilePath $applicationPath -PassThru -WindowStyle Hidden
 try {
     $deadline = [DateTime]::UtcNow.AddSeconds(20)
@@ -61,9 +63,10 @@ try {
     $models = Find-Control 'PhysicsModel'
     $dropdown = $models.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
     $dropdown.Expand()
-    $ductModelCondition = [System.Windows.Automation.PropertyCondition]::new(
-        [System.Windows.Automation.AutomationElement]::NameProperty, 'v4 · Conductos 1D · Wiebe prescrita')
-    $ductModel = $models.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $ductModelCondition)
+    $ductModel = $models.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+        [System.Windows.Automation.Condition]::TrueCondition) |
+        Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::ListItem -and
+            $_.Current.Name.StartsWith('v4') -and $_.Current.Name.EndsWith('Wiebe prescrita') } | Select-Object -First 1
     if ($null -eq $ductModel) { throw 'Published v4 model not found' }
     $ductModel.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
     $dropdown.Collapse()
