@@ -6,6 +6,7 @@ using System.Windows.Media.Imaging;
 using Dino2.Desktop;
 using Dino2.Storage;
 using Dino2.Core.GasDynamics;
+using Dino2.Core.FourStroke;
 using Dino2.Core.Thermochemistry;
 
 namespace Dino2.Desktop.Tests;
@@ -115,6 +116,29 @@ internal static class FourStrokeSmoke
             var ductProject = FourStrokeFiles.Load(ductFile);
             Assert(ductProject.Current.Ducts!.Intake.LengthM == .55 && ductProject.Original!.Ducts!.Intake.LengthM == .35,
                 "Desktop saves both duct geometries");
+            var example = FourStrokeFiles.Load("examples/4t-ducts-muscl-ab.json");
+            FourStrokeConfiguration Reduced(FourStrokeConfiguration c, int intakeCells) => c with
+            {
+                Speeds = new(4000, 4000, 1),
+                Ducts = c.Ducts! with { Intake = c.Ducts.Intake with { Cells = intakeCells }, Exhaust = c.Ducts.Exhaust with { Cells = 8 } }
+            };
+            string musclFile = Path.Combine(output, "4t-ui-muscl.json");
+            FourStrokeFiles.Save(musclFile, new(Reduced(example.Current, 12), Reduced(example.Original!, 8)));
+            window.LoadFrom(musclFile);
+            await window.SimulateAsync();
+            Assert(model.SelectedIndex == 7 && window.CurrentResult?.Model == GasPath.MusclModelId, "MUSCL example selects the correct model");
+            Assert(((Button)window.FindName("ResolveMeshButton")).IsEnabled, "Equivalent A/B enables resolution check");
+            var originalMuscl = window.OriginalResult;
+            await window.CheckResolutionAsync(4000);
+            Assert(window.Resolution?.Rpm == 4000 && ReferenceEquals(window.OriginalResult, originalMuscl), "Refined A/B preserves original result");
+            tabs.SelectedIndex = 2; Capture("stage4-closure-resolution.png");
+            tabs.SelectedIndex = 4; Capture("stage4-closure-ports.png");
+            string export = Path.Combine(output, "muscl.csv");
+            window.ExportTo(export);
+            Assert(File.Exists(Path.ChangeExtension(export, ".mesh.json")) &&
+                File.ReadAllText(Path.ChangeExtension(export, ".trace.csv")).Contains("intake_flow_kg_s"), "Export includes mesh evidence and valve flows");
+            Field("IntakeDuctLength").Text = "540";
+            Assert(window.Resolution is null && window.CurrentResult is null, "Editing invalidates resolution and B only");
             Console.WriteLine($"{count}/{count} 4T desktop checks passed.");
         }
         finally { window.Close(); }

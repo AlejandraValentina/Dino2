@@ -116,6 +116,8 @@ public static class FourStrokeFiles
         text.AppendLine("# original_configuration_SI=" + JsonSerializer.Serialize(original.Configuration, FlatOptions));
         text.AppendLine("# original_model="+original.Model);
         text.AppendLine("# exact common RPM only; no interpolation; difference=B-A");
+        if (original.Configuration.Ducts is not null || variant.Configuration.Ducts is not null)
+            text.AppendLine("# numerical_resolution=raw differences at the configured grids; a separate mesh study is required at each RPM");
         text.AppendLine("rpm,original_brake_power_W,variant_brake_power_W,power_difference_W,original_brake_torque_Nm,variant_brake_torque_Nm,torque_difference_Nm,volumetric_efficiency_difference");
         foreach (var p in EngineComparison.Compare(original, variant))
             text.AppendLine(string.Join(",", new double[] { p.Rpm, p.OriginalBrakePowerW, p.VariantBrakePowerW,

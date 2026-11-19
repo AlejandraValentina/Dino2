@@ -22,8 +22,10 @@
           <ComboBoxItem Content="Iso-octano v2 · Wiebe escalada (estimada)"/>
           <ComboBoxItem Content="Iso-octano v3 · Equilibrio UV · Wiebe escalada"/>
           <ComboBoxItem Content="Iso-octano v3 · Equilibrio UV · Wiebe prescrita"/>
-          <ComboBoxItem Content="v4 · Conductos 1D · Wiebe prescrita"/>
-          <ComboBoxItem Content="v4 · Conductos 1D · Wiebe escalada"/>
+          <ComboBoxItem Content="v4 · 1D primer orden · Wiebe prescrita"/>
+          <ComboBoxItem Content="v4 · 1D primer orden · Wiebe escalada"/>
+          <ComboBoxItem Content="v4 · Conductos MUSCL · Wiebe prescrita"/>
+          <ComboBoxItem Content="v4 · Conductos MUSCL · Wiebe escalada"/>
         </ComboBox>
       </StackPanel>
       <Border Background="#FFF3CF" Padding="10" Margin="0,0,0,10">
@@ -54,6 +56,13 @@
         <TabItem Header="A / B">
           <DockPanel Background="White">
             <TextBlock x:Name="ComparisonNotice" DockPanel.Dock="Top" Margin="12" TextWrapping="Wrap" Text="Simule y conserve A. Modifique un parámetro y vuelva a simular para comparar B − A. El original no cambia al editar."/>
+            <StackPanel x:Name="ResolutionPanel" DockPanel.Dock="Top" Margin="12,0,12,8" Visibility="Collapsed">
+              <WrapPanel>
+                <ComboBox x:Name="ResolutionRpm" Width="85" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                <Button x:Name="ResolveMeshButton" Content="Comprobar malla A/B" Click="ResolveMesh_Click"/>
+              </WrapPanel>
+              <TextBlock x:Name="ResolutionText" TextWrapping="Wrap" Margin="0,5,0,0"/>
+            </StackPanel>
             <DataGrid x:Name="ComparisonGrid" IsReadOnly="True" AutoGenerateColumns="True" CanUserAddRows="False" MinColumnWidth="125" RowHeight="30" ColumnHeaderHeight="35"/>
           </DockPanel>
         </TabItem>
@@ -72,7 +81,11 @@
         <TabItem Header="Conductos">
           <DockPanel Background="White" Margin="8">
             <TextBlock x:Name="PortCaption" DockPanel.Dock="Top" Margin="8" TextWrapping="Wrap"/>
-            <local:ScientificPlot x:Name="PortChart"/>
+            <Grid>
+              <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+              <local:ScientificPlot x:Name="PortChart"/>
+              <local:ScientificPlot x:Name="FlowChart" Grid.Row="1"/>
+            </Grid>
           </DockPanel>
         </TabItem>
         <TabItem Header="Diagnósticos">

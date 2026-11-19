@@ -60,6 +60,48 @@ internal static class DuctClosureChecks
             JsonSerializer.Serialize(new { rows, timeBase, halfTime, tight, taper, benchmark }, new JsonSerializerOptions { WriteIndented = true }));
     }
 
+    internal static void Regression()
+    {
+        var template = FourStrokeFiles.Load("examples/4t-ducts-muscl-ab.json").Current;
+        var duct = template.Ducts!;
+        var a = template with
+        {
+            Speeds = new(4000, 4000, 1),
+            Ducts = duct with { Intake = duct.Intake with { Cells = 8 }, Exhaust = duct.Exhaust with { Cells = 8 } }
+        };
+        var b = a with { Ducts = a.Ducts! with { Intake = a.Ducts.Intake with { LengthM = .35 } } };
+        var left = EngineSimulation.Run(a);
+        var right = EngineSimulation.Run(b);
+        Check(DuctResolution.CanEvaluate(left, right) && left.Model == GasPath.MusclModelId, "MUSCL dispatch or eligibility failed.");
+        Check(!DuctResolution.CanEvaluate(left, right with { Configuration = b with { Intake = b.Intake with { PressurePa = 90000 } } }),
+            "Different operating conditions accepted as geometry comparison.");
+        var verification = DuctResolution.Evaluate(left, right, 4000);
+        Check(Math.Abs(verification.BrakeTorqueNm.Fine - verification.BrakePowerW.Fine * 60 / (2 * Math.PI * 4000)) < 1e-12,
+            "Power and torque use different comparisons.");
+        Check(!MeshSignal.From(5, -4, 3).AboveObservedVariation && !MeshSignal.From(1, 2, 3.5).AboveObservedVariation &&
+            MeshSignal.From(30, 33, 34).AboveObservedVariation, "Evidence classification inconsistent.");
+
+        var stressed = a with
+        {
+            Intake = a.Intake with { PressurePa = 55000 },
+            Exhaust = a.Exhaust with { PressurePa = 150000 },
+            Combustion = a.Combustion with { HeatReleaseEfficiency = 0 },
+            Ducts = a.Ducts! with { Exhaust = a.Ducts.Exhaust with { ReservoirDiameterM = .06 } }
+        };
+        var motored = EngineSimulation.Run(stressed).Points.Single();
+        Check(motored.BrakePowerW < 0 && motored.GasDynamics!.MaximumSpeciesResidualKg < 1e-12 &&
+            motored.GasDynamics.MomentumResidualNs < 1e-9 && motored.GasDynamics.EnergyResidualJ < 1e-6,
+            "Throttled motored case violates balances.");
+        Check(motored.Trace.All(s => s.PressurePa > 0 && s.IntakePortPressurePa > 0 && s.ExhaustPortPressurePa > 0),
+            "Motored pressure negative.");
+        try
+        {
+            EngineSimulation.Run(a with { Solver = a.Solver with { MaximumCycles = 3 } });
+            throw new Exception("A deliberately unconverged run published a point.");
+        }
+        catch (ArithmeticException) { }
+    }
+
     private static Pair RunPair(FourStrokeConfiguration a, FourStrokeConfiguration b, int cells, DuctScheme scheme,
         double cfl, double periodic, double angularStep = .5)
     {
