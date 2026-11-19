@@ -218,6 +218,7 @@ Test("Equilibrium cycle balances, frozen transport, independent work and A/B per
 Test("Equilibrium angular and periodic convergence", EquilibriumChecks.Convergence);
 Test("Matched v1/v2/v3 and combustion, losses and mechanical sensitivities", EquilibriumChecks.Sensitivities);
 
+if (args is ["--closure"]) { DuctClosureChecks.Run(); return 0; }
 if (args is ["--coupled-only"]) { DuctEngineChecks.Run(); Console.WriteLine("PASS coupled duct study"); return 0; }
 Test("Coupled 1D conservation, periodicity, refinement, reproducibility and geometry A/B", DuctEngineChecks.Run);
 int failures=0;

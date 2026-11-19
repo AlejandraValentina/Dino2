@@ -24,7 +24,7 @@ public sealed record FourStrokePoint(int Rpm, double IndicatedPowerW, double Bra
 }
 
 public sealed record DuctDiagnostics(double MassResidualKg, double MaximumSpeciesResidualKg, double EnergyResidualJ,
-    double PeriodicError, long CellEvaluations);
+    double PeriodicError, long CellEvaluations, double MomentumResidualNs = 0);
 
 public sealed record FourStrokeResult(FourStrokeConfiguration Configuration,
     IReadOnlyList<FourStrokePoint> Points, double ElapsedMilliseconds)

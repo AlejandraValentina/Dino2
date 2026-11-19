@@ -279,8 +279,10 @@ Test("Measured full sweep and reusable numerical artifacts", () =>
     File.WriteAllText(Path.Combine(output, "kernel-benchmark.json"), System.Text.Json.JsonSerializer.Serialize(new { iterations, milliseconds = kernels, sink }, options));
 });
 
+if (args is ["--muscl-only"]) { DuctChecks.VerifyMuscl(); Console.WriteLine("PASS MUSCL waves"); return 0; }
 if (args is ["--duct-only"]) { DuctChecks.Run(); Console.WriteLine("PASS independent duct benchmarks"); return 0; }
 tests.Add(("Independent duct Sod, rigid reflection, variable area balance and temporal order", DuctChecks.Run));
+tests.Add(("MUSCL wave propagation and reflection, strong shock, area and refinement", DuctChecks.VerifyMuscl));
 int failures = 0;
 foreach (var (name, action) in tests)
 {

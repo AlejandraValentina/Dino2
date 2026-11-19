@@ -106,11 +106,66 @@ internal static class DuctChecks
             new JsonSerializerOptions { WriteIndented = true }));
     }
 
+    internal static void VerifyMuscl()
+    {
+        const double pressure = 100000, temperature = 300, peak = 12;
+        double density = pressure / (287 * temperature), sound = Math.Sqrt(1.4 * 287 * temperature);
+        double Pulse(double x) => peak * Math.Exp(-Math.Pow((x - .25) / .055, 2));
+        void Initialize(double x, Span<double> q)
+        {
+            double pulse = Pulse(x);
+            Gas.Encode(q, Pure, pressure + pulse, temperature * Math.Pow(1 + pulse / pressure, 2.0 / 7),
+                pulse / (density * sound), .3);
+        }
+
+        var comparisons = new List<object>();
+        foreach (var scheme in new[] { DuctScheme.FirstOrder, DuctScheme.Muscl })
+        {
+            double previous = double.PositiveInfinity;
+            foreach (int cells in new[] { 50, 100, 200, 256 })
+            {
+                var geometry = new DuctGeometry(1, .04, .04, cells);
+                var (state, balance) = Evolve(geometry, .45 / sound, .35, Initialize, true, scheme);
+                var (reflected, closedBalance) = Evolve(geometry, .95 / sound, .35, Initialize, false, scheme);
+                double error = 0, reflection = 0, maximum = 0;
+                for (int i = 0; i < cells; i++)
+                {
+                    double x = (i + .5) / cells;
+                    double p = Gas.Decode(state.AsSpan(i * Gas.Size, Gas.Size)).Pressure - pressure;
+                    double pr = Gas.Decode(reflected.AsSpan(i * Gas.Size, Gas.Size)).Pressure - pressure;
+                    error += Math.Abs(p - Pulse(x - .45)) / cells;
+                    reflection += Math.Abs(pr - Pulse(2 - x - .95)) / cells;
+                    maximum = Math.Max(maximum, p);
+                }
+                Check(error < previous && balance < 1e-11 && closedBalance < 1e-11, $"Wave refinement {scheme}/{cells}: {error}");
+                if (scheme == DuctScheme.Muscl && cells == 200) Check(error < .045 && reflection < .1, "Pulse dissipated excessively.");
+                previous = error;
+                comparisons.Add(new { scheme = scheme.ToString(), cells, travellingL1Pa = error,
+                    reflectedL1Pa = reflection, pulsePeakPa = maximum, balance, closedBalance });
+            }
+        }
+
+        var (shock, shockBalance) = Evolve(new(1, .04, .04, 160), .00025, .25,
+            (x, q) => Gas.Encode(q, Pure, x < .5 ? 1e6 : 1e4, x < .5 ? 1000 : 250, 0, x < .5 ? 1 : 0),
+            false, DuctScheme.Muscl);
+        var minPressure = Enumerable.Range(0, 160).Min(i => Gas.Decode(shock.AsSpan(i * Gas.Size, Gas.Size)).Pressure);
+        Check(minPressure > 0 && shockBalance < 1e-11, "Strong shock loses positivity or conservation.");
+
+        var (rest, restBalance) = Evolve(new(1, .02, .08, 64), .005, .35,
+            (_, q) => Gas.Encode(q, Pure, pressure, temperature, 0, .1), false, DuctScheme.Muscl);
+        Check(Enumerable.Range(0, 64).All(i => Math.Abs(rest[i * Gas.Size + Gas.Momentum]) < 1e-10) &&
+            restBalance < 1e-11, "MUSCL area source loses pressure equilibrium.");
+
+        Directory.CreateDirectory("artifacts/stage4-closure");
+        File.WriteAllText("artifacts/stage4-closure/waves.json", JsonSerializer.Serialize(new { comparisons, minPressure, shockBalance },
+            new JsonSerializerOptions { WriteIndented = true }));
+    }
+
     private delegate void InitialState(double x, Span<double> q);
 
-    private static (double[] State, double Conservation) Evolve(DuctGeometry geometry, double end, double courant, InitialState initial, bool open = false)
+    private static (double[] State, double Conservation) Evolve(DuctGeometry geometry, double end, double courant, InitialState initial, bool open = false, DuctScheme scheme = DuctScheme.FirstOrder)
     {
-        var mesh = new DuctMesh(geometry, Gas);
+        var mesh = new DuctMesh(geometry, Gas, scheme);
         var y = new double[mesh.Size];
         var stage = new double[mesh.Size];
         var derivative = new double[mesh.Size];
@@ -131,12 +186,15 @@ internal static class DuctChecks
             Span<double> left = stackalloc double[Gas.Size];
             Span<double> right = stackalloc double[Gas.Size];
             left.Clear(); right.Clear();
+            Span<double> a = stackalloc double[Gas.Size];
+            Span<double> b = stackalloc double[Gas.Size];
+            mesh.Prepare(q);
+            var inlet = mesh.BoundaryState(q, false, a);
+            var outlet = mesh.BoundaryState(q, true, b);
             if (open)
             {
-                var a = q.AsSpan(0, Gas.Size);
-                var b = q.AsSpan(^Gas.Size);
-                Gas.Flux(leftGhost, Gas.Decode(leftGhost), a, Gas.Decode(a), left);
-                Gas.Flux(b, Gas.Decode(b), rightGhost, Gas.Decode(rightGhost), right);
+                Gas.Flux(leftGhost, Gas.Decode(leftGhost), a, inlet, left);
+                Gas.Flux(b, outlet, rightGhost, Gas.Decode(rightGhost), right);
                 for (int k = 0; k < Gas.Size; k++)
                 {
                     left[k] *= mesh.ReservoirArea;
@@ -145,8 +203,8 @@ internal static class DuctChecks
             }
             else
             {
-                left[Gas.Momentum] = mesh.ReservoirArea * Gas.WallPressure(Gas.Decode(q.AsSpan(0, Gas.Size)), false);
-            right[Gas.Momentum] = mesh.ValveArea * Gas.WallPressure(Gas.Decode(q.AsSpan(^Gas.Size)), true);
+                left[Gas.Momentum] = mesh.ReservoirArea * Gas.WallPressure(inlet, false);
+                right[Gas.Momentum] = mesh.ValveArea * Gas.WallPressure(outlet, true);
             }
             for (int k = 0; k < Gas.Size; k++) net[k] = left[k] - right[k];
             return mesh.Rates(q, derivative, left, right);

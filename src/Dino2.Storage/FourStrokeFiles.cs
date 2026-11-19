@@ -23,6 +23,7 @@ public static class FourStrokeFiles
     private static readonly JsonSerializerOptions FlatOptions = new(Options) { WriteIndented = false };
     private static readonly JsonSerializerOptions DiagnosticOptions = new(FlatOptions) { IgnoreReadOnlyProperties = false };
     private static string ProjectModel(FourStrokeProject project) =>
+        project.Current.Ducts?.Scheme == DuctScheme.Muscl || project.Original?.Ducts?.Scheme == DuctScheme.Muscl ? GasPath.MusclModelId :
         project.Current.Ducts is not null || project.Original?.Ducts is not null ? GasPath.ModelId :
         project.Current.Thermochemistry?.UsesEquilibrium == true || project.Original?.Thermochemistry?.UsesEquilibrium == true
             ? ThermochemicalOptions.EquilibriumModelId

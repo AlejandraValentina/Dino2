@@ -15,13 +15,17 @@ public sealed record DuctGeometry(double LengthM, double ReservoirDiameterM, dou
     }
 }
 
-public sealed record GasPath(DuctGeometry Intake, DuctGeometry Exhaust, double Courant = .45)
+public enum DuctScheme { FirstOrder, Muscl }
+
+public sealed record GasPath(DuctGeometry Intake, DuctGeometry Exhaust, double Courant = .45, DuctScheme Scheme = DuctScheme.FirstOrder)
 {
     public const string ModelId = "four-stroke-isooctane-ducts-v4";
+    public const string MusclModelId = "four-stroke-isooctane-ducts-v4-muscl";
+    public string Identifier => Scheme == DuctScheme.Muscl ? MusclModelId : ModelId;
     public static GasPath Example => new(new(.35, .042, .036, 24), new(.65, .036, .032, 32));
     public void Validate()
     {
-        if (Intake is null || Exhaust is null || !double.IsFinite(Courant) || Courant is < .05 or > .5)
+        if (!Enum.IsDefined(Scheme) || Intake is null || Exhaust is null || !double.IsFinite(Courant) || Courant is < .05 or > .5)
             throw new ArgumentException("Se requieren ambos conductos y CFL entre 0,05 y 0,5.");
         Intake.Validate();
         Exhaust.Validate();
@@ -92,7 +96,7 @@ internal sealed class GasEquation(int speciesCount)
         return new(density, u, pressure, cell[Energy], Math.Sqrt(gamma * pressure / density), t, gamma, r);
     }
 
-    internal void Encode(Span<double> destination, ReadOnlySpan<double> fractions, double p, double t, double u, double tag)
+    internal GasState Encode(Span<double> destination, ReadOnlySpan<double> fractions, double p, double t, double u, double tag)
     {
         double r = speciesCount == 1 ? 287 : SpeciesThermodynamics.GasConstant(fractions);
         double density = p / (r * t);
@@ -101,6 +105,8 @@ internal sealed class GasEquation(int speciesCount)
         destination[Energy] = (speciesCount == 1 ? p / .4 : SpeciesThermodynamics.Energy(destination[..speciesCount], t))
             + .5 * density * u * u;
         destination[Tag] = density * tag;
+        double gamma = speciesCount == 1 ? 1.4 : SpeciesThermodynamics.Gamma(fractions, t);
+        return new(density, u, p, destination[Energy], Math.Sqrt(gamma * r * t), t, gamma, r);
     }
 
     internal void Flux(ReadOnlySpan<double> left, GasState l, ReadOnlySpan<double> right, GasState r, Span<double> result)
@@ -164,7 +170,7 @@ internal sealed class GasEquation(int speciesCount)
 }
 
 // x increases from the exterior reservoir to the valve for both inlet and exhaust.
-internal sealed class DuctMesh
+internal sealed partial class DuctMesh
 {
     private readonly double[] area, volume;
     private readonly GasEquation equation;
@@ -175,10 +181,17 @@ internal sealed class DuctMesh
     internal double ReservoirArea => area[0];
     internal double Volume(int cell) => volume[cell];
 
-    internal DuctMesh(DuctGeometry geometry, GasEquation equation)
+    internal DuctMesh(DuctGeometry geometry, GasEquation equation, DuctScheme scheme = DuctScheme.FirstOrder)
     {
         this.equation = equation;
         Cells = geometry.Cells;
+        if (scheme == DuctScheme.Muscl)
+        {
+            centers = new GasState[Cells];
+            faces = new GasState[2 * Cells];
+            faceValues = new double[2 * Size];
+            primitives = new double[Cells * (equation.Size + 1)];
+        }
         Dx = geometry.LengthM / Cells;
         double Area(double diameter) => Math.PI / 4 * diameter * diameter;
         double Diameter(double x) => geometry.ReservoirDiameterM + x * (geometry.ValveDiameterM - geometry.ReservoirDiameterM);
@@ -191,13 +204,18 @@ internal sealed class DuctMesh
 
     // Boundary fluxes are integrated over face area in SI, internal fluxes share one face value.
     internal double Rates(ReadOnlySpan<double> state, Span<double> rate,
-        ReadOnlySpan<double> leftBoundary, ReadOnlySpan<double> rightBoundary)
+        ReadOnlySpan<double> leftBoundary, ReadOnlySpan<double> rightBoundary) =>
+        Rates(state, rate, leftBoundary, rightBoundary, out _);
+
+    internal double Rates(ReadOnlySpan<double> state, Span<double> rate,
+        ReadOnlySpan<double> leftBoundary, ReadOnlySpan<double> rightBoundary, out double wallForce)
     {
         int width = equation.Size;
         Span<double> leftFlux = stackalloc double[width];
         Span<double> rightFlux = stackalloc double[width];
         leftBoundary.CopyTo(leftFlux);
-        var left = equation.Decode(state[..width]);
+        wallForce = 0;
+        var left = centers is null ? equation.Decode(state[..width]) : centers[0];
         double cflTime = double.PositiveInfinity;
         for (int i = 0; i < Cells; i++)
         {
@@ -209,18 +227,29 @@ internal sealed class DuctMesh
             if (i + 1 < Cells)
             {
                 var qr = state.Slice(offset + width, width);
-                right = equation.Decode(qr);
-                equation.Flux(q, left, qr, right, rightFlux);
+                if (faces is null)
+                {
+                    right = equation.Decode(qr);
+                    equation.Flux(q, left, qr, right, rightFlux);
+                }
+                else
+                {
+                    right = centers![i + 1];
+                    int face = 2 * i + 1;
+                    equation.Flux(FaceValues(face), faces[face], FaceValues(face + 1), faces[face + 1], rightFlux);
+                }
                 for (int k = 0; k < width; k++) rightFlux[k] *= area[i + 1];
             }
             else rightBoundary.CopyTo(rightFlux);
 
             double inverseVolume = 1 / volume[i];
             for (int k = 0; k < width; k++) rate[offset + k] = (leftFlux[k] - rightFlux[k]) * inverseVolume;
-            rate[offset + equation.Momentum] += left.Pressure * (area[i + 1] - area[i]) * inverseVolume;
+            double force = left.Pressure * (area[i + 1] - area[i]);
+            rate[offset + equation.Momentum] += force * inverseVolume;
+            wallForce += force;
             rightFlux.CopyTo(leftFlux);
             left = right;
         }
-        return cflTime;
+        return faces is not null ? Math.Min(cflTime, faceCflTime) : cflTime;
     }
 }
