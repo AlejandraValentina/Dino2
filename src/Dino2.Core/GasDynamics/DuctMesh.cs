@@ -119,6 +119,7 @@ internal sealed class GasEquation(int speciesCount)
         double mixtureR = 0, cp = 0, cv = 0;
         for (int i = 0; i < speciesCount; i++)
         {
+            if (fractions[i] == 0) continue;
             var species = SpeciesData.All[i];
             double speciesCp = species.Cp(t);
             mixtureR += fractions[i] * species.R;
@@ -130,7 +131,7 @@ internal sealed class GasEquation(int speciesCount)
         {
             double partial = fractions[i] * density;
             destination[i] = partial;
-            energy += partial * SpeciesData.All[i].U(t);
+            if (partial != 0) energy += partial * SpeciesData.All[i].U(t);
         }
         destination[Momentum] = density * u;
         destination[Energy] = energy + .5 * density * u * u;
