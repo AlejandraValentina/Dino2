@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup><ProjectReference Include="../Dino2.Core/Dino2.Core.csproj" /></ItemGroup>
+</Project>

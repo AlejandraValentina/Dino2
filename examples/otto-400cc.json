@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "model": "otto-air-standard-v1",
+  "configuration": {
+    "boreM": 0.08,
+    "strokeM": 0.08,
+    "compressionRatio": 10,
+    "initialPressurePa": 100000,
+    "initialTemperatureK": 300,
+    "heatInputJPerKg": 800000,
+    "gamma": 1.4,
+    "gasConstantJPerKgK": 287,
+    "rpmStart": 1000,
+    "rpmEnd": 6000,
+    "rpmStep": 500
+  }
+}

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Dino2.Core/Dino2.Core.csproj" />
+    <ProjectReference Include="../Dino2.Storage/Dino2.Storage.csproj" />
+  </ItemGroup>
+</Project>
