@@ -4,9 +4,11 @@ Aplicación Windows para simular un motor monocilíndrico **4T con cilindro 0D y
 
 **Cierre de etapa 4.** Admisión y escape con propagación y reflexión de presión, longitud y diámetros terminales editables, y balances separados en conductos y cilindro. La comparación A/B incluye llenado, par, potencia y contraste de resolución en tres mallas. Los depósitos 0D y las referencias anteriores siguen disponibles. El [informe de cierre](docs/cierre-etapa4.md) cuantifica la sensibilidad a malla y paso, y delimita las hipótesis del modelo.
 
+**Etapa 5.** La pestaña **Estudios** ejecuta grillas de uno a tres parámetros, ordena resultados por objetivos explícitos y permite contrastar la resolución de un candidato antes de aplicarlo como B. Abrí los ejemplos de estudio desde su propio botón **Abrir estudio…**. [Informe y guía de etapa 5](docs/etapa5.md).
+
 ## Ejecutar en Windows
 
-Abrir `artifacts/stage4-rc-win-x64/Dino2.Desktop.exe`, o extraer **todo** `artifacts/Dino2-stage4-rc-win-x64.zip` y abrir el ejecutable. La distribución incluye el runtime; no hace falta instalar .NET para usarla. Los artefactos generados no se incluyen en Git.
+Abrir `artifacts/stage5-win-x64/Dino2.Desktop.exe`, o extraer **todo** `artifacts/Dino2-stage5-win-x64.zip` y abrir el ejecutable. La distribución incluye el runtime; no hace falta instalar .NET para usarla. Los artefactos generados no se incluyen en Git.
 
 1. El ejemplo con depósitos v3 se carga al iniciar. Para simular conductos, seleccioná **v4 · Conductos MUSCL · Wiebe prescrita** o abrí `examples/4t-ducts.json`. El proyecto `examples/4t-ducts-muscl-ab.json` contiene ambas geometrías con pasos axiales comparables. Los ejemplos anteriores conservan el esquema de primer orden. El editor **Conductos** permite ajustar longitud, diámetros, número de celdas y CFL.
 2. Editar **Geometría**, **Válvulas**, **Combustión**, **Comb. v2**, **Contornos**, **Fricción** y **RPM / cálculo**. **Evidencia** registra fuente, datos y rango para parámetros estimados o declarados calibrados; no certifica validación independiente. En v2 el PCI se calcula a partir del combustible y la conversión deja explícitamente combustible sin quemar. Las presiones son absolutas. 0° es PMS de intercambio; 360° es PMS de combustión. Se admite coma o punto decimal sin separadores de miles.
@@ -37,7 +39,7 @@ Este workspace tiene un SDK local ignorado por Git: si el global sigue en versi�
 .\scripts\verify.ps1 -SkipDesktop
 ```
 
-Los ejecutores de consola devuelven código no cero ante fallos. **`dotnet test` no ejecuta estas pruebas**. El script compila y ejecuta 45 grupos físicos, numéricos y de archivos, y 34 comprobaciones de ventana; genera estudios de discretización/periodicidad, sensibilidades, benchmarks, CSV y capturas. Los tiempos varían con la carga del equipo.
+Los ejecutores de consola devuelven código no cero ante fallos. **`dotnet test` no ejecuta estas pruebas**. El script compila y ejecuta 52 grupos físicos, numéricos y de archivos, y 43 comprobaciones de ventana; genera estudios de discretización/periodicidad, sensibilidades, benchmarks, CSV y capturas. Los tiempos varían con la carga del equipo.
 
 CLI 4T y reproducción del Otto:
 
@@ -77,14 +79,16 @@ Cantera no es una dependencia de la aplicación. Las comparaciones de equilibrio
 ## Distribución y prueba del ejecutable
 
 ```powershell
-.\scripts\publish.ps1 -Destination artifacts/stage4-rc-win-x64 -Archive artifacts/Dino2-stage4-rc-win-x64.zip
-.\scripts\smoke-publish.ps1 -Application artifacts/stage4-rc-win-x64/Dino2.Desktop.exe
+.\scripts\publish.ps1 -Destination artifacts/stage5-win-x64 -Archive artifacts/Dino2-stage5-win-x64.zip
+.\scripts\smoke-publish.ps1 -Application artifacts/stage5-win-x64/Dino2.Desktop.exe
+.\scripts\smoke-studies.ps1 -Application artifacts/stage5-win-x64/Dino2.Desktop.exe
 ```
 
 Publish produce carpeta y ZIP Windows x64 con runtime, ejemplos y documentación. La primera ejecución puede necesitar red para descargar los paquetes oficiales del runtime. Sin instalador ni firma en esta etapa. La prueba publicada usa Windows UI Automation para abrir el 4T y calcular con depósitos y conductos, abrir y calcular el Otto independiente, comprobar el runtime incluido y cerrar las ventanas. Requiere sesión gráfica.
 
 ## Documentación
 
+- [Estudios paramétricos, resolución y rendimiento](docs/etapa5.md).
 - [Cierre de etapa 4: causas, mallas y aceptación](docs/cierre-etapa4.md).
 - [Informe inicial de etapa 4 y verificación de conductos 1D](docs/informe-etapa4.md).
 - [Informe de etapa 3: equilibrio UV, comparación y evidencia experimental](docs/informe-etapa3.md).

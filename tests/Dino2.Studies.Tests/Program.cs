@@ -172,6 +172,11 @@ void Storage()
     string csv = Path.Combine(output, "spark-study.csv");
     StudyFiles.Export(csv, restored);
     Check(File.ReadAllText(csv).Contains("# resolution="), "Missing numeric resolution evidence in CSV");
+    foreach (var shipped in new[] { "study-spark-v3.dino-study.json", "study-ducts-muscl.dino-study.json" })
+    {
+        var sample = StudyFiles.Load(Path.Combine("examples", shipped));
+        Check(sample.Checks.Single().Verdict == StudyVerdict.Superior, "Packaged example lost its tested contrast");
+    }
     string bad = Path.Combine(output, "bad-study.json");
     File.WriteAllText(bad, File.ReadAllText(path).Replace("\"solverModel\": \"four-stroke-isooctane-equilibrium-v3\"", "\"solverModel\": \"unknown\""));
     Reject(() => StudyFiles.Load(bad));
