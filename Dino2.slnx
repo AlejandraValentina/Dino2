@@ -11,5 +11,6 @@
     <Project Path="tests/Dino2.Reactive.Tests/Dino2.Reactive.Tests.csproj" />
     <Project Path="tests/Dino2.Studies.Tests/Dino2.Studies.Tests.csproj" />
     <Project Path="tests/Dino2.Tests/Dino2.Tests.csproj" />
+    <Project Path="tests/Dino2.TwoStroke.Tests/Dino2.TwoStroke.Tests.csproj" />
   </Folder>
 </Solution>
