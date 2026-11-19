@@ -9,6 +9,7 @@ internal sealed class NasaSpecies(string name, double molecularWeight, double[] 
     public double R { get; } = 8.31446261815324 / molecularWeight;
     private readonly double h298 = 8.31446261815324 / molecularWeight *
         (Integral(low, 298.15) + low[5]);
+    private readonly double referenceIntegral = Integral(low, 298.15);
     private readonly double highOffset = Integral(low, 1000) - Integral(high, 1000);
     private static double Integral(double[] a, double t) => t * (a[0] + t * (a[1] / 2 + t * (a[2] / 3 + t * (a[3] / 4 + t * a[4] / 5))));
     public double FormationEnthalpy => h298;
@@ -17,7 +18,7 @@ internal sealed class NasaSpecies(string name, double molecularWeight, double[] 
         var a = t <= 1000 ? low : high;
         return R * (a[0] + t * (a[1] + t * (a[2] + t * (a[3] + t * a[4]))));
     }
-    public double H(double t) => h298 + R * ((t <= 1000 ? Integral(low, t) : Integral(high, t) + highOffset) - Integral(low, 298.15));
+    public double H(double t) => h298 + R * ((t <= 1000 ? Integral(low, t) : Integral(high, t) + highOffset) - referenceIntegral);
     public double GibbsOverRT(double t, double logT)
     {
         var a = t <= 1000 ? low : high;
@@ -93,14 +94,14 @@ public static class SpeciesThermodynamics
         }
         return cp / cv;
     }
-    public static double Temperature(ReadOnlySpan<double> masses, double energy)
+    public static double Temperature(ReadOnlySpan<double> masses, double energy, double initialTemperature = 1000)
     {
         double mass = TotalMass(masses);
         if (!double.IsFinite(mass) || mass <= 1e-10) throw new NumericalStateException("Masa reactiva no positiva.");
         for (int i = 0; i < masses.Length; i++)
             if (!double.IsFinite(masses[i]) || masses[i] < -1e-13)
                 throw new NumericalStateException("Masa de especie negativa fuera de tolerancia de redondeo.");
-        double t = 1000;
+        double t = initialTemperature;
         for (int iteration = 0; iteration < 15; iteration++)
         {
             double u = 0, cv = 0;

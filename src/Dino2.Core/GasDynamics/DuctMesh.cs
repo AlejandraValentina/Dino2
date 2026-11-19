@@ -39,6 +39,25 @@ internal sealed class GasEquation(int speciesCount)
     internal int Momentum => speciesCount;
     internal int Energy => speciesCount + 1;
     internal int Tag => speciesCount + 2;
+    private readonly double[] energyAtMinimum = Enumerable.Range(0, speciesCount).Select(i => SpeciesThermodynamics.U(i, 200)).ToArray();
+    private readonly double[] energyAtMaximum = Enumerable.Range(0, speciesCount).Select(i => SpeciesThermodynamics.U(i, 6000)).ToArray();
+
+    internal void ValidateMixture(ReadOnlySpan<double> cell)
+    {
+        double density = 0, minimum = 0, maximum = 0;
+        for (int i = 0; i < speciesCount; i++)
+        {
+            double value = cell[i];
+            if (!double.IsFinite(value) || value < -1e-12)
+                throw new NumericalStateException("Densidad parcial no física en el conducto.");
+            density += value;
+            minimum += value * energyAtMinimum[i];
+            maximum += value * energyAtMaximum[i];
+        }
+        double energy = cell[Energy] - .5 * cell[Momentum] * cell[Momentum] / density;
+        if (density <= 1e-9 || !(energy >= minimum && energy <= maximum))
+            throw new NumericalStateException("Estado del conducto fuera de 200–6000 K.");
+    }
 
     internal GasState Decode(ReadOnlySpan<double> cell)
     {
@@ -62,7 +81,7 @@ internal sealed class GasEquation(int speciesCount)
         }
         else
         {
-            t = SpeciesThermodynamics.Temperature(masses, internalEnergy);
+            t = SpeciesThermodynamics.Temperature(masses, internalEnergy, 600);
             gamma = SpeciesThermodynamics.Gamma(masses, t);
             r = SpeciesThermodynamics.GasConstant(masses);
         }
@@ -130,9 +149,18 @@ internal sealed class GasEquation(int speciesCount)
         flux[Energy] += gas.Pressure * gas.Velocity;
     }
 
-    internal double WallPressure(GasState cell, bool rightWall) =>
-        cell.Pressure + cell.Density * (rightWall ? cell.Velocity : -cell.Velocity) *
-        (cell.SoundSpeed + Math.Abs(cell.Velocity));
+    internal double WallPressure(GasState cell, bool rightWall)
+    {
+        double normalMach = (rightWall ? cell.Velocity : -cell.Velocity) / cell.SoundSpeed;
+        if (normalMach <= 0)
+        {
+            double factor = Math.Max(0, 1 + (cell.Gamma - 1) / 2 * normalMach);
+            return cell.Pressure * Math.Pow(factor, 2 * cell.Gamma / (cell.Gamma - 1));
+        }
+        // Symmetric shock, using the local frozen gamma to close the wall Riemann problem.
+        double x = cell.Gamma * (cell.Gamma + 1) / 2 * normalMach * normalMach;
+        return cell.Pressure * (1 + .5 * x + Math.Sqrt(x * (2 * cell.Gamma / (cell.Gamma + 1) + .25 * x)));
+    }
 }
 
 // x increases from the exterior reservoir to the valve for both inlet and exhaust.

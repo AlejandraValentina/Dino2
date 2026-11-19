@@ -22,7 +22,7 @@ public static class ReactiveSimulator
             progress?.Report($"Mezcla reactiva: {rpm} RPM…");
             points.Add(Simulate(c, rpm, cancellation));
         }
-        return new(c, points.AsReadOnly(), clock.Elapsed.TotalMilliseconds) { Model = c.Thermochemistry.Identifier };
+        return new(c, points.AsReadOnly(), clock.Elapsed.TotalMilliseconds) { Model = c.ModelIdentifier };
     }
     public static FourStrokePoint Simulate(FourStrokeConfiguration c, int rpm, CancellationToken cancellation = default)
     {
@@ -35,6 +35,7 @@ public static class ReactiveSimulator
         var full = new double[n]; var half = new double[n]; var refined = new double[n]; var workspace = new double[5 * n];
         Span<double> physical = stackalloc double[eq.SpeciesCount];
         Span<double> extents = stackalloc double[2];
+        Span<double> ductFlux = stackalloc double[7];
         double[] scales = Enumerable.Range(0, n).Select(i => i is >= 5 and <= 9 ? 10.0 : 1e-7).ToArray();
         int accepted = 0, rejected = 0, consecutive = 0;
         double previousWork = double.NaN, periodic = double.PositiveInfinity;
@@ -48,8 +49,10 @@ public static class ReactiveSimulator
             Array.Clear(y, 6, 5); Array.Clear(y, 12, 5);
             if (eq.SpeciesCount > 5) Array.Clear(y, 19, 2);
             extents.Clear();
+            eq.Ducts?.StartCycle(y);
             trace.Clear(); trace.Add(eq.Sample(0, y, 0));
             double angle = 0, step = c.Solver.MaximumStepDeg, consumed = 0, freshAirRetained = 0;
+            double nextSample = .5;
             double burnEnd = double.PositiveInfinity;
             var events = new SortedSet<double>(new[] { 180.0, 360, 540, 720, ivo, c.IntakeValve.ClosesDeg,
                 c.ExhaustValve.OpensDeg, c.ExhaustValve.ClosesDeg % 720, eq.BurnStart }.Where(a => a > 0 && a <= 720));
@@ -65,22 +68,38 @@ public static class ReactiveSimulator
                     double error = double.PositiveInfinity;
                     try
                     {
-                        RungeKutta.Step(derivative, angle, y, step, full, workspace);
-                        RungeKutta.Step(derivative, angle, y, step / 2, half, workspace);
-                        RungeKutta.Step(derivative, angle + step / 2, half, step / 2, refined, workspace);
-                        eq.Resolve(angle + step, SliderCrank.At(c.Geometry, angle + step).VolumeM3, refined, physical);
-                        error = 0;
-                        for (int i = 0; i < n; i++)
+                        if (eq.Ducts is not null)
                         {
-                            double e = Math.Abs(refined[i] - full[i]) / (15 * c.Solver.RelativeTolerance * (scales[i] + Math.Max(Math.Abs(y[i]), Math.Abs(refined[i]))));
-                            error = Math.Max(error, double.IsFinite(e) ? e : double.PositiveInfinity);
+                            if (CoupledStep(eq, angle, ref step, y, half, full, refined))
+                            {
+                                eq.Resolve(angle + step, SliderCrank.At(c.Geometry, angle + step).VolumeM3, refined, physical);
+                                eq.Ducts.ValidateState(refined);
+                                error = 0;
+                            }
+                        }
+                        else
+                        {
+                            RungeKutta.Step(derivative, angle, y, step, full, workspace);
+                            RungeKutta.Step(derivative, angle, y, step / 2, half, workspace);
+                            RungeKutta.Step(derivative, angle + step / 2, half, step / 2, refined, workspace);
+                            eq.Resolve(angle + step, SliderCrank.At(c.Geometry, angle + step).VolumeM3, refined, physical);
+                            error = 0;
+                            for (int i = 0; i < n; i++)
+                            {
+                                double e = Math.Abs(refined[i] - full[i]) / (15 * c.Solver.RelativeTolerance * (scales[i] + Math.Max(Math.Abs(y[i]), Math.Abs(refined[i]))));
+                                error = Math.Max(error, double.IsFinite(e) ? e : double.PositiveInfinity);
+                            }
                         }
                     }
                     catch (NumericalStateException) { }
                     if (error <= 1)
                     {
                         Array.Copy(refined, y, n); angle += step; accepted++;
-                        trace.Add(eq.Sample(angle, y, consumed));
+                        if (eq.Ducts is null || angle >= nextSample - 1e-9 || angle >= boundary - 1e-9)
+                        {
+                            trace.Add(eq.Sample(angle, y, consumed));
+                            if (angle >= nextSample - 1e-9) nextSample += .5;
+                        }
                     }
                     else rejected++;
                     step = Math.Min(c.Solver.MaximumStepDeg, step * (error == 0 ? 2 : Math.Clamp(.9 * Math.Pow(1 / error, .2), .2, 2)));
@@ -89,7 +108,13 @@ public static class ReactiveSimulator
                 }
                 angle = boundary;
                 if (Math.Abs(boundary - c.IntakeValve.ClosesDeg) < 1e-8) freshAirRetained = y[11];
-                if (boundary == eq.BurnStart) { eq.BeginReaction(y); burnEnd = eq.BurnStart + eq.BurnDuration; events.Add(burnEnd); }
+                if (boundary == eq.BurnStart)
+                {
+                    eq.BeginReaction(y);
+                    burnEnd = eq.BurnStart + eq.BurnDuration;
+                    events.Add(burnEnd);
+                    if (eq.Ducts is not null && eq.TargetFuel > 0) y[11] = 0; // End of fresh-air tagging for this firing.
+                }
                 if (boundary == burnEnd) consumed += eq.CommitReaction(y);
                 if (boundary == c.ExhaustValve.OpensDeg) eq.FreezeProducts(boundary, y, extents);
                 if (boundary == ivo || (boundary == 720 && ivo == 0)) y[11] = 0;
@@ -102,6 +127,8 @@ public static class ReactiveSimulator
                 periodic = Math.Max(periodic, Math.Abs(y[index] - initial[index]) / (scales[index] + Math.Abs(y[index])));
             }
             periodic = Math.Max(periodic, double.IsNaN(previousWork) ? 1 : Math.Abs(y[6] - previousWork) / (10 + Math.Abs(y[6])));
+            double ductPeriodicity = eq.Ducts?.PeriodicError(initial, y) ?? 0;
+            periodic = Math.Max(periodic, ductPeriodicity);
             consecutive = cycle >= 3 && periodic < c.Solver.PeriodicTolerance ? consecutive + 1 : 0;
             previousWork = y[6]; if (consecutive < 2) continue;
             double[] speciesResiduals = new double[eq.SpeciesCount];
@@ -123,6 +150,13 @@ public static class ReactiveSimulator
                 for (int i = 0; i < eq.SpeciesCount; i++) residual += speciesResiduals[i] * SpeciesThermodynamics.ElementMassFraction(i, element);
                 maxElement = Math.Max(maxElement, Math.Abs(residual));
             }
+            DuctDiagnostics? ductDiagnostics = null;
+            if (eq.Ducts is not null)
+            {
+                for (int i = 0; i < eq.SpeciesCount; i++) ductFlux[i] = y[ReactiveCylinder.FlowIndex(i)];
+                var balance = eq.Ducts.Balance(initial, y, ductFlux, y[9]);
+                ductDiagnostics = new(balance.Mass, balance.Species, balance.Energy, ductPeriodicity, eq.Ducts.CellEvaluations);
+            }
             double peakP = trace.Max(s => s.PressurePa), peakT = trace.Max(s => s.TemperatureK);
             double friction = LossModels.FrictionMep(c.Friction, peakP, 2 * c.Geometry.StrokeM * rpm / 60) * c.Geometry.DisplacementM3;
             double brake = y[6] - friction, fuelEnergy = y[10] * SpeciesThermodynamics.LowerHeatingValue;
@@ -136,6 +170,7 @@ public static class ReactiveSimulator
                 y[5] - initial[5] + y[8] - y[9] + y[6], periodic, cycle, accepted, rejected, eq.Evaluations,
                 clock.Elapsed.TotalMilliseconds, Array.AsReadOnly(trace.ToArray()))
             {
+                GasDynamics = ductDiagnostics,
                 Chemistry = new(speciesResiduals.Max(Math.Abs), maxElement, consumed, eq.BurnDuration, eq.SocT, eq.SocP, eq.SocResidual,
                     Phase(.1), Phase(.5), Phase(.9), eq.ExtrapolatedCorrelation,
                     c.Thermochemistry.UsesEquilibrium
@@ -144,5 +179,18 @@ public static class ReactiveSimulator
             };
         }
         throw new ArithmeticException($"{rpm} RPM: no convergió la composición y energía en {c.Solver.MaximumCycles} ciclos (residual {periodic:E3}).");
+    }
+    // Two FV stages use exactly the same valve flux for both subsystems.
+    private static bool CoupledStep(ReactiveCylinder cylinder, double angle, ref double step,
+        double[] state, double[] stage, double[] rate, double[] destination)
+    {
+        cylinder.Evaluate(angle, state, rate);
+        step = Math.Min(step, .97 * cylinder.CflDegrees);
+        for (int i = 0; i < state.Length; i++) stage[i] = state[i] + step * rate[i];
+        cylinder.Evaluate(angle + step, stage, rate);
+        if (step > cylinder.CflDegrees) return false;
+        for (int i = 0; i < state.Length; i++)
+            destination[i] = .5 * (state[i] + stage[i] + step * rate[i]);
+        return true;
     }
 }

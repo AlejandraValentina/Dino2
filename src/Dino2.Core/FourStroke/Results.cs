@@ -5,6 +5,8 @@ public readonly record struct CycleSample(double AngleDeg, double VolumeM3, doub
     double IntakeFlowKgPerS, double ExhaustFlowKgPerS, double InternalEnergyJ, double WorkJ,
     double HeatReleasedJ, double WallHeatJ, double FlowEnthalpyJ)
 {
+    public double IntakePortPressurePa { get; init; }
+    public double ExhaustPortPressurePa { get; init; }
     public Thermochemistry.SpeciesMasses Composition { get; init; }
 }
 
@@ -17,8 +19,12 @@ public sealed record FourStrokePoint(int Rpm, double IndicatedPowerW, double Bra
     int Cycles, int AcceptedSteps, int RejectedSteps, int RhsEvaluations, double ElapsedMilliseconds,
     IReadOnlyList<CycleSample> Trace)
 {
+    public DuctDiagnostics? GasDynamics { get; init; }
     public Thermochemistry.ReactiveDiagnostics? Chemistry { get; init; }
 }
+
+public sealed record DuctDiagnostics(double MassResidualKg, double MaximumSpeciesResidualKg, double EnergyResidualJ,
+    double PeriodicError, long CellEvaluations);
 
 public sealed record FourStrokeResult(FourStrokeConfiguration Configuration,
     IReadOnlyList<FourStrokePoint> Points, double ElapsedMilliseconds)
@@ -28,7 +34,10 @@ public sealed record FourStrokeResult(FourStrokeConfiguration Configuration,
 }
 
 public sealed record ComparisonPoint(int Rpm, double OriginalBrakePowerW, double VariantBrakePowerW,
-    double PowerDifferenceW, double OriginalBrakeTorqueNm, double VariantBrakeTorqueNm, double TorqueDifferenceNm);
+    double PowerDifferenceW, double OriginalBrakeTorqueNm, double VariantBrakeTorqueNm, double TorqueDifferenceNm)
+{
+    public double FillingDifference { get; init; }
+}
 
 public static class EngineComparison
 {
@@ -39,7 +48,7 @@ public static class EngineComparison
         {
             var b = byRpm[p.Rpm];
             return new ComparisonPoint(p.Rpm, p.BrakePowerW, b.BrakePowerW, b.BrakePowerW - p.BrakePowerW,
-                p.BrakeTorqueNm, b.BrakeTorqueNm, b.BrakeTorqueNm - p.BrakeTorqueNm);
+                p.BrakeTorqueNm, b.BrakeTorqueNm, b.BrakeTorqueNm - p.BrakeTorqueNm) { FillingDifference = b.VolumetricEfficiency - p.VolumetricEfficiency };
         }).ToList().AsReadOnly();
     }
 }

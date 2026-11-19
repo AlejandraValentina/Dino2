@@ -36,8 +36,12 @@ public sealed record SolverSettings(double MaximumStepDeg, double RelativeTolera
 public sealed record FourStrokeConfiguration(CylinderGeometry Geometry,
     Reservoir Intake, Reservoir Exhaust, PoppetValve IntakeValve, PoppetValve ExhaustValve,
     Combustion Combustion, ThermalBoundary Thermal, MechanicalLosses Friction,
-    RpmRange Speeds, SolverSettings Solver, Thermochemistry.ThermochemicalOptions? Thermochemistry = null)
+    RpmRange Speeds, SolverSettings Solver, Thermochemistry.ThermochemicalOptions? Thermochemistry = null,
+    GasDynamics.GasPath? Ducts = null)
 {
+    public string ModelIdentifier => Ducts is not null ? GasDynamics.GasPath.ModelId :
+        Thermochemistry?.Identifier ?? FourStrokeResult.ModelId;
+
     public static FourStrokeConfiguration Example => new(
         new(.08, .08, .135, 10), new(100000, 320), new(105000, 800),
         new(.032, .008, 1, .7, -10, 220), new(.028, .007, 1, .7, 500, 730),
@@ -89,6 +93,12 @@ public sealed record FourStrokeConfiguration(CylinderGeometry Geometry,
         if (Solver.MaximumCycles < 3 || Solver.MaximumCycles > 200) throw new ArgumentException("Máximo de ciclos entre 3 y 200.");
         Speeds.Validate();
         Thermochemistry?.Validate(this);
+        if (Ducts is not null)
+        {
+            Ducts.Validate();
+            if (Thermochemistry?.UsesEquilibrium != true)
+                throw new ArgumentException("Los conductos 1D se acoplan al cilindro con equilibrio UV.");
+        }
         foreach (int rpm in Speeds.Values())
         {
             var start = 360 - Combustion.SparkAdvanceDeg + 6 * rpm * Combustion.IgnitionDelayS;

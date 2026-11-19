@@ -1,3 +1,4 @@
+using Dino2.Core.GasDynamics;
 using Dino2.Core.FourStroke;
 
 namespace Dino2.Core.Thermochemistry;
@@ -8,7 +9,10 @@ namespace Dino2.Core.Thermochemistry;
 public sealed class ReactiveCylinder
 {
     public int SpeciesCount { get; }
-    public int Dimension => SpeciesCount == 5 ? 17 : 21;
+    private int CylinderDimension => SpeciesCount == 5 ? 17 : 21;
+    public int Dimension => Ducts?.Dimension ?? CylinderDimension;
+    internal DuctCoupling? Ducts { get; }
+    internal double CflDegrees => Ducts!.Courant * Ducts.StableTime * (6.0 * rpm);
     internal static int MassIndex(int species) => species < 5 ? species : 17 + species - 5;
     internal static int FlowIndex(int species) => species < 5 ? 12 + species : 19 + species - 5;
     private bool equilibrating;
@@ -42,6 +46,7 @@ public sealed class ReactiveCylinder
         intakeR = SpeciesThermodynamics.GasConstant(intake); exhaustR = SpeciesThermodynamics.GasConstant(exhaust);
         intakeGamma = SpeciesThermodynamics.Gamma(intake, c.Intake.TemperatureK);
         exhaustGamma = SpeciesThermodynamics.Gamma(exhaust, c.Exhaust.TemperatureK);
+        if (c.Ducts is not null) Ducts = new(c, intake, exhaust, CylinderDimension);
         BurnStart = 360 - c.Combustion.SparkAdvanceDeg + 6 * rpm * c.Combustion.IgnitionDelayS;
     }
     public void Initialize(Span<double> state)
@@ -50,6 +55,7 @@ public sealed class ReactiveCylinder
             (exhaustR * config.Exhaust.TemperatureK);
         for (int i = 0; i < 5; i++) state[i] = mass * exhaust[i];
         state[5] = SpeciesThermodynamics.Energy(state[..5], config.Exhaust.TemperatureK);
+        Ducts?.Initialize(state);
     }
     public void PhysicalSpecies(double angle, ReadOnlySpan<double> state, Span<double> masses)
     {
@@ -124,28 +130,65 @@ public sealed class ReactiveCylinder
         double mass = SpeciesThermodynamics.TotalMass(species);
         double r = SpeciesThermodynamics.GasConstant(species), gamma = SpeciesThermodynamics.Gamma(species, t);
         double p = mass * r * t / position.VolumeM3;
-        double mi = Nozzle(ValveFlow.EffectiveArea(config.IntakeValve, angle), config.Intake.PressurePa,
-            config.Intake.TemperatureK, intakeR, intakeGamma, p, t, r, gamma);
-        double me = Nozzle(ValveFlow.EffectiveArea(config.ExhaustValve, angle), config.Exhaust.PressurePa,
-            config.Exhaust.TemperatureK, exhaustR, exhaustGamma, p, t, r, gamma);
-        double h = SpeciesThermodynamics.Enthalpy(species, t);
-        double enthalpy = mi * (mi >= 0 ? intakeH : h) + me * (me >= 0 ? exhaustH : h);
+        double dps = 6.0 * rpm;
+        double enthalpy;
+        if (Ducts is not null)
+        {
+            Span<double> chamber = stackalloc double[SpeciesCount + 3];
+            double density = FillChamber(chamber, species, position.VolumeM3, state[5], state[11]);
+            Span<double> induction = stackalloc double[chamber.Length];
+            Span<double> discharge = stackalloc double[chamber.Length];
+            var primitive = new GasState(density, 0, p, chamber[SpeciesCount + 1], Math.Sqrt(gamma * r * t), t, gamma, r);
+            Ducts.Evaluate(angle, dps, state, rates, chamber, primitive, induction, discharge);
+            for (int i = 0; i < SpeciesCount; i++)
+            {
+                double flow = (induction[i] + discharge[i]) / dps;
+                rates[MassIndex(i)] = flow;
+                rates[FlowIndex(i)] = flow;
+            }
+            enthalpy = induction[SpeciesCount + 1] + discharge[SpeciesCount + 1];
+            rates[10] = induction[0] / dps;
+            rates[11] = (induction[SpeciesCount + 2] + discharge[SpeciesCount + 2]) / dps;
+        }
+        else
+        {
+            double mi = Nozzle(ValveFlow.EffectiveArea(config.IntakeValve, angle), config.Intake.PressurePa,
+                config.Intake.TemperatureK, intakeR, intakeGamma, p, t, r, gamma);
+            double me = Nozzle(ValveFlow.EffectiveArea(config.ExhaustValve, angle), config.Exhaust.PressurePa,
+                config.Exhaust.TemperatureK, exhaustR, exhaustGamma, p, t, r, gamma);
+            double h = SpeciesThermodynamics.Enthalpy(species, t);
+            enthalpy = mi * (mi >= 0 ? intakeH : h) + me * (me >= 0 ? exhaustH : h);
+            for (int i = 0; i < SpeciesCount; i++)
+            {
+                double flow = mi * (mi >= 0 ? intake[i] : species[i] / mass) + me * (me >= 0 ? exhaust[i] : species[i] / mass);
+                rates[MassIndex(i)] = flow / dps;
+                rates[FlowIndex(i)] = flow / dps;
+            }
+            rates[10] = mi * (mi >= 0 ? intake[0] : species[0] / mass) / dps;
+            rates[11] = (Math.Max(0, mi) * (1 - intake[0]) + (Math.Min(0, mi) + Math.Min(0, me)) * state[11] / mass) / dps;
+        }
         double wall = config.Thermal.HohenbergMultiplier * LossModels.HeatTransferCoefficient(position.VolumeM3, p, t,
             2 * config.Geometry.StrokeM * rpm / 60) * position.WettedAreaM2 * (t - config.Thermal.WallTemperatureK);
-        double dps = 6.0 * rpm;
-        for (int i = 0; i < SpeciesCount; i++)
-        {
-            double flow = mi * (mi >= 0 ? intake[i] : species[i] / mass) + me * (me >= 0 ? exhaust[i] : species[i] / mass);
-            rates[MassIndex(i)] = flow / dps;
-            rates[FlowIndex(i)] = flow / dps;
-        }
         double work = p * position.VolumeDerivativeM3PerDeg;
         rates[5] = (enthalpy - wall) / dps - work; // Total chemical + sensible energy. NO added LHV heat source.
         rates[6] = work; rates[7] = PumpingInterval ? work : 0;
         rates[8] = wall / dps; rates[9] = enthalpy / dps;
-        rates[10] = mi * (mi >= 0 ? intake[0] : species[0] / mass) / dps;
-        rates[11] = (Math.Max(0, mi) * (1 - intake[0]) + (Math.Min(0, mi) + Math.Min(0, me)) * state[11] / mass) / dps;
     }
+
+    private double FillChamber(Span<double> chamber, ReadOnlySpan<double> masses, double volume, double energy, double tag)
+    {
+        double density = 0;
+        for (int i = 0; i < SpeciesCount; i++)
+        {
+            chamber[i] = masses[i] / volume;
+            density += chamber[i];
+        }
+        chamber[SpeciesCount] = 0;
+        chamber[SpeciesCount + 1] = energy / volume;
+        chamber[SpeciesCount + 2] = tag / volume;
+        return density;
+    }
+
     public CycleSample Sample(double angle, ReadOnlySpan<double> state, double alreadyConsumed)
     {
         var pos = SliderCrank.At(config.Geometry, angle);
@@ -155,11 +198,25 @@ public sealed class ReactiveCylinder
         double r = SpeciesThermodynamics.GasConstant(masses), gamma = SpeciesThermodynamics.Gamma(masses, t);
         double p = mass * r * t / pos.VolumeM3;
         double burned = alreadyConsumed + (ReactionActive ? TargetFuel * HeatRelease.Fraction((angle - BurnStart) / BurnDuration, config.Combustion.WiebeExponent) : 0);
+        double mi, me, intakePressure, exhaustPressure;
+        if (Ducts is not null)
+        {
+            Span<double> chamber = stackalloc double[SpeciesCount + 3];
+            double density = FillChamber(chamber, masses, pos.VolumeM3, state[5], state[11]);
+            var primitive = new GasState(density, 0, p, chamber[SpeciesCount + 1], Math.Sqrt(gamma * r * t), t, gamma, r);
+            (mi, me, intakePressure, exhaustPressure) = Ducts.Sample(angle, state, chamber, primitive);
+        }
+        else
+        {
+            intakePressure = config.Intake.PressurePa;
+            exhaustPressure = config.Exhaust.PressurePa;
+            mi = Nozzle(ValveFlow.EffectiveArea(config.IntakeValve, angle), intakePressure, config.Intake.TemperatureK, intakeR, intakeGamma, p, t, r, gamma);
+            me = Nozzle(ValveFlow.EffectiveArea(config.ExhaustValve, angle), exhaustPressure, config.Exhaust.TemperatureK, exhaustR, exhaustGamma, p, t, r, gamma);
+        }
         return new(angle, pos.VolumeM3, mass, t, p, state[11] * (config.Combustion.AirFuelRatio + 1) / config.Combustion.AirFuelRatio,
             ValveFlow.Lift(config.IntakeValve, angle), ValveFlow.Lift(config.ExhaustValve, angle),
-            Nozzle(ValveFlow.EffectiveArea(config.IntakeValve, angle), config.Intake.PressurePa, config.Intake.TemperatureK, intakeR, intakeGamma, p, t, r, gamma),
-            Nozzle(ValveFlow.EffectiveArea(config.ExhaustValve, angle), config.Exhaust.PressurePa, config.Exhaust.TemperatureK, exhaustR, exhaustGamma, p, t, r, gamma),
+            mi, me,
             state[5], state[6], burned * SpeciesThermodynamics.LowerHeatingValue, state[8], state[9])
-        { Composition = SpeciesMasses.From(masses) };
+        { Composition = SpeciesMasses.From(masses), IntakePortPressurePa = intakePressure, ExhaustPortPressurePa = exhaustPressure };
     }
 }

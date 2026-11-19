@@ -66,14 +66,49 @@ internal static class DuctChecks
         }
         double reference = Probe(.025), coarse = Math.Abs(Probe(.45) - reference), fine = Math.Abs(Probe(.225) - reference);
         Check(fine < .4 * coarse, $"Temporal refinement {coarse} → {fine}");
+        var nozzle = new List<object>();
+        double previousNozzleError = double.PositiveInfinity;
+        foreach (int cells in new[] { 24, 48, 96 })
+        {
+            var geometry = new DuctGeometry(1, .055, .04, cells);
+            const double stagnationT = 320, stagnationP = 120000, targetFlow = .06;
+            void Exact(double x, Span<double> q)
+            {
+                double diameter = .055 - .015 * x;
+                double area = Math.PI / 4 * diameter * diameter;
+                double flowCoefficient = area * stagnationP * Math.Sqrt(1.4 / (287 * stagnationT));
+                double low = 0, high = 1;
+                for (int i = 0; i < 45; i++)
+                {
+                    double m = (low + high) / 2;
+                    if (flowCoefficient * m / Math.Pow(1 + .2 * m * m, 3) < targetFlow) low = m; else high = m;
+                }
+                double mach = (low + high) / 2, ratio = 1 + .2 * mach * mach;
+                double t = stagnationT / ratio;
+                Gas.Encode(q, Pure, stagnationP / Math.Pow(ratio, 3.5), t, mach * Math.Sqrt(1.4 * 287 * t), .4);
+            }
+
+            var (state, balance) = Evolve(geometry, .018, .45, Exact, true);
+            double rms = 0;
+            for (int i = 0; i < cells; i++)
+            {
+                double x = (i + .5) / cells, d = .055 - .015 * x;
+                double flow = state[i * Gas.Size + Gas.Momentum] * Math.PI / 4 * d * d;
+                rms += Math.Pow((flow - targetFlow) / targetFlow, 2) / cells;
+            }
+            double error = Math.Sqrt(rms);
+            Check(error < previousNozzleError && error < .06 && balance < 1e-11, $"Variable area flow RMS {error:G6}");
+            nozzle.Add(new { cells, rmsRelativeMassFlow = error, balance });
+            previousNozzleError = error;
+        }
         Directory.CreateDirectory("artifacts/stage4");
-        File.WriteAllText("artifacts/stage4/standalone.json", JsonSerializer.Serialize(new { sod = errors, reflection, temporal = new { coarse, fine } },
+        File.WriteAllText("artifacts/stage4/standalone.json", JsonSerializer.Serialize(new { sod = errors, reflection, nozzle, temporal = new { coarse, fine } },
             new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private delegate void InitialState(double x, Span<double> q);
 
-    private static (double[] State, double Conservation) Evolve(DuctGeometry geometry, double end, double courant, InitialState initial)
+    private static (double[] State, double Conservation) Evolve(DuctGeometry geometry, double end, double courant, InitialState initial, bool open = false)
     {
         var mesh = new DuctMesh(geometry, Gas);
         var y = new double[mesh.Size];
@@ -84,13 +119,36 @@ internal static class DuctChecks
             initial((i + .5) * mesh.Dx, y.AsSpan(i * Gas.Size, Gas.Size));
         double[] totals = [Integral(0), Integral(Gas.Energy), Integral(Gas.Tag)];
 
+        var leftGhost = new double[Gas.Size];
+        var rightGhost = new double[Gas.Size];
+        var net = new double[Gas.Size];
+        var integrated = new double[Gas.Size];
+        initial(0, leftGhost);
+        initial(geometry.LengthM, rightGhost);
+
         double Rates(double[] q)
         {
             Span<double> left = stackalloc double[Gas.Size];
             Span<double> right = stackalloc double[Gas.Size];
             left.Clear(); right.Clear();
-            left[Gas.Momentum] = mesh.ReservoirArea * Gas.WallPressure(Gas.Decode(q.AsSpan(0, Gas.Size)), false);
+            if (open)
+            {
+                var a = q.AsSpan(0, Gas.Size);
+                var b = q.AsSpan(^Gas.Size);
+                Gas.Flux(leftGhost, Gas.Decode(leftGhost), a, Gas.Decode(a), left);
+                Gas.Flux(b, Gas.Decode(b), rightGhost, Gas.Decode(rightGhost), right);
+                for (int k = 0; k < Gas.Size; k++)
+                {
+                    left[k] *= mesh.ReservoirArea;
+                    right[k] *= mesh.ValveArea;
+                }
+            }
+            else
+            {
+                left[Gas.Momentum] = mesh.ReservoirArea * Gas.WallPressure(Gas.Decode(q.AsSpan(0, Gas.Size)), false);
             right[Gas.Momentum] = mesh.ValveArea * Gas.WallPressure(Gas.Decode(q.AsSpan(^Gas.Size)), true);
+            }
+            for (int k = 0; k < Gas.Size; k++) net[k] = left[k] - right[k];
             return mesh.Rates(q, derivative, left, right);
         }
 
@@ -99,12 +157,14 @@ internal static class DuctChecks
         {
             double dt = Math.Min(end - time, courant * Rates(y));
             for (int i = 0; i < y.Length; i++) stage[i] = y[i] + dt * derivative[i];
+            for (int k = 0; k < Gas.Size; k++) integrated[k] += .5 * dt * net[k];
             Rates(stage);
+            for (int k = 0; k < Gas.Size; k++) integrated[k] += .5 * dt * net[k];
             for (int i = 0; i < y.Length; i++) y[i] = .5 * (y[i] + stage[i] + dt * derivative[i]);
             time += dt;
         }
 
-        double balance = new[] { Integral(0) - totals[0], (Integral(Gas.Energy) - totals[1]) / totals[1], Integral(Gas.Tag) - totals[2] }.Max(Math.Abs);
+        double balance = new[] { Integral(0) - totals[0] - integrated[0], (Integral(Gas.Energy) - totals[1] - integrated[Gas.Energy]) / totals[1], Integral(Gas.Tag) - totals[2] - integrated[Gas.Tag] }.Max(Math.Abs);
         return (y, balance);
     }
 
