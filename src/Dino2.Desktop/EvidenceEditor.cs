@@ -75,7 +75,7 @@ internal static class ReactiveDiagnosticText
         {
             var d=p.Chemistry!;
             if (p.GasDynamics is { } duct)
-                text.AppendLine(FormattableString.Invariant($"\n{p.Rpm} RPM · conductos: residual masa {duct.MassResidualKg:E3} kg, especie máx {duct.MaximumSpeciesResidualKg:E3} kg, energía {duct.EnergyResidualJ:E3} J, periodicidad {duct.PeriodicError:E3}; {duct.CellEvaluations:N0} evaluaciones de celda."));
+                text.AppendLine(FormattableString.Invariant($"\n{p.Rpm} RPM · conductos: residual masa {duct.MassResidualKg:E3} kg, especie máx {duct.MaximumSpeciesResidualKg:E3} kg, energía {duct.EnergyResidualJ:E3} J, momento {duct.MomentumResidualNs:E3} N·s, periodicidad {duct.PeriodicError:E3}; {duct.CellEvaluations:N0} evaluaciones de celda."));
             text.AppendLine(FormattableString.Invariant($"\n{p.Rpm} RPM · {p.Cycles} ciclos · periodicidad {p.PeriodicError:E3} · {p.ElapsedMilliseconds:F1} ms\nResidual especie máx {d.MaximumSpeciesResidualKg:E3} kg; elemento máx {d.MaximumElementResidualKg:E3} kg; energía total {p.EnergyResidualJ:E3} J\nWi bruto {p.GrossWorkJ:F3} J; bombeo {p.PumpingWorkJ:F3} J; neto {p.NetWorkJ:F3} J; fricción {p.FrictionWorkJ:F3} J\nSOC: {d.SocTemperatureK:F1} K, {d.SocPressurePa/1e5:F3} bar; residuo {d.SocResidualFraction:P2}; duración {d.BurnDurationDeg:F3}°; CA10/50/90 {d.Ca10Deg:F2}/{d.Ca50Deg:F2}/{d.Ca90Deg:F2}°\nT pico {p.PeakTemperatureK:F1} K; correlación de velocidad extrapolada: {d.FlameCorrelationExtrapolated}."));
         }
         return text.ToString();

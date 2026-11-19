@@ -39,7 +39,7 @@ public sealed record FourStrokeConfiguration(CylinderGeometry Geometry,
     RpmRange Speeds, SolverSettings Solver, Thermochemistry.ThermochemicalOptions? Thermochemistry = null,
     GasDynamics.GasPath? Ducts = null)
 {
-    public string ModelIdentifier => Ducts is not null ? GasDynamics.GasPath.ModelId :
+    public string ModelIdentifier => Ducts?.Identifier ??
         Thermochemistry?.Identifier ?? FourStrokeResult.ModelId;
 
     public static FourStrokeConfiguration Example => new(

@@ -66,7 +66,7 @@ try {
     $ductModel = $models.FindAll([System.Windows.Automation.TreeScope]::Descendants,
         [System.Windows.Automation.Condition]::TrueCondition) |
         Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::ListItem -and
-            $_.Current.Name.StartsWith('v4') -and $_.Current.Name.EndsWith('Wiebe prescrita') } | Select-Object -First 1
+            $_.Current.Name.Contains('MUSCL') -and $_.Current.Name.EndsWith('Wiebe prescrita') } | Select-Object -First 1
     if ($null -eq $ductModel) { throw 'Published v4 model not found' }
     $ductModel.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
     $dropdown.Collapse()
@@ -75,8 +75,8 @@ try {
     do {
         Start-Sleep -Milliseconds 250
         $status = (Find-Control 'Status').Current.Name
-    } while (!$status.Contains('four-stroke-isooctane-ducts-v4') -and !$status.StartsWith('No se completó') -and [DateTime]::UtcNow -lt $deadline)
-    if (!$status.Contains('four-stroke-isooctane-ducts-v4')) { throw "Published v4 calculation failed: $status" }
+    } while (!$status.Contains('four-stroke-isooctane-ducts-v4-muscl') -and !$status.StartsWith('No se completó') -and [DateTime]::UtcNow -lt $deadline)
+    if (!$status.Contains('four-stroke-isooctane-ducts-v4-muscl')) { throw "Published v4 calculation failed: $status" }
     Write-Output "PASS published 1D calculation: $status"
 }
 finally {

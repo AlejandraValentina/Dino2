@@ -23,6 +23,7 @@ public static class FourStrokeFiles
     private static readonly JsonSerializerOptions FlatOptions = new(Options) { WriteIndented = false };
     private static readonly JsonSerializerOptions DiagnosticOptions = new(FlatOptions) { IgnoreReadOnlyProperties = false };
     private static string ProjectModel(FourStrokeProject project) =>
+        project.Current.Ducts?.Scheme == DuctScheme.Muscl || project.Original?.Ducts?.Scheme == DuctScheme.Muscl ? GasPath.MusclModelId :
         project.Current.Ducts is not null || project.Original?.Ducts is not null ? GasPath.ModelId :
         project.Current.Thermochemistry?.UsesEquilibrium == true || project.Original?.Thermochemistry?.UsesEquilibrium == true
             ? ThermochemicalOptions.EquilibriumModelId
@@ -115,6 +116,8 @@ public static class FourStrokeFiles
         text.AppendLine("# original_configuration_SI=" + JsonSerializer.Serialize(original.Configuration, FlatOptions));
         text.AppendLine("# original_model="+original.Model);
         text.AppendLine("# exact common RPM only; no interpolation; difference=B-A");
+        if (original.Configuration.Ducts is not null || variant.Configuration.Ducts is not null)
+            text.AppendLine("# numerical_resolution=raw differences at the configured grids; a separate mesh study is required at each RPM");
         text.AppendLine("rpm,original_brake_power_W,variant_brake_power_W,power_difference_W,original_brake_torque_Nm,variant_brake_torque_Nm,torque_difference_Nm,volumetric_efficiency_difference");
         foreach (var p in EngineComparison.Compare(original, variant))
             text.AppendLine(string.Join(",", new double[] { p.Rpm, p.OriginalBrakePowerW, p.VariantBrakePowerW,

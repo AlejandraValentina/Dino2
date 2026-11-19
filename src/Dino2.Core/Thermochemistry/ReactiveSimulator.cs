@@ -1,3 +1,4 @@
+using Dino2.Core.GasDynamics;
 using System.Diagnostics;
 using Dino2.Core.FourStroke;
 using Dino2.Core.Numerics;
@@ -53,6 +54,8 @@ public static class ReactiveSimulator
             trace.Clear(); trace.Add(eq.Sample(0, y, 0));
             double angle = 0, step = c.Solver.MaximumStepDeg, consumed = 0, freshAirRetained = 0;
             double nextSample = .5;
+            double resolvedPeakPressure = 0, resolvedPeakTemperature = 0;
+            bool measureEveryStep = c.Ducts?.Scheme == DuctScheme.Muscl;
             double burnEnd = double.PositiveInfinity;
             var events = new SortedSet<double>(new[] { 180.0, 360, 540, 720, ivo, c.IntakeValve.ClosesDeg,
                 c.ExhaustValve.OpensDeg, c.ExhaustValve.ClosesDeg % 720, eq.BurnStart }.Where(a => a > 0 && a <= 720));
@@ -72,8 +75,16 @@ public static class ReactiveSimulator
                         {
                             if (CoupledStep(eq, angle, ref step, y, half, full, refined))
                             {
-                                eq.Resolve(angle + step, SliderCrank.At(c.Geometry, angle + step).VolumeM3, refined, physical);
+                                double volume = SliderCrank.At(c.Geometry, angle + step).VolumeM3;
+                                double temperature = eq.Resolve(angle + step, volume, refined, physical);
                                 eq.Ducts.ValidateState(refined);
+                                if (measureEveryStep)
+                                {
+                                    double pressure = SpeciesThermodynamics.TotalMass(physical) *
+                                        SpeciesThermodynamics.GasConstant(physical) * temperature / volume;
+                                    resolvedPeakPressure = Math.Max(resolvedPeakPressure, pressure);
+                                    resolvedPeakTemperature = Math.Max(resolvedPeakTemperature, temperature);
+                                }
                                 error = 0;
                             }
                         }
@@ -94,7 +105,7 @@ public static class ReactiveSimulator
                     catch (NumericalStateException) { }
                     if (error <= 1)
                     {
-                        Array.Copy(refined, y, n); angle += step; accepted++;
+                        (y, refined) = (refined, y); angle += step; accepted++;
                         if (eq.Ducts is null || angle >= nextSample - 1e-9 || angle >= boundary - 1e-9)
                         {
                             trace.Add(eq.Sample(angle, y, consumed));
@@ -155,9 +166,10 @@ public static class ReactiveSimulator
             {
                 for (int i = 0; i < eq.SpeciesCount; i++) ductFlux[i] = y[ReactiveCylinder.FlowIndex(i)];
                 var balance = eq.Ducts.Balance(initial, y, ductFlux, y[9]);
-                ductDiagnostics = new(balance.Mass, balance.Species, balance.Energy, ductPeriodicity, eq.Ducts.CellEvaluations);
+                ductDiagnostics = new(balance.Mass, balance.Species, balance.Energy, ductPeriodicity, eq.Ducts.CellEvaluations, balance.Momentum);
             }
-            double peakP = trace.Max(s => s.PressurePa), peakT = trace.Max(s => s.TemperatureK);
+            double peakP = Math.Max(resolvedPeakPressure, trace.Max(s => s.PressurePa));
+            double peakT = Math.Max(resolvedPeakTemperature, trace.Max(s => s.TemperatureK));
             double friction = LossModels.FrictionMep(c.Friction, peakP, 2 * c.Geometry.StrokeM * rpm / 60) * c.Geometry.DisplacementM3;
             double brake = y[6] - friction, fuelEnergy = y[10] * SpeciesThermodynamics.LowerHeatingValue;
             double[] air = [0, 21 * SpeciesThermodynamics.MolecularWeight(1), 79 * SpeciesThermodynamics.MolecularWeight(2), 0, 0];

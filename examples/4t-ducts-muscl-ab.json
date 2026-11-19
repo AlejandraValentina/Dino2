@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "model": "four-stroke-isooctane-ducts-v4-muscl",
+  "project": {
+    "current": {
+      "geometry": {
+        "boreM": 0.08,
+        "strokeM": 0.08,
+        "rodLengthM": 0.135,
+        "compressionRatio": 10
+      },
+      "intake": {
+        "pressurePa": 100000,
+        "temperatureK": 320
+      },
+      "exhaust": {
+        "pressurePa": 105000,
+        "temperatureK": 800
+      },
+      "intakeValve": {
+        "diameterM": 0.032,
+        "maximumLiftM": 0.008,
+        "count": 1,
+        "dischargeCoefficient": 0.7,
+        "opensDeg": -10,
+        "closesDeg": 220
+      },
+      "exhaustValve": {
+        "diameterM": 0.028,
+        "maximumLiftM": 0.007,
+        "count": 1,
+        "dischargeCoefficient": 0.7,
+        "opensDeg": 500,
+        "closesDeg": 730
+      },
+      "combustion": {
+        "sparkAdvanceDeg": 20,
+        "ignitionDelayS": 0.0003,
+        "durationS": 0.002,
+        "airFuelRatio": 15.033440717137054,
+        "lowerHeatingValueJPerKg": 44650141.231121376,
+        "heatReleaseEfficiency": 0.98,
+        "wiebeExponent": 2
+      },
+      "thermal": {
+        "wallTemperatureK": 450,
+        "hohenbergMultiplier": 1
+      },
+      "friction": {
+        "constantPa": 50000,
+        "peakPressureFactor": 0.006,
+        "speedPaPerMPerS": 9000,
+        "speedSquaredPaPerM2PerS2": 45
+      },
+      "speeds": {
+        "start": 2000,
+        "end": 6000,
+        "step": 1000
+      },
+      "solver": {
+        "maximumStepDeg": 0.5,
+        "relativeTolerance": 2e-07,
+        "periodicTolerance": 1e-06,
+        "maximumCycles": 60
+      },
+      "thermochemistry": {
+        "burnLaw": "PrescribedWiebe",
+        "referenceTemperatureK": 650,
+        "referencePressurePa": 2000000,
+        "referenceResidualFraction": 0.05,
+        "referenceMeanPistonSpeedMPerS": 8,
+        "referenceBoreM": 0.08,
+        "turbulenceToPistonSpeed": 0.3,
+        "combustionEvidence": {
+          "status": "Estimated",
+          "source": "Metghalchi-Keck 1982 + duraci\u00f3n de referencia y turbulencia asumidas",
+          "calibrationDataset": "",
+          "applicableRange": "Iso-octano; phi 0.8\u20131; sin validaci\u00f3n de motor"
+        },
+        "heatTransferEvidence": {
+          "status": "Estimated",
+          "source": "Hohenberg 1979; multiplicador transferido, no calibrado",
+          "calibrationDataset": "",
+          "applicableRange": "Correlaci\u00f3n de otro tipo de motor; sin rango validado propio"
+        },
+        "frictionEvidence": {
+          "status": "Estimated",
+          "source": "Chen-Flynn; coeficientes transferidos MVM2012-026; D con incertidumbre dimensional de origen",
+          "calibrationDataset": "",
+          "applicableRange": "Sin ensayos de fricci\u00f3n del motor objetivo"
+        },
+        "referenceEquivalenceRatio": 1,
+        "products": "ClosedCycleEquilibrium"
+      },
+      "ducts": {
+        "intake": {
+          "lengthM": 0.55,
+          "reservoirDiameterM": 0.042,
+          "valveDiameterM": 0.036,
+          "cells": 38
+        },
+        "exhaust": {
+          "lengthM": 0.65,
+          "reservoirDiameterM": 0.036,
+          "valveDiameterM": 0.032,
+          "cells": 32
+        },
+        "courant": 0.45,
+        "scheme": "Muscl"
+      }
+    },
+    "original": {
+      "geometry": {
+        "boreM": 0.08,
+        "strokeM": 0.08,
+        "rodLengthM": 0.135,
+        "compressionRatio": 10
+      },
+      "intake": {
+        "pressurePa": 100000,
+        "temperatureK": 320
+      },
+      "exhaust": {
+        "pressurePa": 105000,
+        "temperatureK": 800
+      },
+      "intakeValve": {
+        "diameterM": 0.032,
+        "maximumLiftM": 0.008,
+        "count": 1,
+        "dischargeCoefficient": 0.7,
+        "opensDeg": -10,
+        "closesDeg": 220
+      },
+      "exhaustValve": {
+        "diameterM": 0.028,
+        "maximumLiftM": 0.007,
+        "count": 1,
+        "dischargeCoefficient": 0.7,
+        "opensDeg": 500,
+        "closesDeg": 730
+      },
+      "combustion": {
+        "sparkAdvanceDeg": 20,
+        "ignitionDelayS": 0.0003,
+        "durationS": 0.002,
+        "airFuelRatio": 15.033440717137054,
+        "lowerHeatingValueJPerKg": 44650141.231121376,
+        "heatReleaseEfficiency": 0.98,
+        "wiebeExponent": 2
+      },
+      "thermal": {
+        "wallTemperatureK": 450,
+        "hohenbergMultiplier": 1
+      },
+      "friction": {
+        "constantPa": 50000,
+        "peakPressureFactor": 0.006,
+        "speedPaPerMPerS": 9000,
+        "speedSquaredPaPerM2PerS2": 45
+      },
+      "speeds": {
+        "start": 2000,
+        "end": 6000,
+        "step": 1000
+      },
+      "solver": {
+        "maximumStepDeg": 0.5,
+        "relativeTolerance": 2e-07,
+        "periodicTolerance": 1e-06,
+        "maximumCycles": 60
+      },
+      "thermochemistry": {
+        "burnLaw": "PrescribedWiebe",
+        "referenceTemperatureK": 650,
+        "referencePressurePa": 2000000,
+        "referenceResidualFraction": 0.05,
+        "referenceMeanPistonSpeedMPerS": 8,
+        "referenceBoreM": 0.08,
+        "turbulenceToPistonSpeed": 0.3,
+        "combustionEvidence": {
+          "status": "Estimated",
+          "source": "Metghalchi-Keck 1982 + duraci\u00f3n de referencia y turbulencia asumidas",
+          "calibrationDataset": "",
+          "applicableRange": "Iso-octano; phi 0.8\u20131; sin validaci\u00f3n de motor"
+        },
+        "heatTransferEvidence": {
+          "status": "Estimated",
+          "source": "Hohenberg 1979; multiplicador transferido, no calibrado",
+          "calibrationDataset": "",
+          "applicableRange": "Correlaci\u00f3n de otro tipo de motor; sin rango validado propio"
+        },
+        "frictionEvidence": {
+          "status": "Estimated",
+          "source": "Chen-Flynn; coeficientes transferidos MVM2012-026; D con incertidumbre dimensional de origen",
+          "calibrationDataset": "",
+          "applicableRange": "Sin ensayos de fricci\u00f3n del motor objetivo"
+        },
+        "referenceEquivalenceRatio": 1,
+        "products": "ClosedCycleEquilibrium"
+      },
+      "ducts": {
+        "intake": {
+          "lengthM": 0.35,
+          "reservoirDiameterM": 0.042,
+          "valveDiameterM": 0.036,
+          "cells": 24
+        },
+        "exhaust": {
+          "lengthM": 0.65,
+          "reservoirDiameterM": 0.036,
+          "valveDiameterM": 0.032,
+          "cells": 32
+        },
+        "courant": 0.45,
+        "scheme": "Muscl"
+      }
+    }
+  }
+}
