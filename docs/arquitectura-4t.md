@@ -1,5 +1,7 @@
 # Arquitectura del simulador 4T
 
+Actualización de etapa 2: `Thermochemistry` contiene especies NASA, conversión conservativa y el controlador de productos congelados; `EngineSimulation` selecciona explícitamente entre esa formulación y la referencia de pseudoaire. Los tipos de configuración/resultados comparten geometría y análisis, conservando el identificador de cada modelo. La UI conserva la configuración completa y su procedencia al guardar A/B. Ver [modelo-termoquimico.md](modelo-termoquimico.md) e [informe-etapa2.md](informe-etapa2.md). El resto de este documento describe la base introducida en etapa 1.
+
 Se conserva C#, WPF y .NET 10. La [selección tecnológica de etapa 0](arquitectura.md) sigue siendo aplicable. La necesidad concreta de balances diferenciales, convergencia periódica, cancelación y comparación A/B justifica las nuevas piezas; no se introduce un framework de motores ni una plataforma de ejecución.
 
 ## Separación del cálculo

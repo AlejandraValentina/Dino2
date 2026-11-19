@@ -1,5 +1,7 @@
 # Informe técnico — simulador físico 4T de Dino2
 
+Registro de etapa 1, conservado como referencia. La entrega actual y sus nuevos modelos se documentan en [informe-etapa2.md](informe-etapa2.md); los resultados históricos de este documento no se sustituyen por los del modelo nuevo.
+
 Entrega local del 19 de noviembre de 2026. Desarrollo desde `main` de etapa 0, sin modificar el Dino anterior ni hacer push. Tecnología conservada: C#, WPF y .NET 10. Este informe describe una **capacidad 0D funcional y verificada numéricamente**, no una validación experimental de predicciones de motores reales.
 
 ## Resultado funcional
