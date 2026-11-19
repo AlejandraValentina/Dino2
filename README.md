@@ -1,76 +1,82 @@
 # Dino2
 
-Simulador de motores en desarrollo, C# / WPF / .NET 10. Primer incremento ejecutable: ciclo **Otto ideal de aire**, monocilíndrico 4T. Permite configurar geometría y condiciones termodinámicas, calcular varios regímenes, inspeccionar potencia y par **indicados ideales**, guardar/abrir configuraciones JSON y exportar resultados trazables a CSV.
+Aplicación Windows para simular un motor monocilíndrico **4T con un modelo físico 0D**, C# / WPF / .NET 10. Calcula curvas de potencia y par indicados y estimados al cigüeñal, BMEP, llenado, estados del ciclo, bombeo y pérdidas. Permite conservar un original A, editar una variante B y comparar sus curvas por RPM.
 
-**No predice todavía las curvas de un motor real.** El par constante y la potencia lineal con RPM son consecuencias del modelo ideal. No hay validación experimental ni cálculo de potencia al cigüeñal. El ejemplo no representa un motor medido.
+**Predicciones aproximadas, sin validación experimental de Dino2.** El gas es pseudoaire con cp(T), la combustión es prescrita y las pérdidas empíricas no están calibradas para el motor del ejemplo. No se calcula detonación ni viabilidad mecánica. El ejemplo es sintético. El [informe técnico](docs/informe-4t.md) describe resultados, precisión numérica, límites y evidencia.
 
-El objetivo definitivo es un simulador predictivo de motores reales 4T y 2T, capaz de evaluar modificaciones, conservar el original, comparar variantes y posteriormente ejecutar estudios de parámetros. Este incremento verifica el flujo de trabajo y la termodinámica; no reemplaza ese objetivo.
+## Ejecutar en Windows
 
-## Abrir la aplicación en Windows
+Abrir `artifacts/win-x64/Dino2.Desktop.exe`, o extraer **todo** `artifacts/Dino2-win-x64.zip` y abrir el ejecutable. La distribución incluye el runtime; no hace falta instalar .NET para usarla. Los artefactos generados no se incluyen en Git.
 
-Distribución local preparada: `artifacts/Dino2-win-x64.zip`. Extraer **todo** el ZIP a una carpeta y abrir `Dino2.Desktop.exe`. También puede abrirse directamente `artifacts/win-x64/Dino2.Desktop.exe`. Incluye el runtime: el usuario no necesita instalar .NET. Los artefactos son generados, no se suben a Git.
+1. El ejemplo 4T se carga al iniciar. También se puede abrir `examples/4t-400cc.json` con **Abrir…**.
+2. Editar los grupos **Geometría**, **Válvulas**, **Combustión**, **Contornos**, **Fricción** y **RPM / cálculo**. Las presiones son absolutas. 0° es PMS de intercambio; el PMS de combustión corresponde a 360°. Las etiquetas indican unidades; se admite coma o punto decimal sin separadores de miles.
+3. Pulsar **Simular**. Se calcula cada régimen hasta periodicidad; la interfaz sigue respondiendo y permite **Cancelar**. Una falta de convergencia se informa, sin publicar una curva parcial.
+4. Examinar **Curvas**, **Resultados**, **Ciclo** (selector RPM, presión angular y p–V) y **Diagnósticos** (balances, ciclos, pasos y tiempos). Las líneas discontinuas son indicadas y las continuas estimadas al cigüeñal.
+5. Pulsar **Conservar como A**, modificar por ejemplo la alzada de admisión de 8 a 4 mm y volver a **Simular**. A permanece intacto. La pestaña **A / B** muestra B−A: positivo gana, negativo pierde. Solo se comparan RPM comunes exactas; no se interpola.
+6. **Guardar proyecto…** conserva ambas configuraciones. Al abrir se regeneran ambas curvas con **Simular**. La edición invalida B y mantiene A; se avisa antes de descartar cambios sin guardar.
+7. **Exportar CSV…** exporta curvas, traza del RPM seleccionado y, si existe A, original y comparación. Incluye entradas SI, modelo y diagnósticos. Líneas iniciales `#` son metadatos; separador coma, decimal punto, `NA` para magnitudes indefinidas.
 
-1. Cargar el ejemplo inicial o usar **Abrir…** con `examples/otto-400cc.json` (también incluido en el ZIP).
-2. Introducir diámetro, carrera, compresión, presión absoluta y temperatura iniciales, calor específico aportado, gamma y constante del gas. Desplazar el panel izquierdo para editar RPM inicial/final/paso.
-3. Pulsar **Calcular**. Las curvas tienen ejes separados con unidades; el cursor permite consultar puntos. La pestaña **Tabla RPM** muestra sus valores y **Estados y balance** permite inspeccionar la termodinámica.
-4. Usar **Guardar como…** para conservar la configuración. Al abrirla se recalculan los resultados con **Calcular**. Se advierte antes de descartar cambios al abrir, cargar el ejemplo o cerrar.
-5. **Exportar CSV…** incluye entradas SI, identificador de modelo, estados, balance y resultados sin redondear. Las primeras líneas `#` son metadatos; el separador es coma y el decimal es punto.
+**Otto de referencia** abre el ciclo ideal independiente de etapa 0. Sus ecuaciones, JSON y pruebas se conservan. No es un motor 4T predictivo ni comparte parámetros implícitos con el nuevo modelo.
 
-La edición acepta coma o punto decimal, sin separadores de miles. Las RPM deben ser enteras. Cambiar un campo elimina los resultados previos y deshabilita la exportación hasta recalcular. Un archivo inválido no reemplaza la configuración activa.
+## Compilar desde código
 
-## Compilar y ejecutar desde código
-
-Requisitos: Windows x64 y [SDK .NET 10](https://dotnet.microsoft.com/download/dotnet/10.0). No requiere Python, Node, Visual Studio ni paquetes NuGet externos para la aplicación y sus pruebas C#.
-
-Desde la raíz del repositorio, en PowerShell:
+Requisitos: Windows x64 y [SDK .NET 10](https://dotnet.microsoft.com/download/dotnet/10.0). No se necesitan paquetes NuGet externos, Node, Python ni Visual Studio para construir y ejecutar la aplicación o las pruebas C#.
 
 ```powershell
 dotnet build Dino2.slnx -c Release
 dotnet run --project src/Dino2.Desktop -c Release
 ```
 
-En el entorno de desarrollo donde se preparó esta entrega hay un SDK local ignorado por Git. Si el `dotnet` global sigue en versión 9, sustituir `dotnet` por `.\.tools\dotnet\dotnet.exe`. `global.json` requiere la familia 10.0 y admite bandas posteriores de esa familia. Los scripts detectan automáticamente el SDK local si existe.
+Este workspace tiene un SDK local ignorado por Git: si el global sigue en versión 9, sustituir `dotnet` por `.\.tools\dotnet\dotnet.exe`. Los scripts detectan el SDK local automáticamente. `global.json` requiere la familia 10.0.
 
 ## Verificar y reproducir
 
 ```powershell
 .\scripts\verify.ps1
-# En una sesión sin escritorio interactivo:
+# Solo en Windows sin sesión interactiva; omite pruebas WPF:
 .\scripts\verify.ps1 -SkipDesktop
 ```
 
-Los ejecutores de pruebas son programas de consola con aserciones y código de salida no cero ante fallos. **`dotnet test` no ejecuta estas pruebas**. El script compila, ejecuta 13 grupos de física/archivos, realiza 10 comprobaciones de la ventana y reproduce el ejemplo en `artifacts/verification/otto-400cc.csv`. La prueba de escritorio abre y cierra una ventana, y genera capturas PNG.
+Los ejecutores de consola devuelven código no cero ante fallos. **`dotnet test` no ejecuta estas pruebas**. El script compila y ejecuta 13 grupos originales, 15 grupos 4T y 20 comprobaciones de ventana; genera estudios de discretización/periodicidad, benchmarks, CSV y capturas. La ejecución mide rendimiento y por eso puede variar con la carga del equipo.
 
-Reproducción independiente de la interfaz:
+CLI 4T y reproducción del Otto:
 
 ```powershell
-dotnet run --project src/Dino2.Cli -c Release -- examples/otto-400cc.json resultados.csv
+dotnet run --project src/Dino2.Cli -c Release -- --4t examples/4t-400cc.json resultados.csv traza.csv
+dotnet run --project src/Dino2.Cli -c Release -- examples/otto-400cc.json otto.csv
 ```
 
-Referencia opcional independiente, Python 3 (solo biblioteca estándar):
+La traza de CLI corresponde al primer régimen; la UI permite seleccionar otro para exportar. Si el proyecto contiene original, CLI genera también `resultados.comparison.csv`. Para crear un JSON 4T ilustrativo:
+
+```powershell
+dotnet run --project src/Dino2.Cli -c Release -- --example-4t motor.json
+```
+
+Comprobaciones independientes opcionales con Python 3, solo biblioteca estándar:
 
 ```powershell
 python scripts/reference.py
+python scripts/reference-4t.py
 ```
 
-El ejemplo debe dar aproximadamente **249,875305 J/ciclo**, **19,884445 N·m** y **12,493765 kW a 6000 RPM**, indicados ideales. La integración numérica independiente tiene tolerancia relativa `1e-7`.
+La segunda requiere los artefactos de `verify.ps1` y reconstruye los balances de la traza por otra implementación. Las figuras del informe se regeneran con `python scripts/plot-4t.py`; ese paso opcional necesita matplotlib (3.9.3 usado en esta entrega).
 
-## Generar la distribución
+## Distribución y prueba del ejecutable
 
 ```powershell
 .\scripts\publish.ps1
 .\scripts\smoke-publish.ps1
 ```
 
-El primer script produce la carpeta `artifacts/win-x64` y `artifacts/Dino2-win-x64.zip`. El segundo abre el ejecutable publicado, activa el cálculo mediante Windows UI Automation, verifica el resultado y que el runtime se cargue desde la distribución, y cierra la ventana. Requiere una sesión interactiva de Windows.
+Publish produce carpeta y ZIP Windows x64 con runtime, ejemplos y documentación. La primera ejecución puede necesitar red para descargar los paquetes oficiales del runtime. Sin instalador ni firma en esta etapa. La prueba publicada usa Windows UI Automation para abrir el 4T, calcular, abrir y calcular el Otto independiente, comprobar el runtime incluido y cerrar las ventanas. Requiere sesión gráfica.
 
-El primer publish requiere red para descargar los paquetes oficiales del runtime. Distribución en carpeta, sin instalador ni firma de código en esta etapa. Se incluye documentación del modelo y el ejemplo.
+## Documentación
 
-## Documentación y alcance
+- [Informe técnico final y resultados](docs/informe-4t.md).
+- [Modelo físico 4T: ecuaciones, unidades, referencias y limitaciones](docs/modelo-4t.md).
+- [Arquitectura 4T y separación de responsabilidades](docs/arquitectura-4t.md).
+- [Modelo Otto independiente](docs/modelo-otto.md).
+- [Elección tecnológica y arquitectura histórica de etapa 0](docs/arquitectura.md).
+- [Verificación histórica de etapa 0](docs/verificacion.md).
 
-- [Arquitectura y elección tecnológica](docs/arquitectura.md).
-- [Ecuaciones, hipótesis, unidades y límites del modelo](docs/modelo-otto.md).
-- [Verificación realizada y reproducción](docs/verificacion.md).
-- [Dirección científica y próximos incrementos](docs/evolucion.md).
-
-El proyecto Dino anterior no fue consultado ni modificado. El código es nuevo. No se ha hecho push.
+El siguiente trabajo científico prioritario es contrastar un motor con datos experimentales completos y mejorar composición/productos y combustión, conservando trazabilidad. No se incorporaron 2T ni optimización compleja. El repositorio del Dino anterior no fue modificado. No se hace push sin autorización.

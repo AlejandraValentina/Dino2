@@ -1,5 +1,7 @@
 # Dirección del producto y progresión científica
 
+Este documento registra la secuencia acordada antes del desarrollo 4T. Ya existe una capacidad 0D con comparación A/B manual; su alcance entregado y los próximos pasos científicos figuran en [informe-4t.md](informe-4t.md). Los subsistemas avanzados de química y dinámica 1D siguen pendientes.
+
 La finalidad de Dino2 es configurar motores reales 4T y 2T y predecir cómo cambian potencia y par con las RPM y con modificaciones concretas. Se conservará una configuración original para comparar variantes manuales y, más adelante, estudios automáticos de parámetros. El usuario debe acceder a una interfaz sencilla sin perder acceso a hipótesis, procedencia de datos, parámetros calibrados y límites de validez.
 
 Este documento orienta decisiones; los subsistemas futuros descritos aquí **no están implementados** y no se considera completada una capacidad por crear sus carpetas o interfaces.

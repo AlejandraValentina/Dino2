@@ -1,5 +1,7 @@
 # Arquitectura inicial y decisiones
 
+Documento histórico de etapa 0. La elección C#/WPF/.NET 10 se conserva; la arquitectura ejecutable actual, que incorpora integrador, ciclo periódico y A/B, se describe en [arquitectura-4t.md](arquitectura-4t.md).
+
 Fecha de decisión: 19 de noviembre de 2026. Alcance entregado: una funcionalidad vertical de escritorio para un ciclo Otto ideal de aire. Destino del producto: simulación predictiva de motores reales 4T y 2T, evaluación de modificaciones, comparación original/variante y estudios de parámetros. El modelo inicial es una referencia termodinámica, no la arquitectura física definitiva.
 
 ## Tecnología

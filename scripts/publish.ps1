@@ -7,9 +7,13 @@ try {
     & $dotnetExe publish src/Dino2.Desktop -c Release -r win-x64 --self-contained true -o artifacts/win-x64 -p:DebugType=None -p:DebugSymbols=false
     if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
     New-Item -ItemType Directory -Force artifacts/win-x64/examples, artifacts/win-x64/docs | Out-Null
-    Copy-Item -LiteralPath examples/otto-400cc.json -Destination artifacts/win-x64/examples/otto-400cc.json
+    Copy-Item -Path examples/*.json -Destination artifacts/win-x64/examples
     Copy-Item -LiteralPath README.md -Destination artifacts/win-x64/README.md
     Copy-Item -Path docs/*.md -Destination artifacts/win-x64/docs
+    if (Test-Path -LiteralPath docs/figures) {
+        New-Item -ItemType Directory -Force artifacts/win-x64/docs/figures | Out-Null
+        Copy-Item -Path docs/figures/* -Destination artifacts/win-x64/docs/figures
+    }
     Compress-Archive -Path artifacts/win-x64/* -DestinationPath artifacts/Dino2-win-x64.zip -Force
     Write-Output 'Distribucion: artifacts/Dino2-win-x64.zip; ejecutar Dino2.Desktop.exe tras extraer todo el ZIP.'
 }

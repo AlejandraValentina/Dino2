@@ -29,13 +29,31 @@ try {
     do {
         Start-Sleep -Milliseconds 100
         $summary = (Find-Control 'Summary').Current.Name
-    } while (!$summary.Contains('249.875') -and [DateTime]::UtcNow -lt $deadline)
-    if (!$summary.Contains('249.875')) { throw "Published calculation failed: $summary" }
+    } while (!$summary.Contains('402.12') -and [DateTime]::UtcNow -lt $deadline)
+    if (!$summary.Contains('402.12')) { throw "Published 4T calculation failed: $summary" }
+    Write-Output "PASS published 4T app opens and calculates: $summary"
+    $reference = Find-Control 'OttoReferenceButton'
+    $reference.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    $condition = [System.Windows.Automation.AndCondition]::new(
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $applicationProcess.Id),
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, 'Dino2'))
+    $deadline = [DateTime]::UtcNow.AddSeconds(10)
+    do {
+        Start-Sleep -Milliseconds 100
+        $ottoWindow = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
+    } while ($null -eq $ottoWindow -and [DateTime]::UtcNow -lt $deadline)
+    if ($null -eq $ottoWindow) { throw 'Independent Otto reference did not open' }
+    $root = $ottoWindow
+    (Find-Control 'CalculateButton').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Milliseconds 200
+    $ottoSummary = (Find-Control 'Summary').Current.Name
+    if (!$ottoSummary.Contains('249.875')) { throw "Published Otto reference failed: $ottoSummary" }
+    Write-Output "PASS independent Otto reference: $ottoSummary"
+    $ottoWindow.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
     $runtimePath = ($applicationProcess.Modules | Where-Object ModuleName -eq 'coreclr.dll' | Select-Object -First 1).FileName
     if (!$runtimePath.StartsWith((Split-Path -Parent $applicationPath), [StringComparison]::OrdinalIgnoreCase)) {
         throw "Runtime was not loaded from the distribution: $runtimePath"
     }
-    Write-Output "PASS published app opens and calculates: $summary"
     Write-Output "PASS bundled runtime: $runtimePath"
 }
 finally {

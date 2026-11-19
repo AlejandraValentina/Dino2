@@ -1,5 +1,7 @@
 # Verificación del primer incremento
 
+Registro histórico de etapa 0. Para las pruebas del simulador físico 4T y la distribución actual, consultar [informe-4t.md](informe-4t.md).
+
 Ejecutada localmente el 19 de noviembre de 2026, Windows 10 x64 build 19045, SDK .NET 10.0.404, compilación Release. Python 3.11 se usó únicamente como referencia numérica independiente. No se usaron el código ni las arquitecturas del Dino anterior.
 
 ## Resultados
