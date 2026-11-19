@@ -279,6 +279,8 @@ Test("Measured full sweep and reusable numerical artifacts", () =>
     File.WriteAllText(Path.Combine(output, "kernel-benchmark.json"), System.Text.Json.JsonSerializer.Serialize(new { iterations, milliseconds = kernels, sink }, options));
 });
 
+if (args is ["--duct-only"]) { DuctChecks.Run(); Console.WriteLine("PASS independent duct benchmarks"); return 0; }
+tests.Add(("Independent duct Sod, rigid reflection, variable area balance and temporal order", DuctChecks.Run));
 int failures = 0;
 foreach (var (name, action) in tests)
 {
