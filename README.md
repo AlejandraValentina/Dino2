@@ -2,15 +2,15 @@
 
 Aplicación Windows para simular un motor monocilíndrico **4T con un modelo físico 0D**, C# / WPF / .NET 10. Calcula curvas de potencia y par indicados y estimados al cigüeñal, BMEP, llenado, estados del ciclo, bombeo y pérdidas. Permite conservar un original A, editar una variante B y comparar sus curvas por RPM.
 
-**Etapa 2: mezcla explícita de iso-octano vaporizado, O₂, N₂, CO₂ y H₂O**, con cp(T), R de mezcla variable y energía de formación. Se conserva masa, especies, elementos y energía química sin sumar dos veces el PCI. Ofrece Wiebe prescrita o escalada por condiciones, con sus parámetros estimados y límites visibles.
+**Etapa 3.** El modelo 4T de iso-octano usa equilibrio UV reducido de CO₂/CO y H₂O/H₂ durante combustión y expansión cerrada. Desde apertura de escape transporta las siete especies con composición congelada. Se conservan Otto, pseudoaire v1 y productos congelados v2. El [informe de etapa 3](docs/informe-etapa3.md) presenta comparaciones con Cantera, incertidumbre por especies y tiempos químicos omitidos, y alcance de la evidencia experimental.
 
-**Predicciones aproximadas, sin validación experimental de motor.** Los productos siguen congelados: una evaluación independiente encontró un efecto material de disociación. La ley escalada es semiempírica, no propagación de llama; las pérdidas del ejemplo no están calibradas. No se calcula detonación ni viabilidad mecánica. El ejemplo es sintético. Consultar el [informe de etapa 2](docs/informe-etapa2.md), que separa verificación, calibración y validación.
+Los ejemplos son sintéticos. La duración de combustión y los parámetros de pérdidas requieren identificación del motor. La verificación termoquímica y numérica se completó sin calibración experimental propia.
 
 ## Ejecutar en Windows
 
 Abrir `artifacts/win-x64/Dino2.Desktop.exe`, o extraer **todo** `artifacts/Dino2-win-x64.zip` y abrir el ejecutable. La distribución incluye el runtime; no hace falta instalar .NET para usarla. Los artefactos generados no se incluyen en Git.
 
-1. El ejemplo reactivo se carga al iniciar; también se puede abrir `examples/4t-isooctane.json`. **Modelo físico** permite seleccionar pseudoaire v1, especies v2 con Wiebe prescrita o especies v2 con Wiebe escalada. `examples/4t-400cc.json` conserva la referencia anterior.
+1. El ejemplo v3 se carga al iniciar y también se puede abrir desde `examples/4t-equilibrium.json`. **Modelo físico** ofrece pseudoaire v1, productos congelados v2 y equilibrio UV reducido v3. v2 y v3 permiten Wiebe prescrita o escalada. `examples/4t-isooctane.json` conserva el ejemplo v2. `examples/4t-400cc.json` conserva la referencia anterior.
 2. Editar **Geometría**, **Válvulas**, **Combustión**, **Comb. v2**, **Contornos**, **Fricción** y **RPM / cálculo**. **Evidencia** registra fuente, datos y rango para parámetros estimados o declarados calibrados; no certifica validación independiente. En v2 el PCI se calcula a partir del combustible y la conversión deja explícitamente combustible sin quemar. Las presiones son absolutas. 0° es PMS de intercambio; 360° es PMS de combustión. Se admite coma o punto decimal sin separadores de miles.
 3. Pulsar **Simular**. Se calcula cada régimen hasta periodicidad; la interfaz sigue respondiendo y permite **Cancelar**. Una falta de convergencia se informa, sin publicar una curva parcial.
 4. Examinar **Curvas**, **Resultados**, **Ciclo** (selector RPM, presión angular y p–V) y **Diagnósticos** (balances, ciclos, pasos y tiempos). Las líneas discontinuas son indicadas y las continuas estimadas al cigüeñal.
@@ -39,13 +39,13 @@ Este workspace tiene un SDK local ignorado por Git: si el global sigue en versi�
 .\scripts\verify.ps1 -SkipDesktop
 ```
 
-Los ejecutores de consola devuelven código no cero ante fallos. **`dotnet test` no ejecuta estas pruebas**. El script compila y ejecuta 13 grupos originales, 15 grupos 4T de referencia, 9 grupos termoquímicos y 25 comprobaciones de ventana; genera estudios de discretización/periodicidad, sensibilidades, benchmarks, CSV y capturas. Los tiempos varían con la carga del equipo.
+Los ejecutores de consola devuelven código no cero ante fallos. **`dotnet test` no ejecuta estas pruebas**. El script compila y ejecuta 13 grupos originales, 15 grupos 4T de referencia, 13 grupos termoquímicos y 25 comprobaciones de ventana; genera estudios de discretización/periodicidad, sensibilidades, benchmarks, CSV y capturas. Los tiempos varían con la carga del equipo.
 
 CLI 4T y reproducción del Otto:
 
 ```powershell
 dotnet run --project src/Dino2.Cli -c Release -- --4t examples/4t-400cc.json resultados.csv traza.csv
-dotnet run --project src/Dino2.Cli -c Release -- --4t examples/4t-isooctane.json reactivo.csv reactivo-traza.csv
+dotnet run --project src/Dino2.Cli -c Release -- --4t examples/4t-equilibrium.json reactivo.csv reactivo-traza.csv
 dotnet run --project src/Dino2.Cli -c Release -- examples/otto-400cc.json otto.csv
 ```
 
@@ -53,7 +53,7 @@ La traza de CLI corresponde al primer régimen; la UI permite seleccionar otro p
 
 ```powershell
 dotnet run --project src/Dino2.Cli -c Release -- --example-4t motor.json
-dotnet run --project src/Dino2.Cli -c Release -- --example-reactive motor-reactivo.json
+dotnet run --project src/Dino2.Cli -c Release -- --example-equilibrium motor-reactivo.json
 ```
 
 Comprobaciones independientes opcionales con Python 3, solo biblioteca estándar:
@@ -70,11 +70,11 @@ Verificación termoquímica y evaluación de equilibrio independientes, opcional
 ```powershell
 python -m venv .tools/science
 .\.tools\science\Scripts\python.exe -m pip install cantera==3.2.0
-.\.tools\science\Scripts\python.exe scripts/check-stage2-cantera.py
-python scripts/plot-stage2.py   # opcional; requiere matplotlib
+.\.tools\science\Scripts\python.exe scripts/check-stage3-cantera.py
+python scripts/plot-stage3.py   # opcional; requiere matplotlib
 ```
 
-Cantera no es una dependencia de la aplicación. Sus comparaciones de propiedades, balances y equilibrio son verificación numérica, no ensayos experimentales del motor. Resultados de etapa 2: `artifacts/stage2`.
+Cantera no es una dependencia de la aplicación. Las comparaciones de equilibrio son verificaciones numéricas. Resultados reproducibles en `artifacts/stage3` y `artifacts/stage2`.
 
 ## Distribución y prueba del ejecutable
 
@@ -87,6 +87,7 @@ Publish produce carpeta y ZIP Windows x64 con runtime, ejemplos y documentación
 
 ## Documentación
 
+- [Informe de etapa 3: equilibrio UV, comparación y evidencia experimental](docs/informe-etapa3.md).
 - [Informe de etapa 2: resultados científicos y limitaciones](docs/informe-etapa2.md).
 - [Modelo termoquímico y combustión condicionada](docs/modelo-termoquimico.md).
 - [Datos experimentales investigados y protocolo de calibración/validación](docs/validacion-experimental.md).
@@ -97,4 +98,4 @@ Publish produce carpeta y ZIP Windows x64 con runtime, ejemplos y documentación
 - [Elección tecnológica y arquitectura histórica de etapa 0](docs/arquitectura.md).
 - [Verificación histórica de etapa 0](docs/verificacion.md).
 
-El siguiente trabajo prioritario es incorporar disociación/equilibrio o química reducida apropiada al dominio caliente y contrastar un motor con datos completos, separando calibración y validación. No se incorporaron 2T, solver 1D completo ni optimización compleja. El repositorio del Dino anterior no fue modificado. No se hace push sin autorización.
+La evidencia experimental prioritaria son trazas compatibles de presión del cilindro, contornos y par, con puntos de operación reservados para evaluación independiente.
