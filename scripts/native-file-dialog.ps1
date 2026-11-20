@@ -54,7 +54,7 @@ public static class DialogWindows
         ReadText(window, 0x000D, (IntPtr)buffer.Capacity, buffer);
         return buffer.ToString();
     }
-    public static void Confirm(IntPtr dialog, IntPtr button) { PostMessage(dialog, 0x0111, (IntPtr)1, button); }
+    public static void Confirm(IntPtr dialog, IntPtr button, int command = 1) { PostMessage(dialog, 0x0111, (IntPtr)command, button); }
 
     public static IntPtr[] Find(uint thread, string classPrefix = "#32770")
     {

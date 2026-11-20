@@ -111,20 +111,17 @@ try {
     $null = Status 'Estudio 2T terminado' 65
     if ($AuditFiles) {
         Click 'Abrir estudio 2T…' -Label
-        $confirm = Wait-For {
+        $notice = Wait-For {
             $process.Refresh()
             foreach ($thread in $process.Threads) {
                 foreach ($handle in [DialogWindows]::Find([uint32]$thread.Id)) {
-                    $modal = $elementType::FromHandle($handle)
-                    $label = [System.Windows.Automation.PropertyCondition]::new($elementType::NameProperty, 'No')
-                    $type = [System.Windows.Automation.PropertyCondition]::new($elementType::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
-                    $condition = [System.Windows.Automation.AndCondition]::new($label, $type)
-                    $no = $modal.FindFirst($descendants, $condition)
-                    if ($null -ne $no) { return $no }
+                    $button = [DialogWindows]::Child($handle, 'Button', 7) # Win32 IDNO
+                    if ($button -ne [IntPtr]::Zero) { return @($handle, $button) }
                 }
             }
         } 'unsaved study confirmation'
-        $confirm.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+        [DialogWindows]::Confirm($notice[0], $notice[1], 7)
+        $null = Wait-For { if ((Control 'Guardar estudio 2T…' -Label).Current.IsEnabled) { 1 } } 'dismissed confirmation'
         Write-Output 'PASS portable protects unsaved study before opening another one'
     }
     $study = Join-Path $output 'engine-study.json'
