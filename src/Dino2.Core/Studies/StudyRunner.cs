@@ -26,7 +26,10 @@ public sealed record RankEntry(int Id, ObjectiveValue Objective);
 public static class StudyRunner
 {
     public static StudyRun Run(StudyPlan plan, int workers = 1, CancellationToken cancellation = default,
-        IProgress<StudyProgress>? progress = null)
+        IProgress<StudyProgress>? progress = null) => Run(plan, Solve, workers, cancellation, progress);
+
+    internal static StudyRun Run(StudyPlan plan, Func<StudyVariant, CancellationToken, Action, StudyEvaluation> solve,
+        int workers, CancellationToken cancellation, IProgress<StudyProgress>? progress)
     {
         if (workers is < 1 or > StudyPlan.MaximumWorkers) throw new ArgumentOutOfRangeException(nameof(workers));
         var clock = System.Diagnostics.Stopwatch.StartNew();
@@ -36,7 +39,7 @@ public static class StudyRunner
         {
             cancellation.ThrowIfCancellationRequested();
             var sample = group.First();
-            var result = Solve(sample, cancellation, () => Interlocked.Increment(ref executed));
+            var result = solve(sample, cancellation, () => Interlocked.Increment(ref executed));
             foreach (var identical in group)
             {
                 var row = identical.Id == sample.Id ? result : result with { Id = identical.Id, Milliseconds = 0 };

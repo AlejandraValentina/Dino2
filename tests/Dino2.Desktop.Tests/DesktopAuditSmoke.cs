@@ -30,6 +30,7 @@ internal static class DesktopAuditSmoke
             else if (name.StartsWith("2t-", StringComparison.Ordinal)) TwoStrokeFiles.Load(example);
             else if (name.StartsWith("otto-", StringComparison.Ordinal)) ConfigurationFile.Load(example);
             else if (name.StartsWith("study-", StringComparison.Ordinal)) StudyFiles.Load(example);
+            else if (name.StartsWith("multi-", StringComparison.Ordinal)) MultiFiles.Load(example);
         }
         Console.WriteLine("PASS audit compatible versioned desktop examples");
 

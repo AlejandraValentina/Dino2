@@ -50,3 +50,16 @@ dotnet run --project src/Dino2.Cli -c Release -- --2t examples/2t-125cc-wide-rpm
 ~~~
 
 Creá **artifacts** si todavía no existe. Las pruebas de termodinámica independiente con Cantera son opcionales. Los scripts Python y las cifras históricas se explican en sus informes. Ejemplos de proyecto y estudios de uso corriente están en **examples**, y los subconjuntos históricos se describen en el índice. [Documentación](indice.md).
+
+## Multicilíndrico 4T
+
+La configuración científica vive en **Dino2.Core/Multicylinder**. Reutiliza los estados de **ReactiveCylinder**, los flujos de **DuctCoupling** y las mallas de **GasDynamics**. Un flujo de borde alternativo une los ramales al nuevo volumen mezclado. Los proyectos multicilíndricos usan su propio esquema JSON 1 e identificador de modelo. Se interpretan con **MultiFiles**. Los proyectos existentes se conservan en sus esquemas.
+
+~~~powershell
+dotnet run --project src/Dino2.Cli -c Release -- --multi examples/multi-4t-inline2.json artifacts/multi2.csv artifacts/multi2-ciclo.csv
+dotnet run --project tests/Dino2.Multicylinder.Tests -c Release
+dotnet run --project tests/Dino2.Multicylinder.Tests -c Release -- --campaign
+pwsh -File scripts/smoke-multicylinder.ps1 -Application artifacts/stage9-win-x64/Dino2.Desktop.exe -Destination artifacts/stage9-native-run
+~~~
+
+El ejecutor de pruebas incluye un problema independiente de tres tubos, un contraste con el monocilíndrico y un estudio factorial. La campaña larga reproduce el contraste refinado y el dominio de ejemplo. La prueba nativa necesita una sesión interactiva de Windows y un directorio de evidencia nuevo. [Ecuaciones y límites](modelo-multicilindrico-4t.md) · [Verificación](etapa9.md).
