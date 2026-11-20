@@ -69,3 +69,16 @@ Desde la pantalla principal abrí **Multicilíndrico 4T**. El ejemplo cargado ti
 - **Guardar proyecto** conserva configuraciones, curvas, contrastes y el estudio ejecutado. **Exportar CSV** guarda la curva actual o A si es la única calculada. Las pestañas ofrecen los CSV de ciclo, resumen por cilindro, A/B y estudio. El menú contextual de los gráficos permite ajustar vista, desplazarse tras ampliar y exportar PNG.
 
 Las presiones son absolutas. El par instantáneo representa los gases. Las pérdidas del cigüeñal se estiman como trabajo medio por ciclo. Los casos disponibles sirven para reproducir la verificación numérica. [Modelo y límites](modelo-multicilindrico-4t.md).
+
+## Motor multicilíndrico 2T
+
+Abrí **Multicilíndrico 2T** desde la ventana principal. **Abrir** permite usar **multi-2t-inline2.json**, **multi-2t-inline3.json** y **multi-2t-inline4.json**. **Importar 2T** toma la geometría actual de un proyecto monocilíndrico y abre la configuración con ramales y escapes independientes.
+
+- **Motor y fases** selecciona de dos a cuatro cilindros en línea, desfases dentro de 360° y redes compartidas. El esquema muestra cárteres y transfers separados por cilindro.
+- **Colector de admisión** y **Colector de escape** editan el tronco, los volúmenes de unión y los primarios. **Escape de expansión** edita difusor, tramo central, cono y salida. Con escape compartido, esas dimensiones describen la expansión después de la unión.
+- **Simular** calcula el barrido definido en **Motor y regímenes**. **RPM** informa periodicidad y balances. **Ciclo y barrido** muestra presión de cilindro, cárter, puertos, colectores y flujos. El origen es la apertura de escape del cilindro 1.
+- **Conservar como A** fija el original. Editá B, volvé a simular y seleccioná una RPM común en **A/B** para contrastar numéricamente. El cálculo de tres mallas puede durar varios minutos.
+- En **Estudios**, tomá el motor actual o A, elegí uno o dos parámetros y un objetivo. Consultá el costo y aplicá la fila elegida como B. Al simularla se obtienen las trazas angulares.
+- **Guardar proyecto** conserva configuraciones, curvas, contraste y estudio. Las pestañas exportan CSV de ciclo, contribuciones, A/B y estudios. Los gráficos conservan zoom, desplazamiento y PNG.
+
+La potencia al cigüeñal se estima restando pérdidas. El par instantáneo corresponde a las presiones del cilindro y del cárter. [Modelo 2T multicilíndrico](modelo-multicilindrico-2t.md).

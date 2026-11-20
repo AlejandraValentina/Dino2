@@ -63,3 +63,7 @@ pwsh -File scripts/smoke-multicylinder.ps1 -Application artifacts/stage9-win-x64
 ~~~
 
 El ejecutor de pruebas incluye un problema independiente de tres tubos, un contraste con el monocilíndrico y un estudio factorial. La campaña larga reproduce el contraste refinado y el dominio de ejemplo. La prueba nativa necesita una sesión interactiva de Windows y un directorio de evidencia nuevo. [Ecuaciones y límites](modelo-multicilindrico-4t.md) · [Verificación](etapa9.md).
+
+## Multicilíndrico 2T
+
+**MultiTwoStrokeConfiguration** y la integración conjunta se alojan en **Dino2.Core/TwoStroke**. El tramo común de expansión usa la misma descripción segmentada que el escape independiente. Las uniones y el desfase reutilizan el núcleo multicilíndrico común. **TwoStrokeFiles.LoadMulti** identifica el nuevo esquema JSON 1 y preserva la familia del proyecto. **Dino2.TwoStroke.Tests --stage10** ejecuta los límites físicos. Las campañas complementarias admiten **--probe**, **--resolution**, **--sensitivity** y **--benchmark N**. [Informe de reproducción](etapa10.md).
