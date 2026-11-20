@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using Dino2.Core.FourStroke;
@@ -69,8 +70,17 @@ internal static class ReactiveDiagnosticText
         void Evidence(string name,ParameterEvidence e)=>text.AppendLine($"\n{name}: {e.Status} (declaración del usuario)\nFuente: {e.Source}\nCalibración: {e.CalibrationDataset}\nRango: {e.ApplicableRange}");
         Evidence("Combustión",o.CombustionEvidence);Evidence("Calor",o.HeatTransferEvidence);Evidence("Fricción",o.FrictionEvidence);
         text.AppendLine("\nSin validación experimental de motor. Una diferencia A/B es una sensibilidad del modelo, no una ganancia mecánica demostrada. Evaluación de disociación y alcance: ver informe de etapa 3.");
-        if (r.Configuration.Ducts is not null)
-            text.AppendLine("Conductos Euler 1D adiabáticos. SSPRK2 limitado por CFL y paso angular; la tolerancia local RK4 solo se usa con depósitos. VE 1D incluye la etiqueta de aire fresco que entra desde el depósito de admisión y puede retornar desde los conductos.");
+        if (r.Configuration.Ducts is { } path)
+        {
+            text.AppendLine($"Conductos Euler 1D · admisión {path.IntakeBoundary} · escape {path.ExhaustBoundary}. SSPRK2 limitado por CFL y paso angular. VE cuenta la etiqueta de aire fresco que puede retornar desde los conductos.");
+            DescribeWall("Admisión", path.Intake.Wall);
+            DescribeWall("Escape", path.Exhaust.Wall);
+        }
+        void DescribeWall(string branch, Dino2.Core.GasDynamics.DuctWall? wall)
+        {
+            text.AppendLine(wall is null ? $"{branch}: pared inviscida y adiabática." :
+                FormattableString.Invariant($"{branch}: rugosidad {wall.RoughnessM * 1e6:G} µm; temperatura de pared {wall.TemperatureK?.ToString("G", CultureInfo.InvariantCulture) ?? "adiabática"} (K si se especifica). Parámetros declarados."));
+        }
         foreach(var p in r.Points)
         {
             var d=p.Chemistry!;

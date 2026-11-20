@@ -55,8 +55,8 @@ public static class FourStrokeFiles
             ?? throw new InvalidDataException("Archivo 4T vacío.");
         if (document.SchemaVersion != 1 || document.Project?.Current is null)
             throw new InvalidDataException("Modelo, versión o proyecto 4T incompatible.");
-        if (document.Model != ProjectModel(document.Project)) throw new InvalidDataException("El modelo declarado no coincide con las opciones termoquímicas.");
         document.Project.Current.Validate(false); document.Project.Original?.Validate(false);
+        if (document.Model != ProjectModel(document.Project)) throw new InvalidDataException("El modelo declarado no coincide con las opciones termoquímicas.");
         return document.Project;
     }
     private static string Number(double value) => double.IsFinite(value) ? value.ToString("R", CultureInfo.InvariantCulture) : "NA";

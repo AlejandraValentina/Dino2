@@ -25,7 +25,24 @@ internal static class Stage11Campaign
             Solver = four.Solver with { PeriodicTolerance = .0001, MaximumCycles = 125 }
         };
 
-        if (mode == "geometry")
+        if (mode == "comparison")
+        {
+            foreach (var boundary in Enum.GetValues<ExteriorBoundary>())
+            {
+                jobs.Add(() =>
+                {
+                    const int rpm = 5000;
+                    var a = Two with { Speeds = new(rpm, rpm, 1), Numerics = Two.Numerics with { Exterior = boundary } };
+                    var b = a with { Combustion = a.Combustion with { AdvanceDeg = a.Combustion.AdvanceDeg + 3 } };
+                    var left = TwoStrokeSimulator.Simulate(a, rpm, false);
+                    var right = TwoStrokeSimulator.Simulate(b, rpm, false);
+                    var check = TwoStrokeComparison.Verify(a, b, left, right);
+                    Console.WriteLine($"2T A/B {boundary} advance +3° at {rpm}: {check.Verdict}, {check.Milliseconds:F0} ms" +
+                        string.Concat(check.Levels.Select(l => $" | x{l.Scale}: ΔT={l.Advantage:F6} {l.Error}")));
+                });
+            }
+        }
+        else if (mode == "geometry")
         {
             foreach (int rpm in new[] { 4000, 5000, 6000 })
             {
@@ -110,7 +127,7 @@ internal static class Stage11Campaign
                     jobs.Add(() => TwoRun("periodic 1e-6", c with { Numerics = c.Numerics with { PeriodicTolerance = 1e-6, MaximumCycles = 200 } }));
                 }
         }
-        else throw new ArgumentException("Campaña: engines, mesh o fine.");
+        else throw new ArgumentException("Campaña: engines, mesh, fine, tuning, geometry, cause o comparison.");
         Parallel.ForEach(jobs, new ParallelOptions { MaxDegreeOfParallelism = mode == "engines" ? 3 : 2 }, job => job());
     }
 

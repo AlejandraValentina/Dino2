@@ -1,4 +1,5 @@
-param([string]$Application = 'artifacts/stage6-win-x64/Dino2.Desktop.exe', [switch]$VerifyResolution, [switch]$VerifyDomain, [switch]$AuditFiles)
+param([string]$Application = 'artifacts/stage6-win-x64/Dino2.Desktop.exe', [switch]$VerifyResolution, [switch]$VerifyDomain, [switch]$AuditFiles,
+    [string]$TamperedProject)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -161,6 +162,10 @@ try {
     if ($project.project.current.expansion.diffuserM -ne .29 -or $project.project.original.expansion.diffuserM -ne .27) {
         throw 'The variant was not applied or modified the original.'
     }
+    if ($project.format -like '*-v2' -and ($project.integrity -notmatch '^[0-9a-f]{64}$' -or
+        !$project.project.currentResult.provenance.build)) {
+        throw 'The v2 project has no seal or build revision.'
+    }
     File-Dialog 'OpenTwoStroke' $file
     $null = Status 'Proyecto 2T recuperado'
     $curve = Join-Path $output 'curve.csv'
@@ -184,8 +189,16 @@ try {
         $retained = Join-Path $output 'retained.csv'
         File-Dialog 'ExportButton' $retained
         $null = Status 'CSV 2T exportado'
-        if ((@(Import-Csv $retained)).Count -ne 1) { throw 'A malformed project replaced the current curve.' }
+        if ((@(Get-Content -LiteralPath $retained | Where-Object { $_ -notlike '#*' } | ConvertFrom-Csv)).Count -ne 1) {
+            throw 'A malformed project replaced the current curve.'
+        }
         Write-Output 'PASS portable rejects corrupted project and retains the previous results'
+    }
+    if ($TamperedProject) {
+        File-Dialog 'OpenTwoStroke' $TamperedProject
+        $null = Status 'La curva 2T y su configuración deben corresponder'
+        if (!(Control 'ExportButton').Current.IsEnabled) { throw 'The rejected file replaced the working curve.' }
+        Write-Output 'PASS portable rejects original audit tampering'
     }
 
     Click 'CalculateButton'
@@ -200,7 +213,7 @@ try {
         $partial = Join-Path $output 'partial.csv'
         File-Dialog 'ExportButton' $partial
         $null = Status 'CSV 2T exportado'
-        $rows = @(Import-Csv -LiteralPath $partial)
+        $rows = @(Get-Content -LiteralPath $partial | Where-Object { $_ -notlike '#*' } | ConvertFrom-Csv)
         if ($rows.Count -ne 2 -or $rows[0].status -ne 'periodic' -or $rows[1].status -ne 'OutsideDomain' -or
             $rows[1].p_shaft_w -or $rows[1].diagnostic -notmatch '10000 RPM') { throw 'Unexpected partial-domain CSV.' }
         Write-Output 'PASS portable reports inadmissible RPM and keeps the converged point'
