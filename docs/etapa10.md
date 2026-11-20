@@ -1,5 +1,7 @@
 # Etapa 10 — Integración y multicilíndrico 2T
 
+**CLOSED dentro del dominio numérico declarado para cárteres separados y colectores compactos.**
+
 ## Integración de etapa 9
 
 La integración local de etapa 9 es **7e3e2bb**, con padres **a4ef998** y **f813d12**. Se verificaron ramas, worktrees, historial y referencias del remoto. El árbol estaba limpio y el árbol del merge coincide con el cierre de etapa 9. Se comprobó el SHA-256 del portable y se repitieron regresiones y pruebas Windows de Otto, 4T, MUSCL y 2T, incluida recuperación, exportación, estudio, dominio parcial y cancelación. La etapa 10 reside en **stage10/multicilindrico-2t**. [Evidencia de etapa 9](etapa9.md).
@@ -9,6 +11,10 @@ La integración local de etapa 9 es **7e3e2bb**, con padres **a4ef998** y **f813
 Dino2 Desktop incorpora **Multicilíndrico 2T**. Configura dos, tres o cuatro cilindros en línea, cárteres separados, fases, geometría común y redes con admisión y escape conmutables por separado. Incluye curvas, presiones, barrido, atrapamiento, par indicado de gases, A/B, estudios, archivos y exportación. El formato JSON 1 se identifica por familia y modelo. Los estudios guardan curvas y balances por RPM. Para obtener trazas completas se aplica y simula la variante. [Manual](manual-desktop.md).
 
 El motor conserva las ecuaciones de etapa 7. Reutiliza **FiringPhases**, **DuctMesh**, **GasEquation**, **DuctBoundary** y **ManifoldVolume** con 4T. Los cierres de cárter, láminas, lumbreras, barrido y reacciones corresponden al 2T. La expansión compartida va después de la unión y tiene primarios propios. Cada volumen y conducto evoluciona en el mismo paso RK2. [Modelo](modelo-multicilindrico-2t.md).
+
+La prueba de Windows abrió el ejecutable desde el ZIP extraído y comprobó que **coreclr.dll** se cargó desde ese directorio. Ejecutó cálculo, edición de la unión, contraste, CSV, estudio, guardado, reapertura, aplicación como B y cancelación. El recorrido detectó y permitió corregir una pérdida de desfases al repoblar los editores 2T y 4T mientras estaban bloqueados. Las regresiones de ambos módulos abren el archivo con el editor bloqueado y verifican la configuración recuperada.
+
+La última ejecución del portable guardó y reabrió un proyecto con A/B, el contraste de tres mallas y las tres filas del estudio. El contraste nativo tardó 129,74 s. La solución Release compiló sin advertencias y la regresión completa pasó con los modelos históricos y ambos módulos multicilíndricos.
 
 ## Resultados y verificación
 
