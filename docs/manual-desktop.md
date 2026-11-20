@@ -56,3 +56,16 @@ Cada módulo abre sus propios archivos. Si la apertura falla por versión, conte
 | **2t-125cc-wide-rpm.json** | Ejecutá la grilla de 500 a 10 000 RPM, de 500 en 500. El cálculo es más largo que el ejemplo de tres puntos. |
 
 Para un cálculo fallido, revisá el mensaje, las unidades, la distribución, el modelo y los parámetros numéricos. En 2T, usá el componente dominante y los ciclos completados para diagnosticar asentamiento. La ficha científica delimita qué parámetros son prescritos o estimados y dónde falta evidencia experimental. [Referencia científica](referencia-cientifica.md).
+
+## Motor multicilíndrico 4T
+
+Desde la pantalla principal abrí **Multicilíndrico 4T**. El ejemplo cargado tiene dos cilindros. Usá **Abrir** para seleccionar los ejemplos **multi-4t-inline2.json**, **multi-4t-inline3.json** o **multi-4t-inline4.json**. También podés importar un proyecto 4T termoquímico que ya tenga ramales 1D. La importación toma su configuración actual como plantilla común para los cilindros y aplica los colectores del ejemplo.
+
+- **Motor** elige cantidad, fases de PMS, esquema 1D y ley de combustión. Las fases se expresan en grados respecto al PMS de combustión del cilindro 1. El esquema muestra conexiones y orden.
+- **Ramales** ajusta el par de tubos que se instalan en cada cilindro. **Colectores** ajusta cada tronco y volumen de unión. **RPM / cálculo** define el barrido y los controles numéricos.
+- **Simular** ejecuta el modelo en segundo plano. **RPM** muestra el estado y los balances. Una RPM no periódica queda vacía en las gráficas de rendimiento. **Cilindros y ciclo** permite elegir A o B y un régimen periódico, consultar contribuciones y exportar CSV por cilindro o ciclo.
+- **Conservar como A** guarda una copia de la configuración y la curva. Editá B y volvé a simular. En **A/B**, seleccioná una RPM y ejecutá el contraste a tres resoluciones antes de interpretar una diferencia pequeña. El contraste puede tardar sensiblemente más que la curva base.
+- **Estudios** toma el motor actual o A como base fija. Ajustá el barrido en el editor del motor antes de tomarlo. Elegí hasta tres ejes, objetivo, banda opcional y trabajadores. La clasificación ordena casos muestreados. **Contrastar objetivo** repite el candidato y la base en tres resoluciones. **Aplicar como B** conserva A y permite volver a simular con trazas completas.
+- **Guardar proyecto** conserva configuraciones, curvas, contrastes y el estudio ejecutado. **Exportar CSV** guarda la curva actual o A si es la única calculada. Las pestañas ofrecen los CSV de ciclo, resumen por cilindro, A/B y estudio. El menú contextual de los gráficos permite ajustar vista, desplazarse tras ampliar y exportar PNG.
+
+Las presiones son absolutas. El par instantáneo representa los gases. Las pérdidas del cigüeñal se estiman como trabajo medio por ciclo. Los casos disponibles sirven para reproducir la verificación numérica. [Modelo y límites](modelo-multicilindrico-4t.md).

@@ -8,6 +8,7 @@
 | Ecuaciones, magnitudes, versiones y alcance | [Referencia científica](referencia-cientifica.md) |
 | Estructura, compatibilidad, pruebas y publicación | [Desarrollo](desarrollo.md) |
 | Auditoría Desktop y aceptación | [Etapa 8](etapa8.md) |
+| Multicilíndrico 4T, integración y aceptación | [Modelo](modelo-multicilindrico-4t.md) · [Etapa 9](etapa9.md) |
 | Datos, identificación y evaluación experimental | [4T](validacion-experimental.md) · [2T](datos-experimentales-2t.md) |
 
 ## Referencias de modelo
@@ -20,6 +21,7 @@ Los documentos de esta sección conservan las derivaciones. Las convenciones y e
 - [Equilibrio UV y comparación independiente con Cantera](informe-etapa3.md)
 - [Dinámica de gases 1D y acoplamiento 0D–1D](informe-etapa4.md)
 - [MUSCL y resolución numérica](cierre-etapa4.md)
+- [4T en línea, colectores y balances](modelo-multicilindrico-4t.md)
 - [Motor 2T de láminas](modelo-2t.md)
 - [Estudios y contraste de variantes](etapa5.md)
 
