@@ -209,9 +209,14 @@ try
         replay.Runs[1].Status == TwoStrokeRunStatus.OutsideDomain, "partial RPM persistence and numerical revision");
     string partialCsv = Path.Combine(temporary, "partial.csv");
     TwoStrokeFiles.Export(partialCsv, replay);
-    var lines = File.ReadAllLines(partialCsv);
-    Check(lines.All(line => line.Count(c => c == ',') == lines[0].Count(c => c == ',')) &&
-        lines[2].Contains("OutsideDomain"), "complete schema for failed RPM rows");
+    using var csv = new Microsoft.VisualBasic.FileIO.TextFieldParser(partialCsv);
+    csv.SetDelimiters(",");
+    var header = csv.ReadFields()!;
+    var successfulRow = csv.ReadFields()!;
+    var unavailableRow = csv.ReadFields()!;
+    Check(header.Length == successfulRow.Length && header.Length == unavailableRow.Length &&
+        unavailableRow[Array.IndexOf(header, "status")] == "OutsideDomain" &&
+        unavailableRow[Array.IndexOf(header, "p_shaft_w")] == "", "complete schema for failed RPM rows");
     var studyPath = Path.Combine(temporary, "study.json");
     TwoStrokeFiles.SaveStudy(studyPath, failedStudy);
     var restored = TwoStrokeFiles.LoadStudy(studyPath);
