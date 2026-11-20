@@ -118,7 +118,7 @@ try {
     Invoke-Control 'CalculateButton'
     $null = Wait-For {
         $status = (Control 'Status').Current.Name
-        if ($status.StartsWith('3 RPM') -and $status.Contains('equilibrium-v3')) { $status }
+        if ($status -match '^3(?:/3)? RPM' -and $status.Contains('equilibrium-v3')) { $status }
     } 'Applied B calculated'
     $runtime = ($process.Modules | Where-Object ModuleName -eq 'coreclr.dll' | Select-Object -First 1).FileName
     if (!$runtime.StartsWith((Split-Path -Parent $applicationPath), [StringComparison]::OrdinalIgnoreCase)) {
