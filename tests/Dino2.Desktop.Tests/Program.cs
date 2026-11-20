@@ -107,6 +107,7 @@ internal static class Program
                 window.SaveTo(path); // clean state avoids a close prompt
                 await FourStrokeSmoke.Run(output);
                 await StudySmoke.Run(output);
+                await DesktopAuditSmoke.Run(output);
                 Console.WriteLine("Desktop smoke checks passed; images in " + output);
                 exit = 0;
             }

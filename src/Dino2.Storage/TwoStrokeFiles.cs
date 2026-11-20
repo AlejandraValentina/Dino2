@@ -16,7 +16,8 @@ public static partial class TwoStrokeFiles
 
     public static TwoStrokeProject Load(string path)
     {
-        var doc = JsonSerializer.Deserialize<Document>(File.ReadAllText(path), Json);
+        using var stream = File.OpenRead(path);
+        var doc = JsonSerializer.Deserialize<Document>(stream, Json);
         if (doc?.Format != Format || doc.Model != TwoStrokeConfiguration.ModelId || doc.Project is null)
             throw new InvalidDataException("Archivo de proyecto 2T incompatible.");
         Validate(doc.Project);
@@ -37,7 +38,7 @@ public static partial class TwoStrokeFiles
         CheckResult(project.Current, project.CurrentResult);
         CheckResult(project.Original, project.OriginalResult);
         if (project.Resolution is { } evidence &&
-            (evidence.Check is null || evidence.Check.CandidateId != 1 || evidence.Check.ReferenceId != 0 ||
+            (evidence.Check is null || evidence.Check.Levels is null || evidence.Check.Levels.Any(level => level is null) || evidence.Check.CandidateId != 1 || evidence.Check.ReferenceId != 0 ||
             project.OriginalResult?.Runs.Any(r => r.Rpm == evidence.Rpm && r.Point is not null) != true ||
             project.CurrentResult?.Runs.Any(r => r.Rpm == evidence.Rpm && r.Point is not null) != true))
             throw new InvalidDataException("El contraste necesita un régimen periódico común a A y B.");
@@ -46,10 +47,11 @@ public static partial class TwoStrokeFiles
     private static void CheckResult(TwoStrokeConfiguration? configuration, TwoStrokeSweep? sweep)
     {
         if (sweep is null) return;
-        if (sweep.Configuration != configuration || sweep.Runs is null ||
+        if (configuration is null || sweep.Configuration != configuration || sweep.Runs is null ||
+            sweep.Runs.Any(run => run is null) ||
             !sweep.Runs.Select(r => r.Rpm).SequenceEqual(configuration!.Speeds.Values().Take(sweep.Runs.Count)) ||
             sweep.Runs.Any(run => !Enum.IsDefined(run.Status) || (run.Point is { } point
-                ? point.Rpm != run.Rpm || point.Trace is null || run.Status != TwoStrokeRunStatus.Periodic || run.Failure is not null
+                ? point.Rpm != run.Rpm || point.Trace is null || point.Balance is null || run.Status != TwoStrokeRunStatus.Periodic || run.Failure is not null
                 : run.Status == TwoStrokeRunStatus.Periodic || string.IsNullOrWhiteSpace(run.Failure))))
             throw new InvalidDataException("La curva 2T y su configuración deben corresponder.");
     }

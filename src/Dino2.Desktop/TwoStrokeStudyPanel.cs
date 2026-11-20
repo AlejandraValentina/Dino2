@@ -11,6 +11,8 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
 {
     private readonly TwoStrokeWindow host;
     private readonly StackPanel inputs = new();
+    private readonly WrapPanel files = new(), candidateActions = new();
+    private readonly TabControl displays = new();
     private readonly ComboBox baseSource = Combo("Motor base del estudio", 195);
     private TwoStrokeConfiguration? loadedBase;
     private readonly ComboBox first, second, objective, workers;
@@ -23,6 +25,7 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
     private readonly ScientificPlot torque = new() { Caption = "Par [N·m]" };
     private TwoStrokeStudy? plan;
     private TwoStrokeStudyRun? run;
+    private bool unsavedRun;
     private sealed record Candidate(int Id, string Valores, string Estado, double? Objetivo, double? Margen_bajo_Nm,
         string Resolución, string Diagnóstico);
     private sealed record ObjectiveChoice(ObjectiveKind Kind, string Label)
@@ -34,9 +37,8 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
     {
         this.host = host;
         Margin = new Thickness(6);
+        DesktopLayout.FormatGrid(diagnostics);
 
-        SetDock(inputs, Dock.Top);
-        Children.Add(inputs);
         var pick = new WrapPanel();
         baseSource.Items.Add("Motor actual");
         baseSource.Items.Add("Original A");
@@ -86,20 +88,25 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
         var runBar = new WrapPanel();
         Button(runBar, "Previsualizar costo 2T", () => host.Guard(Preview));
         Button(runBar, "Ejecutar estudio 2T", async () => await host.Guard(ExecuteStudy));
-        Button(runBar, "Verificar candidato 2T", async () => await host.Guard(Verify));
-        Button(runBar, "Aplicar como B", () => host.Guard(Apply));
+        Button(candidateActions, "Verificar candidato 2T", async () => await host.Guard(Verify));
+        Button(candidateActions, "Aplicar como B", () => host.Guard(Apply));
         inputs.Children.Add(runBar);
-        var files = new WrapPanel();
         Button(files, "Guardar estudio 2T…", () => host.Guard(Save));
         Button(files, "Abrir estudio 2T…", () => host.Guard(Open));
         Button(files, "Exportar estudio CSV…", () => host.Guard(Export));
-        inputs.Children.Add(files);
+        SetDock(files, Dock.Top);
+        Children.Add(files);
         SetDock(summary, Dock.Top);
         Children.Add(summary);
 
-        var displays = new TabControl();
         Children.Add(displays);
-        displays.Items.Add(new TabItem { Header = "Candidatos", Content = rows });
+        displays.Items.Add(new TabItem { Header = "Plan", Content = new ScrollViewer
+            { Content = inputs, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
+        var results = new DockPanel();
+        SetDock(candidateActions, Dock.Top);
+        results.Children.Add(candidateActions);
+        results.Children.Add(rows);
+        displays.Items.Add(new TabItem { Header = "Candidatos", Content = results });
         var curves = new System.Windows.Controls.Grid();
         curves.RowDefinitions.Add(new());
         curves.RowDefinitions.Add(new());
@@ -119,7 +126,7 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
         summary.Text = "Verificá las diferencias con refinamiento antes de elegir una variante.";
     }
 
-    internal void SetBusy(bool busy) => inputs.IsEnabled = !busy;
+    internal void SetBusy(bool busy) => inputs.IsEnabled = files.IsEnabled = candidateActions.IsEnabled = !busy;
 
     private static DataGrid Grid(string name)
     {
@@ -215,10 +222,12 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
     private async Task ExecuteStudy()
     {
         var activePlan = ReadPlan();
+        if (!ConfirmDiscard()) return;
         int concurrency = (int)workers.SelectedItem;
         await host.Execute("Ejecutando estudio 2T…", async token =>
         {
             plan = activePlan;
+            displays.SelectedIndex = 1;
             var partial = new Dictionary<int, TwoStrokeEvaluation>();
             run = null;
             Render();
@@ -234,6 +243,7 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
             var result = await Task.Run(() => activePlan.Run(concurrency, token, progress));
             acceptingProgress = false;
             run = result;
+            unsavedRun = result.Evaluations.Count > 0;
             Render();
             host.ShowStatus(result.Cancelled ? "Estudio 2T cancelado. Se conservan las evaluaciones completas."
                 : "Estudio 2T terminado.");
@@ -251,6 +261,7 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
             var progress = new Progress<string>(host.ShowStatus);
             var result = await Task.Run(() => active.Verify(snapshot, candidate.Id, token: token, progress: progress));
             run = snapshot with { Checks = [.. (snapshot.Checks ?? []).Where(c => c.CandidateId != candidate.Id), result] };
+            unsavedRun = true;
             Render(candidate.Id);
             var delta = string.Join(" / ", result.Levels.Select(l => $"×{l.Scale}: {TwoStrokeWindow.F(l.Advantage)}"));
             summary.Text = $"#{candidate.Id} · {TwoStrokeWindow.StudyLabel(result.Verdict)} · {delta} {plan.Definition.Objective.Unit} · banda {TwoStrokeWindow.F(result.ObservedBand)}. " +
@@ -308,11 +319,14 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
 
     private void Open()
     {
+        if (!ConfirmDiscard()) return;
         string? path = host.Choose(false, "Estudio Dino2 2T (*.json)|*.json", "estudio-2t.dino2.json");
         if (path is null) return;
         var loaded = TwoStrokeFiles.LoadStudy(path);
         plan = TwoStrokeStudy.Create(loaded.Definition);
         run = loaded;
+        displays.SelectedIndex = 1;
+        unsavedRun = false;
         loadedBase = loaded.Definition.Base;
         if (baseSource.Items.Count == 2) baseSource.Items.Add("Base del estudio abierto");
         baseSource.SelectedIndex = 2;
@@ -340,12 +354,15 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
         host.ShowStatus("Estudio 2T recuperado.");
     }
 
+    internal bool ConfirmDiscard() => !unsavedRun || DesktopLayout.ConfirmDiscard(host, "el estudio 2T");
+
     private void Save()
     {
         if (run is null) throw new ArgumentException("Ejecutá primero un estudio.");
         string? path = host.Choose(true, "Estudio Dino2 2T (*.json)|*.json", "estudio-2t.dino2.json");
         if (path is null) return;
         TwoStrokeFiles.SaveStudy(path, run);
+        unsavedRun = false;
         host.ShowStatus("Estudio 2T guardado.");
     }
 

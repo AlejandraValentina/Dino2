@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        DesktopLayout.Fit(this);
         string[] labels = ["Diámetro [mm]", "Carrera [mm]", "Relación de compresión [–]",
             "Presión inicial absoluta [kPa]", "Temperatura inicial [K]", "Calor aportado [kJ/kg aire]",
             "Gamma = cp/cv [–]", "R del gas [J/(kg·K)]", "RPM inicial", "RPM final", "Paso RPM"];
@@ -123,6 +124,8 @@ public partial class MainWindow : Window
         Title = "Dino2 · " + Path.GetFileName(path);
         Status.Text = "Configuración recuperada. Pulse Calcular para regenerar los resultados.";
     }
+
+    internal bool CanCloseFromOwner() => ConfirmDiscard();
 
     private bool ConfirmDiscard() => !dirty || MessageBox.Show(this,
         "Hay cambios de configuración sin guardar. ¿Desea descartarlos?", "Dino2",

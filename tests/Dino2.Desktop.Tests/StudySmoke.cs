@@ -66,7 +66,9 @@ internal static class StudySmoke
 
             string file = Path.Combine(output, "stage5-ui.dino-study.json");
             string csv = Path.Combine(output, "stage5-ui.csv");
+            Check(!panel.ConfirmDiscard(window, () => false), "An unsaved study requires confirmation");
             panel.SaveTo(file);
+            Check(panel.ConfirmDiscard(window, () => false), "The saved study is safe to replace");
             panel.LoadFrom(file);
             panel.ExportTo(csv);
             Check(panel.LastRun!.Evaluations.Count == 7 && panel.Checks.Count == 1 &&
