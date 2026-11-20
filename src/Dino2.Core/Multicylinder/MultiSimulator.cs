@@ -25,11 +25,7 @@ public static class MultiSimulator
         return new(configuration, points.AsReadOnly(), clock.Elapsed.TotalMilliseconds);
     }
 
-    internal static double Wrap(double angle)
-    {
-        angle = (angle % 720 + 720) % 720;
-        return angle < 1e-9 || 720 - angle < 1e-9 ? 0 : angle;
-    }
+    internal static double Wrap(double angle) => FiringPhases.Wrap(angle, 720);
 
     private sealed class CoupledCycle
     {

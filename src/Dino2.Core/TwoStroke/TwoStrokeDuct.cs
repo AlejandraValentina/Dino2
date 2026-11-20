@@ -19,14 +19,21 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
         Create(new(c.IntakeDuct, gas, c.Numerics.Scheme, boundedPassiveTag: true), gas, fractions, c.Intake.PressurePa, c.Intake.TemperatureK, 1, profile);
 
     internal static TwoStrokeDuct Exhaust(TwoStrokeConfiguration c, GasEquation gas, TwoStrokeProfile? profile)
+        => Create(ExpansionMesh(c.Expansion, gas, c.Numerics.Scheme), gas, TailMixture(c), c.Tail.PressurePa, c.Tail.TemperatureK, 0, profile);
+
+    internal static TwoStrokeDuct Primary(TwoStrokeConfiguration c, DuctGeometry primary, GasEquation gas) =>
+        Create(new(primary, gas, c.Numerics.Scheme, boundedPassiveTag: true), gas, TailMixture(c),
+            c.Tail.PressurePa, c.Tail.TemperatureK, 0, null);
+
+    internal static DuctMesh ExpansionMesh(ExpansionChamber e, GasEquation gas, DuctScheme scheme) =>
+        new(new(e.LengthM, e.StingerDiameterM, e.InletDiameterM, e.Cells), gas,
+            scheme, e.DiameterFromTail, e.MeshKnots(), boundedPassiveTag: true);
+
+    internal static double[] TailMixture(TwoStrokeConfiguration c)
     {
-        var e = c.Expansion;
-        var mesh = new DuctMesh(new(e.LengthM, e.StingerDiameterM, e.InletDiameterM, e.Cells), gas,
-            c.Numerics.Scheme, e.DiameterFromTail, e.MeshKnots(), boundedPassiveTag: true);
         var air = SpeciesThermodynamics.FreshMixture(c.Combustion.AirFuelRatio);
         double fraction = 1 - air[0];
-        return Create(mesh, gas, [0, air[1] / fraction, air[2] / fraction, 0, 0, 0, 0],
-            c.Tail.PressurePa, c.Tail.TemperatureK, 0, profile);
+        return [0, air[1] / fraction, air[2] / fraction, 0, 0, 0, 0];
     }
 
     private static TwoStrokeDuct Create(DuctMesh mesh, GasEquation gas, double[] fractions, double p, double t, double tag, TwoStrokeProfile? profile)
@@ -38,7 +45,8 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
 
     // Positive flux enters the engine. The single port flux is also the duct right boundary.
     internal double Rates(ReadOnlySpan<double> tube, Span<double> rate, GasState plenum,
-        ReadOnlySpan<double> donor, double portArea, Reed? reed, Span<double> outer, Span<double> inner, out double facePressure)
+        ReadOnlySpan<double> donor, double portArea, Reed? reed, Span<double> outer, Span<double> inner, out double facePressure,
+        DuctBoundary? exterior = null)
     {
         Span<double> face = stackalloc double[gas.Size];
         long start = profile is null ? 0 : TwoStrokeProfile.Timestamp();
@@ -50,7 +58,7 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
             start = now;
         }
         var left = mesh.BoundaryState(tube, false, face);
-        gas.Flux(ghost, reservoir, face, left, outer);
+        gas.Flux(exterior?.Values ?? ghost, exterior?.State ?? reservoir, face, left, outer);
         for (int i = 0; i < outer.Length; i++) outer[i] *= mesh.ReservoirArea;
 
         var right = mesh.BoundaryState(tube, true, face);

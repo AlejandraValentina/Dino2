@@ -25,12 +25,27 @@ public sealed record FiringPhases(double Cylinder2Deg, double? Cylinder3Deg = nu
     public int[] FiringOrder() => Values().Select((phase, i) => (phase, i))
         .OrderBy(cylinder => cylinder.phase).Select(cylinder => cylinder.i + 1).ToArray();
 
-    internal void Validate()
+    internal void Validate(double period = 720)
     {
         var phases = Values();
-        if (phases.Any(p => !double.IsFinite(p) || p < 0 || p >= 720) ||
+        if (phases.Any(p => !double.IsFinite(p) || p < 0 || p >= period) ||
             phases.Distinct().Count() != phases.Length)
-            throw new ArgumentException("Los desfases de combustión deben ser distintos y estar en [0, 720) grados.");
+            throw new ArgumentException($"Los desfases de combustión deben ser distintos y estar en [0, {period}) grados.");
+    }
+
+    public static FiringPhases Even(int cylinders, int period) => (cylinders, period) switch
+    {
+        (_, 720) => Inline(cylinders),
+        (2, 360) => new(180),
+        (3, 360) => new(120, 240),
+        (4, 360) => new(270, 90, 180),
+        _ => throw new ArgumentOutOfRangeException(nameof(cylinders))
+    };
+
+    internal static double Wrap(double angle, double period)
+    {
+        angle = (angle % period + period) % period;
+        return angle < 1e-9 || period - angle < 1e-9 ? 0 : angle;
     }
 }
 

@@ -8,6 +8,11 @@ using Dino2.Core.TwoStroke;
 using Dino2.Storage;
 
 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+if (args.Contains("--stage10"))
+{
+    Stage10Checks.Run(args.Skip(1).ToArray());
+    return;
+}
 var example = TwoStrokeConfiguration.Example;
 var config = example with { Speeds = new(5000, 5000, 1) };
 var definition = new TwoStrokeStudyDefinition(config, [new(TwoStrokeParameter.DiffuserLength, 250, 290, 40)],

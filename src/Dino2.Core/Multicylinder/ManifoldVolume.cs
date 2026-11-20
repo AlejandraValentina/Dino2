@@ -17,11 +17,16 @@ internal sealed class ManifoldVolume
 
     internal ManifoldVolume(ManifoldSide side, GasEquation gas, DuctScheme scheme, Reservoir reservoir,
         double[] mixture, double tag, double runnerArea, int cylinders, double degreesPerSecond)
+        : this(new DuctMesh(side.Trunk, gas, scheme), side.VolumeM3, gas, reservoir, mixture, tag,
+            runnerArea, cylinders, degreesPerSecond) { }
+
+    internal ManifoldVolume(DuctMesh mesh, double volumeM3, GasEquation gas, Reservoir reservoir,
+        double[] mixture, double tag, double runnerArea, int cylinders, double degreesPerSecond)
     {
         this.gas = gas;
         this.degreesPerSecond = degreesPerSecond;
-        volume = side.VolumeM3;
-        trunk = new(side.Trunk, gas, scheme);
+        volume = volumeM3;
+        trunk = mesh;
         flowArea = trunk.ValveArea + cylinders * runnerArea;
         exterior = new(new double[gas.Size]);
         exterior.State = gas.Encode(exterior.Values, mixture, reservoir.PressurePa, reservoir.TemperatureK, 0, tag);

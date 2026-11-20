@@ -23,7 +23,8 @@ public sealed partial class TwoStrokeSimulator
     private double burnFuel;
     private bool burning;
 
-    private TwoStrokeSimulator(TwoStrokeConfiguration configuration, int rpm, TwoStrokeProfile? profile = null)
+    private TwoStrokeSimulator(TwoStrokeConfiguration configuration, int rpm, TwoStrokeProfile? profile = null,
+        DuctGeometry? exhaustPrimary = null)
     {
         c = configuration;
         this.profile = profile;
@@ -38,7 +39,7 @@ public sealed partial class TwoStrokeSimulator
         duration = dps * c.Combustion.DurationS;
         freshMixture = Extended(SpeciesThermodynamics.FreshMixture(c.Combustion.AirFuelRatio));
         inlet = TwoStrokeDuct.Intake(c, gas, freshMixture, profile);
-        outlet = TwoStrokeDuct.Exhaust(c, gas, profile);
+        outlet = exhaustPrimary is null ? TwoStrokeDuct.Exhaust(c, gas, profile) : TwoStrokeDuct.Primary(c, exhaustPrimary, gas);
         outletOffset = IntakeOffset + inlet.Size;
         dimension = outletOffset + outlet.Size;
         var breaks = new List<double> { open, close, soc, soc + duration, open + 360 };
@@ -57,10 +58,12 @@ public sealed partial class TwoStrokeSimulator
 
     private static double[] Extended(double[] fractions) => [.. fractions, 0, 0];
 
-    private void Initialize(Span<double> y)
+    private void Initialize(Span<double> y) => Initialize(y, open);
+
+    private void Initialize(Span<double> y, double angle)
     {
         Span<double> values = stackalloc double[Width];
-        double volume = SliderCrank.At(c.Geometry, open).VolumeM3;
+        double volume = SliderCrank.At(c.Geometry, angle).VolumeM3;
         gas.Encode(values, Extended(SpeciesThermodynamics.ExhaustMixture(Math.Max(c.Combustion.AirFuelRatio, SpeciesThermodynamics.StoichiometricAfr))),
             c.Tail.PressurePa, Math.Max(500, c.Tail.TemperatureK), 0, 0);
         for (int i = 0; i < N; i++) y[Old + i] = values[i] * volume;
@@ -92,6 +95,10 @@ public sealed partial class TwoStrokeSimulator
     }
 
     private double Evaluate(double angle, ReadOnlySpan<double> y, Span<double> rate, out TwoStrokeSample sample)
+        => Evaluate(angle, y, rate, out sample, null, null, default, default);
+
+    private double Evaluate(double angle, ReadOnlySpan<double> y, Span<double> rate, out TwoStrokeSample sample,
+        DuctBoundary? intakeBoundary, DuctBoundary? exhaustBoundary, Span<double> intakeRate, Span<double> exhaustRate)
     {
         rate[..IntakeOffset].Clear();
         var piston = SliderCrank.At(c.Geometry, angle);
@@ -128,9 +135,11 @@ public sealed partial class TwoStrokeSimulator
         Span<double> reedFlux = stackalloc double[Width], exhaustFlux = stackalloc double[Width];
         Span<double> outerIntake = stackalloc double[Width], outerExhaust = stackalloc double[Width];
         double dtI = inlet.Rates(y.Slice(IntakeOffset, inlet.Size), rate.Slice(IntakeOffset, inlet.Size), k,
-            caseDonor, 0, c.Reed, outerIntake, reedFlux, out double pReed);
+            caseDonor, 0, c.Reed, outerIntake, reedFlux, out double pReed, intakeBoundary);
         double dtE = outlet.Rates(y[outletOffset..], rate[outletOffset..], e, cylinderDonor,
-            c.Exhaust.Area(travel), null, outerExhaust, exhaustFlux, out double pExhaust);
+            c.Exhaust.Area(travel), null, outerExhaust, exhaustFlux, out double pExhaust, exhaustBoundary);
+        for (int i = 0; i < intakeRate.Length; i++) intakeRate[i] = outerIntake[i] / dps;
+        for (int i = 0; i < exhaustRate.Length; i++) exhaustRate[i] = outerExhaust[i] / dps;
         double transfer = ReactiveCylinder.Nozzle(c.Transfer.Area(travel), pk, tk, rk, k.Gamma, pc, tc, rc,
             SpeciesThermodynamics.Gamma(masses, tc));
         double transferTag = transfer * (transfer >= 0 ? fk : fc);
