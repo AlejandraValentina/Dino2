@@ -134,8 +134,10 @@ try {
     File-Dialog 'M2Trace' (Join-Path $output 'ciclo.csv')
     $null = Wait-For {
         $path = Join-Path $output 'ciclo.csv'
-        (Test-Path -LiteralPath $path) -and @(Get-Content -LiteralPath $path).Count -ge 600
-    } 'ciclo de ambos cilindros'
+        (Test-Path -LiteralPath $path) -and
+            (Select-String -Quiet -Path $path -Pattern '^5000,1,0,360,') -and
+            (Select-String -Quiet -Path $path -Pattern '^5000,2,180,360,')
+    } 'ciclo de 360° de ambos cilindros'
     File-Dialog 'M2Cylinders' (Join-Path $output 'cilindros.csv')
     $null = Wait-For {
         $path = Join-Path $output 'cilindros.csv'
