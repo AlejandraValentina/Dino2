@@ -1,5 +1,7 @@
 # Etapa 9 — Integración y verificación multicilíndrica 4T
 
+**CLOSED dentro del dominio numérico declarado para colectores compactos.**
+
 ## Etapa 8 en main
 
 El merge local **a4ef998** tiene como padres **9e0a6b1** y **4cee2f0**. El árbol integrado coincide con el cierre de etapa 8. La revisión de ramas y worktrees encontró un árbol limpio y no hubo conflictos. Se repitieron las regresiones térmicas, 1D, 2T, Otto, de estudios, archivos y WPF. El portable integrado cargó su propio runtime y ejecutó Otto, 4T con MUSCL, estudios 4T y el recorrido 2T con estudio, refinamiento A/B, reapertura, CSV, dominio parcial y cancelación. La rama **stage9/multicilindrico-4t** parte de ese merge. [Cierre de etapa 8](etapa8.md).
@@ -9,6 +11,8 @@ El merge local **a4ef998** tiene como padres **9e0a6b1** y **4cee2f0**. El árbo
 Dino2 Desktop abre el módulo desde la pantalla 4T. Permite elegir entre dos, tres o cuatro cilindros en línea, editar fases, ramales, volumen de unión y conductos comunes, comparar A/B y ejecutar estudios con los objetivos existentes. Cada cilindro tiene su cilindro reactivo, válvulas y estado de ramales. Los depósitos exteriores intercambian especies y energía con el motor por dos redes. Se conserva el modo de ramales aislados para reproducir el límite monocilíndrico. [Modelo y ecuaciones](modelo-multicilindrico-4t.md) · [Manual](manual-desktop.md).
 
 Los estados incompletos se conservan con su diagnóstico y sin valores de potencia. El archivo multicilíndrico conserva configuraciones, curvas con presión por cilindro y colector, A/B, evidencia de contraste y estudio ejecutado. Los CSV identifican el modelo y la configuración SI. Los estudios seleccionan casos en la grilla; cada variante puede aplicarse como B y volver a calcularse con las trazas completas.
+
+La regresión completa pasó con compilación Release sin advertencias. La prueba de Windows abrió **Dino2.Desktop.exe** desde el ZIP extraído y verificó la carga de **coreclr.dll** del mismo directorio. Calculó el bicilíndrico, conservó A, modificó el volumen de admisión, verificó el contraste a tres mallas y exportó A/B, ciclo y contribuciones por cilindro. Ejecutó un estudio de tres casos, exportó resultados, guardó y reabrió el proyecto, aplicó B y canceló una simulación conservando el trabajo previo. Los ejemplos de dos, tres y cuatro cilindros se reprodujeron también desde la CLI.
 
 ## Verificación científica
 
@@ -43,6 +47,8 @@ Tiempo y asignación administrada medianos de tres ejecuciones a 4000 RPM con ca
 | 2 | 3,513 | 1,33 | 32,7 |
 | 3 | 2,627 | 1,85 | 29,5 |
 | 4 | 4,007 | 2,41 | 30,1 |
+
+En el portable, las curvas A y B de una RPM tardaron 4,27 y 4,64 s. Su contraste completo a tres resoluciones tardó 186,17 s. El estudio nativo de tres casos y dos curvas únicas tardó 8,28 s.
 
 ## Reproducción
 
