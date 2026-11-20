@@ -22,6 +22,7 @@ public partial class StudyPanel : UserControl
     private FourStrokeConfiguration? basis;
     private StudyPlan? resultPlan;
     private StudyRun? lastRun;
+    private bool unsavedRun;
     private CancellationTokenSource? cancellation;
     private bool updating, refreshing;
     private Func<FourStrokeConfiguration>? currentEngine;
@@ -215,6 +216,7 @@ public partial class StudyPanel : UserControl
                 RefreshRows();
             });
             lastRun = await Task.Run(() => StudyRunner.Run(plan, workers, token, progress));
+            unsavedRun = lastRun.Evaluations.Count > 0;
             RestoreRun(lastRun);
             StudyMessage.Text = $"{(lastRun.Cancelled ? "Estudio cancelado" : "Estudio completo")} · {results.Count}/{plan.Variants.Count} casos · {lastRun.Milliseconds / 1000:F2} s";
         }
@@ -240,6 +242,7 @@ public partial class StudyPanel : UserControl
             var check = await Task.Run(() => StudyVerification.Compare(plan, run, candidate, reference, token, progress));
             checks.RemoveAll(c => c.CandidateId == candidate && c.ReferenceId == reference);
             checks.Add(check);
+            unsavedRun = true;
             StudyMessage.Text = $"Contraste finalizado · {check.Milliseconds / 1000:F2} s";
         }
         catch (OperationCanceledException) { StudyMessage.Text = "Contraste cancelado. Se conservan las curvas del estudio."; }
@@ -269,7 +272,13 @@ public partial class StudyPanel : UserControl
 
     internal void Cancel() => cancellation?.Cancel();
     private void Cancel_Click(object sender, RoutedEventArgs e) => Cancel();
-    private async void Start_Click(object sender, RoutedEventArgs e) => await RunAsync();
+    private async void Start_Click(object sender, RoutedEventArgs e)
+    {
+        if (ConfirmDiscard(Window.GetWindow(this))) await RunAsync();
+    }
+
+    internal bool ConfirmDiscard(Window owner, Func<bool>? confirm = null) => !unsavedRun ||
+        (confirm?.Invoke() ?? DesktopLayout.ConfirmDiscard(owner, "el estudio 4T"));
     private async void Check_Click(object sender, RoutedEventArgs e)
     {
         if (StudyRows.SelectedItem is Row row && ReferenceBox.SelectedValue is int reference) await VerifyAsync(row.Id, reference);
@@ -397,7 +406,11 @@ public partial class StudyPanel : UserControl
         StudyMessage.Text = $"Variante {id} aplicada como B. Conservá este estudio para recuperar sus curvas.";
     }
 
-    internal void SaveTo(string path) => StudyFiles.Save(path, new(lastRun ?? throw new ArgumentException("Sin estudio ejecutado."), checks));
+    internal void SaveTo(string path)
+    {
+        StudyFiles.Save(path, new(lastRun ?? throw new ArgumentException("Sin estudio ejecutado."), checks));
+        unsavedRun = false;
+    }
     internal void ExportTo(string path) => StudyFiles.Export(path, new(lastRun ?? throw new ArgumentException("Sin estudio ejecutado."), checks));
     internal void LoadFrom(string path)
     {
@@ -405,6 +418,7 @@ public partial class StudyPanel : UserControl
         resultPlan = StudyPlan.Create(document.Run.Definition);
         PopulatePlan(resultPlan.Definition);
         lastRun = document.Run;
+        unsavedRun = false;
         checks.Clear(); checks.AddRange(document.Checks);
         RestoreRun(lastRun);
         Pages.SelectedIndex = 1;
@@ -419,6 +433,7 @@ public partial class StudyPanel : UserControl
     });
     private void Open_Click(object sender, RoutedEventArgs e) => Guard(() =>
     {
+        if (!ConfirmDiscard(Window.GetWindow(this))) return;
         var dialog = new OpenFileDialog { Filter = "Estudio Dino2 (*.dino-study.json)|*.dino-study.json|JSON (*.json)|*.json" };
         if (dialog.ShowDialog(Window.GetWindow(this)) == true) LoadFrom(dialog.FileName);
     });

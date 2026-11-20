@@ -32,10 +32,16 @@ public partial class FourStrokeWindow : Window
     internal FourStrokeResult? OriginalResult { get; private set; }
 
     private TwoStrokeWindow? twoStrokeWindow;
+    private MainWindow? ottoWindow;
 
     private void TwoStroke_Click(object sender, RoutedEventArgs e)
     {
-        if (twoStrokeWindow is not null) { twoStrokeWindow.Activate(); return; }
+        if (twoStrokeWindow is not null)
+        {
+            twoStrokeWindow.Show();
+            twoStrokeWindow.Activate();
+            return;
+        }
         var child = new TwoStrokeWindow { Owner = this };
         twoStrokeWindow = child;
         child.Closed += (_, _) => twoStrokeWindow = null;
@@ -47,19 +53,16 @@ public partial class FourStrokeWindow : Window
     {
         this.confirmDiscard = confirmDiscard;
         InitializeComponent();
+        DesktopLayout.Fit(this);
         Studies.Configure(() => ReadConfiguration(), () => original, ApplyStudyVariant);
         PowerChart.Caption = "Potencia [kW]"; TorqueChart.Caption = "Par [N·m]";
         PressureChart.Caption = "Presión absoluta [bar]"; PressureChart.XLabel = "Ángulo [°]";
+        TemperatureChart.Caption = "Temperatura [K]"; TemperatureChart.XLabel = "Ángulo [°]";
         PortChart.Caption = "Presión junto a la válvula [bar]"; PortChart.XLabel = "Ángulo [°]";
         FlowChart.Caption = "Caudal hacia el cilindro [g/s]"; FlowChart.XLabel = "Ángulo [°]";
         PvChart.Caption = "Presión absoluta [bar]"; PvChart.XLabel = "Volumen [cm³]";
-        foreach (var grid in new[] { ResultGrid, ComparisonGrid })
-            grid.AutoGeneratingColumn += (_, e) =>
-            {
-                e.Column.Header = e.PropertyName == "Rpm" ? "RPM" : e.PropertyName.Replace('_', ' ');
-                if (e.PropertyType == typeof(double) && e.Column is DataGridTextColumn column)
-                    column.Binding = new System.Windows.Data.Binding(e.PropertyName) { StringFormat = "G6", ConverterCulture = CultureInfo.InvariantCulture };
-            };
+        DesktopLayout.FormatGrid(ResultGrid);
+        DesktopLayout.FormatGrid(ComparisonGrid);
         foreach (var group in EngineParameter.All.GroupBy(p => p.Group))
         {
             var panel = new StackPanel { Margin = new Thickness(10) };
@@ -96,7 +99,9 @@ public partial class FourStrokeWindow : Window
         {
             if (Studies.IsBusy) { Studies.Cancel(); e.Cancel = true; Status.Text = "Cancelando el estudio."; }
             else if (busy) { cancellation?.Cancel(); e.Cancel = true; Status.Text = "Cancelando; cierre la ventana cuando termine el cálculo."; }
-            else if (!ConfirmDiscard()) e.Cancel = true;
+            else if (!ConfirmDiscard() || !Studies.ConfirmDiscard(this, confirmDiscard) ||
+                twoStrokeWindow?.CanCloseFromOwner() == false || ottoWindow?.CanCloseFromOwner() == false)
+                e.Cancel = true;
         };
     }
 
@@ -144,7 +149,13 @@ public partial class FourStrokeWindow : Window
         var config = editorTemplate;
         foreach (var parameter in EngineParameter.All)
         {
-            if (!double.TryParse(fields[parameter.Key].Text.Trim().Replace(',', '.'), NumberStyles.Float,
+            var input = fields[parameter.Key];
+            // IsEnabled also reflects the container lock. The applicability rules are based on the model snapshot.
+            if ((parameter.Group == "Conductos" && config.Ducts is null) ||
+                (parameter.Group == "Comb. v2" && config.Thermochemistry?.BurnLaw != BurnLaw.ConditionScaledWiebe) ||
+                (parameter.Key == "LocalTolerance" && config.Ducts is not null) ||
+                (parameter.Key == "Lhv" && config.Thermochemistry is not null)) continue;
+            if (!double.TryParse(input.Text.Trim().Replace(',', '.'), NumberStyles.Float,
                 CultureInfo.InvariantCulture, out double value) || !double.IsFinite(value))
                 throw new ArgumentException("Número inválido en " + parameter.Label);
             if (parameter.Integer && (value != Math.Truncate(value) || value < int.MinValue || value > int.MaxValue))
@@ -263,11 +274,13 @@ public partial class FourStrokeWindow : Window
         KeepOriginalButton.IsEnabled = ExportButton.IsEnabled = CurrentResult is not null && !busy;
         var r = CurrentResult;
         Summary.Text = r is null ? (OriginalResult is null ? "Sin simulación para la configuración actual." : "Original A conservado. La configuración actual requiere simulación.") :
-            FormattableString.Invariant($"{r.Configuration.Geometry.DisplacementM3 * 1e6:F2} cm³ · {r.Points.Count} RPM · {r.ElapsedMilliseconds:F0} ms · Pico {r.Points.Max(p => p.PeakTemperatureK):F0} K. A mayor temperatura, mayor incertidumbre por química omitida.");
+            FormattableString.Invariant($"{r.Configuration.Geometry.DisplacementM3 * 1e6:F2} cm³ · {r.Points.Count} RPM · {r.ElapsedMilliseconds:F0} ms · Tmáx {r.Points.Max(p => p.PeakTemperatureK):F0} K.");
         if(r?.Configuration.Thermochemistry is not null)
-            Summary.Text+=$" Correlación extrapolada en {r.Points.Count(p=>p.Chemistry!.FlameCorrelationExtrapolated)} de {r.Points.Count} regímenes; revisar diagnósticos.";
-        ResultGrid.ItemsSource = r?.Points.Select(p => new { p.Rpm, Pi_kW = p.IndicatedPowerW / 1000, Pb_kW = p.BrakePowerW / 1000,
-            Ti_Nm = p.IndicatedTorqueNm, Tb_Nm = p.BrakeTorqueNm, BMEP_bar = p.BmepPa / 1e5, VE = p.VolumetricEfficiency, p.Cycles }).ToArray();
+            Summary.Text+=$" Extrapolación de combustión: {r.Points.Count(p=>p.Chemistry!.FlameCorrelationExtrapolated)}/{r.Points.Count} RPM. Ver diagnósticos.";
+        ResultGrid.ItemsSource = r?.Points.Select(p => new { p.Rpm, Indicada_neta_kW = p.IndicatedPowerW / 1000,
+            Cigüeñal_kW = p.BrakePowerW / 1000, Par_indicado_Nm = p.IndicatedTorqueNm, Par_cigüeñal_Nm = p.BrakeTorqueNm,
+            BMEP_bar = p.BmepPa / 1e5, Eficiencia_volumétrica = p.VolumetricEfficiency,
+            Eficiencia_indicada = p.IndicatedEfficiency, Eficiencia_cigüeñal = p.BrakeEfficiency, Ciclos = p.Cycles }).ToArray();
         var comparison = OriginalResult is not null && r is not null ? EngineComparison.Compare(OriginalResult, r) : null;
         ComparisonGrid.ItemsSource = comparison?.Select(p => new { p.Rpm, A_kW = p.OriginalBrakePowerW / 1000, B_kW = p.VariantBrakePowerW / 1000,
             Delta_kW = p.PowerDifferenceW / 1000, A_Nm = p.OriginalBrakeTorqueNm, B_Nm = p.VariantBrakeTorqueNm, Delta_Nm = p.TorqueDifferenceNm, Delta_VE = p.FillingDifference }).ToArray();
@@ -293,9 +306,17 @@ public partial class FourStrokeWindow : Window
                 ? "Resolución A/B sin comprobar. El contraste usa mallas base, ×2 y ×4 en el régimen elegido."
                 : "Resolución A/B sin comprobar. Para el contraste automático igualá modelos y ajustes, con hasta 64 celdas por conducto.";
         }
-        TraceRpm.ItemsSource = r?.Points.Select(p => p.Rpm).ToArray();
-        if (r is not null) TraceRpm.SelectedItem = r.Points.Any(p => p.Rpm == 3000) ? 3000 : r.Points[0].Rpm;
-        else { PressureChart.SetLines([]); PvChart.SetLines([]); CycleDiagnostics.Text = ""; }
+        int? inspected = TraceRpm.SelectedItem as int?;
+        int[] traceSpeeds = r?.Points.Select(p => p.Rpm).ToArray() ?? [];
+        if (TraceRpm.ItemsSource is not int[] previousSpeeds || !previousSpeeds.SequenceEqual(traceSpeeds))
+        {
+            TraceRpm.ItemsSource = traceSpeeds;
+            if (traceSpeeds.Length > 0)
+                TraceRpm.SelectedItem = inspected is int rpm && traceSpeeds.Contains(rpm) ? rpm :
+                    traceSpeeds.Contains(3000) ? 3000 : traceSpeeds[0];
+        }
+        if (r is not null) RenderTrace();
+        else { PressureChart.SetLines([]); PvChart.SetLines([]); TemperatureChart.SetLines([]); CycleDiagnostics.Text = ""; }
         if (r?.Configuration.Ducts is null)
         {
             PortChart.SetLines([]); FlowChart.SetLines([]);
@@ -319,12 +340,15 @@ public partial class FourStrokeWindow : Window
         return text.ToString();
     }
 
-    private void TraceRpm_Changed(object sender, SelectionChangedEventArgs e)
+    private void TraceRpm_Changed(object sender, SelectionChangedEventArgs e) => RenderTrace();
+
+    private void RenderTrace()
     {
         if (CurrentResult is null || TraceRpm.SelectedItem is not int rpm) return;
         var p = CurrentResult.Points.Single(p => p.Rpm == rpm);
         PressureChart.SetLines([new("Presión [bar]", p.Trace.Select(s => new Point(s.AngleDeg, s.PressurePa / 1e5)).ToArray(), Brushes.SteelBlue)]);
         PvChart.SetLines([new("p-V", p.Trace.Select(s => new Point(s.VolumeM3 * 1e6, s.PressurePa / 1e5)).ToArray(), Brushes.DarkOrange)]);
+        TemperatureChart.SetLines([new("Cilindro", p.Trace.Select(s => new Point(s.AngleDeg, s.TemperatureK)).ToArray(), Brushes.SteelBlue)]);
         if (p.GasDynamics is not null)
         {
             var pressures = new List<PlotLine>();
@@ -343,7 +367,13 @@ public partial class FourStrokeWindow : Window
             FlowChart.SetLines(flows);
             PortCaption.Text = $"{rpm} RPM · Admisión en azul, escape en naranja, A en trazo discontinuo. Caudal negativo hacia el conducto.";
         }
-        CycleDiagnostics.Text = FormattableString.Invariant($"{p.Cycles} ciclos · residual masa {p.MassResidualKg:E2} kg · residual energía {p.EnergyResidualJ:E2} J · periodicidad {p.PeriodicError:E2}. Se muestra el último ciclo convergido; sin promedios entre ciclos.");
+        CycleDiagnostics.Text = FormattableString.Invariant($"{p.Cycles} ciclos · residual masa {p.MassResidualKg:E2} kg · residual energía {p.EnergyResidualJ:E2} J · periodicidad {p.PeriodicError:E2}. Último ciclo periódico.");
+        if (p.Chemistry is not null)
+        {
+            var species = p.Trace[^1].Composition;
+            CycleDiagnostics.Text += FormattableString.CurrentCulture(
+                $" Cierre del ciclo [mg] · combustible {species.FuelKg * 1e6:G4} · O₂ {species.OxygenKg * 1e6:G4} · N₂ {species.NitrogenKg * 1e6:G4} · CO₂ {species.CarbonDioxideKg * 1e6:G4} · H₂O {species.WaterKg * 1e6:G4} · CO {species.CarbonMonoxideKg * 1e6:G4} · H₂ {species.HydrogenKg * 1e6:G4}.");
+        }
     }
 
     private static bool DifferentSpacing(DuctGeometry a, DuctGeometry b)
@@ -457,5 +487,12 @@ public partial class FourStrokeWindow : Window
         }
         Status.Text = "Se exportaron curvas, traza del régimen seleccionado y comparación cuando existe A: " + path;
     }
-    private void Otto_Click(object sender, RoutedEventArgs e) => new MainWindow().Show();
+    private void Otto_Click(object sender, RoutedEventArgs e)
+    {
+        if (ottoWindow is not null) { ottoWindow.Activate(); return; }
+        var child = new MainWindow { Owner = this };
+        ottoWindow = child;
+        child.Closed += (_, _) => ottoWindow = null;
+        child.Show();
+    }
 }

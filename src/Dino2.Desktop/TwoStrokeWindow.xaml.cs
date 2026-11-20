@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -29,15 +30,25 @@ public partial class TwoStrokeWindow : Window
     public TwoStrokeWindow()
     {
         InitializeComponent();
+        DesktopLayout.Fit(this);
+        DesktopLayout.FormatGrid(ResultGrid);
+        DesktopLayout.FormatGrid(ComparisonGrid);
         BuildEditor();
         Populate(template);
         studies = new(this);
         StudyHost.Content = studies;
-        Closing += (_, e) =>
+        Closing += (_, e) => e.Cancel = !CanCloseFromOwner();
+    }
+
+    internal bool CanCloseFromOwner()
+    {
+        if (operation is not null)
         {
-            if (operation is not null) { operation.Cancel(); e.Cancel = true; }
-            else e.Cancel = !CanDiscard();
-        };
+            operation.Cancel();
+            ShowStatus("Cancelando la operación 2T antes de cerrar.");
+            return false;
+        }
+        return CanDiscard() && studies.ConfirmDiscard();
     }
 
     private bool CanDiscard() => !dirty ||
@@ -128,13 +139,30 @@ public partial class TwoStrokeWindow : Window
         ShowStatus("Curva original A conservada.");
     }
 
-    private void Return_Click(object sender, RoutedEventArgs e) => Close();
+    private void Return_Click(object sender, RoutedEventArgs e)
+    {
+        if (Owner is null) { Close(); return; }
+        Hide();
+        Owner.Activate();
+    }
+
+    private void RemoveOriginal_Click(object sender, RoutedEventArgs e)
+    {
+        if (original is null) return;
+        original = null;
+        baseline = null;
+        ClearResolution();
+        dirty = true;
+        Render();
+        ShowStatus("Se quitó la referencia A del proyecto 2T.");
+    }
     private void Cancel_Click(object sender, RoutedEventArgs e) => operation?.Cancel();
 
     private async void Calculate_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
         var config = CurrentConfiguration();
         var pending = new List<TwoStrokeRun>();
+        var clock = Stopwatch.StartNew();
         await Execute("Calculando curva 2T…", async token =>
         {
             var progress = new Progress<TwoStrokeRun>(run =>
@@ -162,7 +190,7 @@ public partial class TwoStrokeWindow : Window
                 template = config;
                 dirty = true;
                 Render();
-                ShowStatus($"Curva 2T: {result.Runs.Count(r => r.Point is not null)}/{result.Runs.Count} regímenes periódicos.");
+                ShowStatus($"Curva 2T: {result.Runs.Count(r => r.Point is not null)}/{result.Runs.Count} regímenes periódicos · {clock.Elapsed.TotalSeconds:F2} s.");
             }
             catch (OperationCanceledException)
             {
@@ -233,14 +261,14 @@ public partial class TwoStrokeWindow : Window
     internal async Task Guard(Func<Task> action)
     {
         try { await action(); }
-        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or JsonException or ArithmeticException)
+        catch (Exception ex) when (ex is ArgumentException or IOException or InvalidDataException or UnauthorizedAccessException or JsonException or ArithmeticException)
         { ShowStatus(ex.Message); }
     }
 
     internal void Guard(Action action)
     {
         try { action(); }
-        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or JsonException or ArithmeticException)
+        catch (Exception ex) when (ex is ArgumentException or IOException or InvalidDataException or UnauthorizedAccessException or JsonException or ArithmeticException)
         { ShowStatus(ex.Message); }
     }
 
@@ -248,12 +276,23 @@ public partial class TwoStrokeWindow : Window
     internal TwoStrokeConfiguration StudyBase(bool useOriginal) =>
         useOriginal ? original ?? throw new ArgumentException("Conservá primero la configuración A.") : CurrentConfiguration();
 
-    private void Open_Click(object sender, RoutedEventArgs e) => Guard(() =>
+    private async void Open_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
         if (!CanDiscard()) return;
         string? path = Choose(false, "Proyecto Dino2 2T (*.json)|*.json", "motor-2t.dino2.json");
         if (path is null) return;
-        var project = TwoStrokeFiles.Load(path);
+        await LoadProjectAsync(path);
+    });
+
+    internal Task LoadProjectAsync(string path) => Execute("Abriendo proyecto 2T…", async token =>
+    {
+        var project = await Task.Run(() => TwoStrokeFiles.Load(path), token);
+        token.ThrowIfCancellationRequested();
+            RestoreProject(project);
+    });
+
+    internal void RestoreProject(TwoStrokeProject project)
+    {
         original = project.Original;
         baseline = project.OriginalResult;
         curve = project.CurrentResult;
@@ -262,7 +301,7 @@ public partial class TwoStrokeWindow : Window
         RenderResolution();
         dirty = false;
         ShowStatus("Proyecto 2T recuperado.");
-    });
+    }
 
     private void Save_Click(object sender, RoutedEventArgs e) => Guard(() =>
     {
@@ -305,6 +344,7 @@ public partial class TwoStrokeWindow : Window
     private void Render()
     {
         KeepButton.IsEnabled = ExportButton.IsEnabled = curve is not null;
+        RemoveOriginalButton.IsEnabled = original is not null;
         RenderCurves(PowerPlot, TorquePlot, baseline, curve);
         ResultGrid.ItemsSource = curve?.Runs.Select(r => Describe(r)).ToArray();
         var pairs = Points(baseline).Join(Points(curve), a => a.Rpm, b => b.Rpm, (a, b) => new
@@ -320,8 +360,14 @@ public partial class TwoStrokeWindow : Window
         ComparisonGrid.ItemsSource = pairs;
         FillRpm(ComparisonRpm, pairs.Select(p => p.RPM));
         FillRpm(TraceRpm, Points(curve).Where(p => p.Trace.Count > 0).Select(p => p.Rpm));
-        var cfg = template;
-        try { cfg = CurrentConfiguration(); } catch (ArgumentException) { }
+        TwoStrokeConfiguration cfg;
+        try { cfg = CurrentConfiguration(); }
+        catch (ArgumentException)
+        {
+            GeometrySummary.Text = "Revisá los campos del motor para actualizar la geometría.";
+            RenderTrace();
+            return;
+        }
         GeometrySummary.Text = FormattableString.CurrentCulture($"{cfg.Geometry.DisplacementM3 * 1e6:F1} cm³ · Compresión geométrica {cfg.Geometry.CompressionRatio:G4} · Atrapada {cfg.TrappedCompressionRatio:F2} · Primaria {cfg.PrimaryCompressionRatio:F2}\nEscape abre {cfg.Exhaust.Opening(cfg.Geometry):F1}° · Transfers {cfg.Transfer.Opening(cfg.Geometry):F1}° después de PMS.");
         RenderTrace();
     }
@@ -331,16 +377,16 @@ public partial class TwoStrokeWindow : Window
         var p = run.Point;
         return new
         {
-            RPM = run.Rpm, Estado = StateLabel(run.Status), Indicada_neta_W = F(p?.IndicatedPowerW), Cigüeñal_W = F(p?.ShaftPowerW),
-            Par_Nm = F(p?.ShaftTorqueNm), IMEP_bar = F(p?.ImepPa / 1e5), BMEP_bar = F(p?.BmepPa / 1e5),
-            BSFC_g_kWh = F(p?.BsfcGPerKwh), Entrega = F(p?.DeliveryRatio), Atrapamiento = F(p?.TrappingEfficiency),
-            Barrido = F(p?.ScavengingEfficiency), Carga = F(p?.ChargingEfficiency), Fresca_mg = F(p?.FreshTrappedKg * 1e6),
-            Residual_mg = F(p?.ResidualMassKg * 1e6), Cortocircuito_bruto_mg = F(p?.FreshExhaustOutKg * 1e6),
-            Retorno_escape_mg = F(p?.FreshExhaustReturnKg * 1e6), Pmáx_bar = F(p?.PeakPressurePa / 1e5),
-            Tmáx_K = F(p?.PeakTemperatureK), Ciclos = p?.Cycles, Error_periódico = F(p?.PeriodicError),
-            Balance_J = F(p?.Balance.EnergyJ), Cortocircuito_neto_mg = F(p?.NetFreshExhaustKg * 1e6),
-            Atrapada_por_entrega = F(p?.TrappingPerTransferDelivery), Ciclos_completados = run.Convergence?.Cycles,
-            Residuo_final = F(run.Convergence?.Residual), Componente_dominante = run.Convergence?.Dominant, Diagnóstico = run.Failure
+            RPM = run.Rpm, Estado = StateLabel(run.Status), Indicada_neta_W = p?.IndicatedPowerW, Cigüeñal_W = p?.ShaftPowerW,
+            Par_Nm = p?.ShaftTorqueNm, IMEP_bar = p?.ImepPa / 1e5, BMEP_bar = p?.BmepPa / 1e5,
+            BSFC_g_kWh = p?.BsfcGPerKwh, Entrega = p?.DeliveryRatio, Atrapamiento = p?.TrappingEfficiency,
+            Barrido = p?.ScavengingEfficiency, Carga = p?.ChargingEfficiency, Fresca_mg = p?.FreshTrappedKg * 1e6,
+            Residual_mg = p?.ResidualMassKg * 1e6, Cortocircuito_bruto_mg = p?.FreshExhaustOutKg * 1e6,
+            Retorno_escape_mg = p?.FreshExhaustReturnKg * 1e6, Pmáx_bar = p?.PeakPressurePa / 1e5,
+            Tmáx_K = p?.PeakTemperatureK, Ciclos = p?.Cycles, Error_periódico = p?.PeriodicError,
+            Balance_J = p?.Balance.EnergyJ, Cortocircuito_neto_mg = p?.NetFreshExhaustKg * 1e6,
+            Atrapada_por_entrega = p?.TrappingPerTransferDelivery, Ciclos_completados = run.Convergence?.Cycles,
+            Residuo_final = run.Convergence?.Residual, Componente_dominante = run.Convergence?.Dominant, Diagnóstico = run.Failure
         };
     }
 
@@ -381,7 +427,7 @@ public partial class TwoStrokeWindow : Window
                 lines.Add(new(name + " indicada", points.Select(p => new Point(p.Rpm, indicated(p))).ToArray(), brush, true, markers));
             }
             Add(a, "A", Blue);
-            Add(b, "B", Orange);
+            Add(b, a is null ? "Actual" : "B", Orange);
             return lines;
         }
         power.SetLines(Lines(p => p.ShaftPowerW / 1000, p => p.IndicatedPowerW / 1000));
@@ -396,13 +442,15 @@ public partial class TwoStrokeWindow : Window
         var p = TracePoint();
         if (p is null)
         {
-            foreach (var plot in new[] { PressurePlot, TemperaturePlot, FlowPlot }) plot.SetLines([]);
+            foreach (var plot in new[] { PressurePlot, PortsPlot, TemperaturePlot, FlowPlot }) plot.SetLines([]);
             TraceInfo.Text = "Simulá la configuración actual para inspeccionar el ciclo periódico.";
             return;
         }
         PlotLine Trace(string name, Brush brush, Func<TwoStrokeSample, double> y) =>
             new(name, p.Trace.Select(s => new Point(s.AngleDeg, y(s))).ToArray(), brush);
-        PressurePlot.SetLines([Trace("Cilindro", Blue, s => s.CylinderPressurePa / 1e5), Trace("Cárter", Orange, s => s.CrankcasePressurePa / 1e5),
+        PressurePlot.SetLines([Trace("Cilindro", Blue, s => s.CylinderPressurePa / 1e5),
+            Trace("Cárter", Orange, s => s.CrankcasePressurePa / 1e5)]);
+        PortsPlot.SetLines([Trace("Admisión en láminas", Blue, s => s.IntakeValvePressurePa / 1e5),
             Trace("Escape en lumbrera", Green, s => s.ExhaustPortPressurePa / 1e5)]);
         TemperaturePlot.SetLines([Trace("Cilindro", Blue, s => s.CylinderTemperatureK), Trace("Cárter", Orange, s => s.CrankcaseTemperatureK)]);
         FlowPlot.SetLines([Trace("Láminas", Blue, s => s.ReedKgPerS * 1000), Trace("Transfer hacia cilindro", Orange, s => s.TransferKgPerS * 1000),

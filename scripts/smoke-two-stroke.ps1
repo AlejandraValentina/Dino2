@@ -1,4 +1,4 @@
-param([string]$Application = 'artifacts/stage6-win-x64/Dino2.Desktop.exe', [switch]$VerifyResolution, [switch]$VerifyDomain)
+param([string]$Application = 'artifacts/stage6-win-x64/Dino2.Desktop.exe', [switch]$VerifyResolution, [switch]$VerifyDomain, [switch]$AuditFiles)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -109,6 +109,21 @@ try {
     Click 'Previsualizar costo 2T' -Label
     Click 'Ejecutar estudio 2T' -Label
     $null = Status 'Estudio 2T terminado' 65
+    if ($AuditFiles) {
+        Click 'Abrir estudio 2T…' -Label
+        $notice = Wait-For {
+            $process.Refresh()
+            foreach ($thread in $process.Threads) {
+                foreach ($handle in [DialogWindows]::Find([uint32]$thread.Id)) {
+                    $button = [DialogWindows]::Child($handle, 'Button', 7) # Win32 IDNO
+                    if ($button -ne [IntPtr]::Zero) { return @($handle, $button) }
+                }
+            }
+        } 'unsaved study confirmation'
+        [DialogWindows]::Confirm($notice[0], $notice[1], 7)
+        $null = Wait-For { if ((Control 'Guardar estudio 2T…' -Label).Current.IsEnabled) { 1 } } 'dismissed confirmation'
+        Write-Output 'PASS portable protects unsaved study before opening another one'
+    }
     $study = Join-Path $output 'engine-study.json'
     File-Dialog 'Guardar estudio 2T…' $study -Label
     $null = Wait-For { Test-Path -LiteralPath $study } 'study saved'
@@ -161,6 +176,17 @@ try {
     $null = Status 'Traza 2T exportada'
     if ((Get-Content -LiteralPath $trace).Count -lt 250) { throw 'Trace export incomplete.' }
     Write-Output 'PASS portable applies B, reruns, reopens A/B and exports curves and cycle'
+    if ($AuditFiles) {
+        $corrupt = Join-Path $output 'corrupt-project.json'
+        '{}' | Set-Content -Encoding utf8 $corrupt
+        File-Dialog 'OpenTwoStroke' $corrupt
+        $null = Status 'Archivo de proyecto 2T incompatible'
+        $retained = Join-Path $output 'retained.csv'
+        File-Dialog 'ExportButton' $retained
+        $null = Status 'CSV 2T exportado'
+        if ((@(Import-Csv $retained)).Count -ne 1) { throw 'A malformed project replaced the current curve.' }
+        Write-Output 'PASS portable rejects corrupted project and retains the previous results'
+    }
 
     Click 'CalculateButton'
     Click 'CancelButton'

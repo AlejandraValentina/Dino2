@@ -18,7 +18,8 @@ public static partial class TwoStrokeFiles
 
     public static TwoStrokeStudyRun LoadStudy(string path)
     {
-        var document = JsonSerializer.Deserialize<StudyDocument>(File.ReadAllText(path), Json);
+        using var stream = File.OpenRead(path);
+        var document = JsonSerializer.Deserialize<StudyDocument>(stream, Json);
         if (document?.Format != StudyFormat || document.Model != TwoStrokeConfiguration.ModelId || document.Run is null)
             throw new InvalidDataException("Archivo de estudio 2T incompatible.");
         ValidateStudy(document.Run);
@@ -28,7 +29,7 @@ public static partial class TwoStrokeFiles
     private static void ValidateStudy(TwoStrokeStudyRun run)
     {
         var plan = TwoStrokeStudy.Create(run.Definition);
-        if (run.Evaluations is null || run.Workers is < 1 or > StudyPlan.MaximumWorkers ||
+        if (run.Evaluations is null || run.Evaluations.Any(row => row is null) || run.Workers is < 1 or > StudyPlan.MaximumWorkers ||
             (!run.Cancelled && run.Evaluations.Count != plan.Variants.Count) ||
             run.Evaluations.Select(row => row.Id).Distinct().Count() != run.Evaluations.Count)
             throw new InvalidDataException("Evaluaciones 2T incompletas o duplicadas.");
@@ -39,7 +40,7 @@ public static partial class TwoStrokeFiles
                 throw new InvalidDataException("Evaluación 2T incompatible.");
             CheckResult(plan.Variants[row.Id].Configuration, row.Sweep);
         }
-        if (run.Checks?.Any(check => check.CandidateId == check.ReferenceId ||
+        if (run.Checks?.Any(check => check is null || check.Levels is null || check.Levels.Any(l => l is null) || check.CandidateId == check.ReferenceId ||
             !run.Evaluations.Any(row => row.Id == check.CandidateId && row.Status == StudyStatus.Completed) ||
             !run.Evaluations.Any(row => row.Id == check.ReferenceId && row.Status == StudyStatus.Completed)) == true)
             throw new InvalidDataException("Contraste 2T sin evaluaciones asociadas.");
