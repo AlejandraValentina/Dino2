@@ -44,7 +44,7 @@ internal static class MultiDesktopSmoke
             var snapshot = window.Snapshot();
             string project = Path.Combine(output, "multi-ui.json");
             MultiFiles.Save(project, snapshot);
-            window.Restore(MultiFiles.Load(project));
+            await window.LoadProjectAsync(project);
             Check(window.Snapshot().Current == snapshot.Current && window.Snapshot().Original == config &&
                 window.Snapshot().CurrentResult?.Points[0].Metrics == snapshot.CurrentResult?.Points[0].Metrics,
                 "el proyecto recupera configuraciones y curvas");
@@ -59,7 +59,7 @@ internal static class MultiDesktopSmoke
             Check(study?.Run is { Cancelled: false, ExecutedCurves: 1 } && Find<DataGrid>("StudyRows").Items.Count == 2,
                 "estudio real, deduplicación y clasificación");
             MultiFiles.Save(project, window.Snapshot());
-            window.Restore(MultiFiles.Load(project));
+            await window.LoadProjectAsync(project);
             Check(window.Snapshot().Study?.Run.Evaluations.Count == 2, "recupera estudio y curva desde el archivo");
             Click("MultiStudyApply");
             Check(window.Snapshot().CurrentResult is null && window.Snapshot().Original == config,

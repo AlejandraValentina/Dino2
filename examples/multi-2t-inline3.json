@@ -1,0 +1,130 @@
+{
+  "format": "dino2-multicylinder-two-stroke-project-v1",
+  "model": "two-stroke-inline-reed-expansion-isooctane-v1",
+  "project": {
+    "current": {
+      "cylinder": {
+        "geometry": {
+          "boreM": 0.054,
+          "strokeM": 0.0545,
+          "rodLengthM": 0.11,
+          "compressionRatio": 11,
+          "displacementM3": 0.00012481704692344928
+        },
+        "crankcaseMinimumM3": 0.00018,
+        "intake": {
+          "pressurePa": 100000,
+          "temperatureK": 320
+        },
+        "tail": {
+          "pressurePa": 100000,
+          "temperatureK": 300
+        },
+        "reed": {
+          "throatM2": 0.00049,
+          "perimeterM": 0.11,
+          "limitM": 0.004,
+          "stiffnessNPerM": 850,
+          "openingPressurePa": 40,
+          "cd": 0.7
+        },
+        "transfer": {
+          "roofM": 0.043,
+          "heightM": 0.011,
+          "widthM": 0.052,
+          "throatM2": 0.0008,
+          "cd": 0.73
+        },
+        "exhaust": {
+          "roofM": 0.031,
+          "heightM": 0.022,
+          "widthM": 0.036,
+          "throatM2": 0.0008,
+          "cd": 0.74
+        },
+        "intakeDuct": {
+          "lengthM": 0.14,
+          "reservoirDiameterM": 0.031,
+          "valveDiameterM": 0.031,
+          "cells": 12
+        },
+        "expansion": {
+          "inletDiameterM": 0.057,
+          "headerM": 0.17,
+          "diffuserM": 0.27,
+          "bellyDiameterM": 0.105,
+          "bellyM": 0.13,
+          "coneM": 0.2,
+          "stingerDiameterM": 0.035,
+          "stingerM": 0.13,
+          "cells": 32,
+          "lengthM": 0.9
+        },
+        "freshExtractionRatio": 1,
+        "combustion": {
+          "advanceDeg": 19,
+          "delayS": 0.00016,
+          "durationS": 0.0011,
+          "airFuelRatio": 15.033440717137054,
+          "burnFraction": 0.96,
+          "wiebeExponent": 2,
+          "productEquilibrium": true
+        },
+        "thermal": {
+          "wallTemperatureK": 440,
+          "hohenbergMultiplier": 1
+        },
+        "friction": {
+          "constantPa": 42000,
+          "peakPressureFactor": 0.004,
+          "speedPaPerMPerS": 4500,
+          "speedSquaredPaPerM2PerS2": 45
+        },
+        "speeds": {
+          "start": 4000,
+          "end": 5000,
+          "step": 1000
+        },
+        "numerics": {
+          "maximumStepDeg": 0.65,
+          "courant": 0.44,
+          "periodicTolerance": 0.0002,
+          "maximumCycles": 160,
+          "scheme": 1
+        },
+        "trappedCompressionRatio": 6.688073394495415,
+        "primaryCompressionRatio": 1.693428038463607
+      },
+      "phases": {
+        "cylinder2Deg": 120,
+        "cylinder3Deg": 240,
+        "cylinder4Deg": null,
+        "count": 3
+      },
+      "sharedIntake": {
+        "trunk": {
+          "lengthM": 0.26,
+          "reservoirDiameterM": 0.058,
+          "valveDiameterM": 0.058,
+          "cells": 8
+        },
+        "volumeM3": 0.0012
+      },
+      "sharedExhaust": {
+        "primary": {
+          "lengthM": 0.24,
+          "reservoirDiameterM": 0.036,
+          "valveDiameterM": 0.035,
+          "cells": 12
+        },
+        "junctionVolumeM3": 0.00055
+      },
+      "displacementM3": 0.00037445114077034784
+    },
+    "original": null,
+    "curve": null,
+    "baseline": null,
+    "contrast": null,
+    "study": null
+  }
+}

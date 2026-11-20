@@ -109,6 +109,7 @@ internal static class Program
                 await StudySmoke.Run(output);
                 await DesktopAuditSmoke.Run(output);
                 await MultiDesktopSmoke.Run(output);
+                await MultiTwoStrokeSmoke.Run(output);
                 Console.WriteLine("Desktop smoke checks passed; images in " + output);
                 exit = 0;
             }

@@ -8,7 +8,7 @@ namespace Dino2.Desktop;
 
 public partial class TwoStrokeWindow
 {
-    private sealed record Field(string Label, Func<TwoStrokeConfiguration, double> Read,
+    internal sealed record Field(string Group, string Label, Func<TwoStrokeConfiguration, double> Read,
         Func<TwoStrokeConfiguration, double, TwoStrokeConfiguration> Set);
 
     private void BuildEditor()
@@ -22,19 +22,47 @@ public partial class TwoStrokeWindow
             return panel;
         }
 
-        void Add(string name, string label, Func<TwoStrokeConfiguration, double> read,
-            Func<TwoStrokeConfiguration, double, TwoStrokeConfiguration> set)
+        foreach (var field in DefineFields())
         {
-            var field = new Field(label, read, set);
+            string label = field.Label;
             var input = new TextBox();
             AutomationProperties.SetName(input, label);
-            var panel = Group(name);
+            var panel = Group(field.Group);
             panel.Children.Add(new Label { Content = label, Target = input, Padding = new Thickness(0, 6, 0, 3) });
             panel.Children.Add(input);
             inputs.Add(field, input);
             input.TextChanged += (_, _) => Edited();
         }
 
+        equilibrium = new CheckBox { Content = "Equilibrio UV en tramo cerrado", Margin = new Thickness(0, 8, 0, 8) };
+        equilibrium.Checked += (_, _) => Edited();
+        equilibrium.Unchecked += (_, _) => Edited();
+        Group("Combustión y pérdidas").Children.Add(equilibrium);
+
+        scheme = new ComboBox { ItemsSource = Enum.GetValues<DuctScheme>() };
+        AutomationProperties.SetName(scheme, "Esquema de conductos");
+        Group("Resolución numérica").Children.Add(new Label { Content = "Esquema de conductos", Target = scheme });
+        Group("Resolución numérica").Children.Add(scheme);
+        scheme.SelectionChanged += (_, _) => Edited();
+
+        var views = tabs.ToDictionary(item => item.Key, item => new ScrollViewer
+        {
+            Content = item.Value, VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        });
+        ParametersGroup.ItemsSource = views.Keys;
+        ParametersGroup.SelectionChanged += (_, _) =>
+        {
+            if (ParametersGroup.SelectedItem is string name)
+                ParametersContent.Content = views[name];
+        };
+        ParametersGroup.SelectedIndex = 0;
+    }
+
+    internal static IReadOnlyList<Field> DefineFields()
+    {
+        var fields = new List<Field>();
+        void Add(string group, string label, Func<TwoStrokeConfiguration, double> read,
+            Func<TwoStrokeConfiguration, double, TwoStrokeConfiguration> set) => fields.Add(new(group, label, read, set));
         const string engine = "Motor y regímenes", combustion = "Combustión y pérdidas", reed = "Cárter, láminas y admisión",
             ports = "Lumbreras y transfers", exhaust = "Escape de expansión", numerics = "Resolución numérica";
         static int Integer(double value) => Math.Truncate(value) == value && value >= 0 && value <= int.MaxValue
@@ -45,11 +73,6 @@ public partial class TwoStrokeWindow
         Add(engine, "RPM inicio", c => c.Speeds.Start, (c,v) => c with { Speeds = c.Speeds with { Start = Integer(v) } });
         Add(engine, "RPM fin", c => c.Speeds.End, (c,v) => c with { Speeds = c.Speeds with { End = Integer(v) } });
         Add(engine, "RPM paso", c => c.Speeds.Step, (c,v) => c with { Speeds = c.Speeds with { Step = Integer(v) } });
-
-        Group(combustion);
-        Group(reed);
-        Group(ports);
-        Group(exhaust);
         foreach (var spec in TwoStrokeParameters.All)
         {
             string group = spec.Id switch
@@ -80,10 +103,6 @@ public partial class TwoStrokeWindow
         Add(combustion, "Duración Wiebe [ms]", c => c.Combustion.DurationS * 1000, (c,v) => c with { Combustion = c.Combustion with { DurationS = v / 1000 } });
         Add(combustion, "Fracción de mezcla reactiva quemada", c => c.Combustion.BurnFraction, (c,v) => c with { Combustion = c.Combustion with { BurnFraction = v } });
         Add(combustion, "Exponente Wiebe", c => c.Combustion.WiebeExponent, (c,v) => c with { Combustion = c.Combustion with { WiebeExponent = v } });
-        equilibrium = new CheckBox { Content = "Equilibrio UV en tramo cerrado", Margin = new Thickness(0, 8, 0, 8) };
-        equilibrium.Checked += (_, _) => Edited();
-        equilibrium.Unchecked += (_, _) => Edited();
-        Group(combustion).Children.Add(equilibrium);
         Add(combustion, "Temperatura de pared [K]", c => c.Thermal.WallTemperatureK, (c,v) => c with { Thermal = c.Thermal with { WallTemperatureK = v } });
         Add(combustion, "Multiplicador Hohenberg", c => c.Thermal.HohenbergMultiplier, (c,v) => c with { Thermal = c.Thermal with { HohenbergMultiplier = v } });
         Add(combustion, "FMEP constante [kPa]", c => c.Friction.ConstantPa / 1000, (c,v) => c with { Friction = c.Friction with { ConstantPa = v * 1000 } });
@@ -96,22 +115,6 @@ public partial class TwoStrokeWindow
         Add(numerics, "CFL", c => c.Numerics.Courant, (c,v) => c with { Numerics = c.Numerics with { Courant = v } });
         Add(numerics, "Tolerancia periódica", c => c.Numerics.PeriodicTolerance, (c,v) => c with { Numerics = c.Numerics with { PeriodicTolerance = v } });
         Add(numerics, "Ciclos máximos", c => c.Numerics.MaximumCycles, (c,v) => c with { Numerics = c.Numerics with { MaximumCycles = Integer(v) } });
-        scheme = new ComboBox { ItemsSource = Enum.GetValues<DuctScheme>() };
-        AutomationProperties.SetName(scheme, "Esquema de conductos");
-        Group(numerics).Children.Add(new Label { Content = "Esquema de conductos", Target = scheme });
-        Group(numerics).Children.Add(scheme);
-        scheme.SelectionChanged += (_, _) => Edited();
-
-        var views = tabs.ToDictionary(item => item.Key, item => new ScrollViewer
-        {
-            Content = item.Value, VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-        });
-        ParametersGroup.ItemsSource = views.Keys;
-        ParametersGroup.SelectionChanged += (_, _) =>
-        {
-            if (ParametersGroup.SelectedItem is string name)
-                ParametersContent.Content = views[name];
-        };
-        ParametersGroup.SelectedIndex = 0;
+        return fields;
     }
 }

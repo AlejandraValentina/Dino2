@@ -34,6 +34,20 @@ public partial class FourStrokeWindow : Window
     private TwoStrokeWindow? twoStrokeWindow;
     private MainWindow? ottoWindow;
     private MulticylinderWindow? multicylinderWindow;
+    private MultiTwoStrokeWindow? multiTwoStrokeWindow;
+
+    private void MultiTwoStroke_Click(object sender, RoutedEventArgs e)
+    {
+        if (multiTwoStrokeWindow is not null)
+        {
+            multiTwoStrokeWindow.Activate();
+            return;
+        }
+        var child = new MultiTwoStrokeWindow { Owner = this };
+        multiTwoStrokeWindow = child;
+        child.Closed += (_, _) => multiTwoStrokeWindow = null;
+        child.Show();
+    }
 
     private void Multicylinder_Click(object sender, RoutedEventArgs e)
     {
@@ -115,7 +129,7 @@ public partial class FourStrokeWindow : Window
             else if (busy) { cancellation?.Cancel(); e.Cancel = true; Status.Text = "Cancelando; cierre la ventana cuando termine el cálculo."; }
             else if (!ConfirmDiscard() || !Studies.ConfirmDiscard(this, confirmDiscard) ||
                 twoStrokeWindow?.CanCloseFromOwner() == false || ottoWindow?.CanCloseFromOwner() == false ||
-                multicylinderWindow?.CanCloseFromOwner() == false)
+                multicylinderWindow?.CanCloseFromOwner() == false || multiTwoStrokeWindow?.CanCloseFromOwner() == false)
                 e.Cancel = true;
         };
     }

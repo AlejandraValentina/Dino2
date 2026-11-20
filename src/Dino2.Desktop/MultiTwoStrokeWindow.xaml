@@ -1,0 +1,140 @@
+<Window x:Class="Dino2.Desktop.MultiTwoStrokeWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="clr-namespace:Dino2.Desktop"
+        Title="Dino2 · Multicilíndrico 2T" Width="1330" Height="875" MinWidth="820" MinHeight="520"
+        WindowStartupLocation="CenterOwner" FontFamily="Segoe UI" FontSize="14" Background="#F2F5F8">
+  <DockPanel Margin="14">
+    <StackPanel DockPanel.Dock="Top">
+      <TextBlock Text="Dino2 / Multicilíndrico 2T" Foreground="#142F43" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,5"/>
+      <WrapPanel x:Name="Commands">
+        <Button x:Name="M2Run" Content="Simular" Click="Run_Click" Background="#176B8C" Foreground="White"/>
+        <Button x:Name="M2Keep" Content="Conservar como A" Click="Keep_Click"/>
+        <Button Content="Quitar A" Click="Remove_Click"/>
+        <Button x:Name="M2Open" Content="Abrir…" Click="Open_Click"/>
+        <Button x:Name="M2Save" Content="Guardar proyecto…" Click="Save_Click"/>
+        <Button Content="Importar 2T…" Click="Import_Click"/>
+        <Button x:Name="M2Export" Content="Exportar CSV…" Click="Export_Click"/>
+      </WrapPanel>
+      <Border Background="#FFF3CF" Padding="7" Margin="0,2,0,7">
+        <TextBlock Text="360° · cárteres separados · colectores compactos · pérdidas estimadas · validación experimental pendiente"
+                   TextWrapping="Wrap"/>
+      </Border>
+    </StackPanel>
+    <Grid DockPanel.Dock="Bottom" Background="#E1EAF0" Margin="0,9,0,0">
+      <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <TextBlock x:Name="M2Status" Text="Configurá y simulá el motor." Margin="9" TextWrapping="Wrap"/>
+      <Button x:Name="M2Cancel" Grid.Column="1" Content="Cancelar" Click="Cancel_Click" IsEnabled="False" Margin="5"/>
+    </Grid>
+    <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="275"/><ColumnDefinition Width="10"/><ColumnDefinition/></Grid.ColumnDefinitions>
+      <DockPanel x:Name="Editor" Background="White">
+        <ComboBox x:Name="EditorGroups" DockPanel.Dock="Top" Margin="8" AutomationProperties.Name="Grupo de configuración 2T multicilíndrico"/>
+        <ContentControl x:Name="EditorContent"/>
+      </DockPanel>
+      <TabControl x:Name="Pages" Grid.Column="2">
+        <TabItem Header="Curvas">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="7">
+              <CheckBox x:Name="ByCylinder" Content="Ver contribuciones indicadas por cilindro" Checked="Curves_Changed" Unchecked="Curves_Changed" Margin="4"/>
+              <d:ScientificPlot x:Name="PowerPlot" Height="230" Caption="Potencia [kW]"/>
+              <d:ScientificPlot x:Name="TorquePlot" Height="230" Caption="Par [N·m]"/>
+            </StackPanel>
+          </ScrollViewer>
+        </TabItem>
+        <TabItem Header="RPM">
+          <DataGrid x:Name="RunRows" IsReadOnly="True" CanUserAddRows="False" MinColumnWidth="100"/>
+        </TabItem>
+        <TabItem Header="Ciclo y barrido">
+          <DockPanel Margin="6">
+            <WrapPanel DockPanel.Dock="Top">
+              <ComboBox x:Name="CycleSource" Width="108" SelectionChanged="Source_Changed" AutomationProperties.Name="Curva de ciclo"/>
+              <ComboBox x:Name="CycleRpm" Width="90" Margin="3,0" SelectionChanged="Cycle_Changed" AutomationProperties.Name="RPM del ciclo"/>
+              <Button x:Name="M2Trace" Content="CSV del ciclo…" Click="Trace_Click"/>
+              <Button x:Name="M2Cylinders" Content="CSV por cilindro…" Click="Cylinders_Click"/>
+            </WrapPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel>
+                <DataGrid x:Name="CylinderRows" Height="143" IsReadOnly="True" CanUserAddRows="False" MinColumnWidth="100"/>
+                <d:ScientificPlot x:Name="CylinderPlot" Height="201" Caption="Presión de cilindro [bar]" XLabel="Ángulo común [°]"/>
+                <d:ScientificPlot x:Name="CasePlot" Height="201" Caption="Presión de cárter [bar]" XLabel="Ángulo común [°]"/>
+                <d:ScientificPlot x:Name="IntakePlot" Height="210" Caption="Admisión, láminas y unión [bar]" XLabel="Ángulo común [°]"/>
+                <d:ScientificPlot x:Name="ExhaustPlot" Height="210" Caption="Escape, lumbreras y unión [bar]" XLabel="Ángulo común [°]"/>
+                <d:ScientificPlot x:Name="FlowPlot" Height="205" Caption="Caudal de transfers [g/s]" XLabel="Ángulo común [°]"/>
+                <d:ScientificPlot x:Name="GasTorque" Height="205" Caption="Par instantáneo indicado de gases [N·m]" XLabel="Ángulo común [°]"/>
+              </StackPanel>
+            </ScrollViewer>
+          </DockPanel>
+        </TabItem>
+        <TabItem Header="A/B">
+          <DockPanel Margin="7">
+            <StackPanel DockPanel.Dock="Top">
+              <TextBlock Text="Diferencias B−A en RPM comunes. Seleccioná una fila periódica para verificar su resolución." TextWrapping="Wrap" Margin="0,0,0,6"/>
+              <WrapPanel>
+                <Button x:Name="M2Compare" Content="Contrastar resolución" Click="Compare_Click"/>
+                <Button x:Name="M2ExportAB" Content="CSV A/B…" Click="ExportAB_Click"/>
+              </WrapPanel>
+              <TextBlock x:Name="ContrastText" TextWrapping="Wrap" Margin="0,4"/>
+            </StackPanel>
+            <DataGrid x:Name="DiffRows" IsReadOnly="True" CanUserAddRows="False" SelectionChanged="Diff_Changed"/>
+          </DockPanel>
+        </TabItem>
+        <TabItem Header="Estudios">
+          <DockPanel Margin="7">
+            <StackPanel x:Name="StudyCommands" DockPanel.Dock="Top">
+              <WrapPanel>
+                <Button x:Name="M2TakeBase" Content="Tomar motor actual" Click="TakeBase_Click"/>
+                <Button Content="Tomar A" Tag="A" Click="TakeBase_Click"/>
+                <Button x:Name="M2StudyRun" Content="Ejecutar estudio" Click="Study_Click"/>
+                <Button x:Name="M2Apply" Content="Aplicar como B" Click="Apply_Click"/>
+                <Button x:Name="M2StudyCheck" Content="Contrastar objetivo" Click="StudyCheck_Click"/>
+                <Button x:Name="M2StudyExport" Content="CSV estudio…" Click="StudyExport_Click"/>
+              </WrapPanel>
+              <TextBlock x:Name="StudyHint" TextWrapping="Wrap"/>
+            </StackPanel>
+            <TabControl x:Name="StudyPages">
+              <TabItem Header="Plan">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                  <StackPanel x:Name="StudyEditor" Margin="5">
+                    <TextBlock Text="Tomá una base. Los regímenes se fijan en el editor del motor." TextWrapping="Wrap"/>
+                    <TextBlock Text="Parámetro · inicio · fin · incremento" FontWeight="SemiBold" Margin="0,8,0,3"/>
+                    <StackPanel x:Name="StudyAxes"/>
+                    <ComboBox x:Name="Objective" Width="280" HorizontalAlignment="Left" SelectionChanged="StudyInput_Changed"/>
+                    <WrapPanel Margin="0,7">
+                      <TextBlock Text="Banda RPM (opcional) " VerticalAlignment="Center"/>
+                      <TextBox x:Name="BandStart" Width="75" TextChanged="StudyInput_Changed"/>
+                      <TextBox x:Name="BandEnd" Width="75" TextChanged="StudyInput_Changed"/>
+                    </WrapPanel>
+                    <WrapPanel x:Name="LowFields" Visibility="Collapsed">
+                      <TextBlock Text="Banda baja · inicio · fin · pérdida [N·m] " VerticalAlignment="Center"/>
+                      <TextBox x:Name="LowStart" Width="63" TextChanged="StudyInput_Changed"/>
+                      <TextBox x:Name="LowEnd" Width="63" TextChanged="StudyInput_Changed"/>
+                      <TextBox x:Name="LowLoss" Text="0" Width="59" TextChanged="StudyInput_Changed"/>
+                    </WrapPanel>
+                    <WrapPanel Margin="0,7">
+                      <TextBlock Text="Trabajadores " VerticalAlignment="Center"/>
+                      <ComboBox x:Name="Workers" Width="68"/>
+                    </WrapPanel>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+              <TabItem Header="Clasificación">
+                <DockPanel>
+                  <TextBlock x:Name="StudyNote" DockPanel.Dock="Top" Margin="4" TextWrapping="Wrap"/>
+                  <DataGrid x:Name="StudyRows" IsReadOnly="True" CanUserAddRows="False" SelectionChanged="StudySelection_Changed"/>
+                </DockPanel>
+              </TabItem>
+              <TabItem Header="Curvas del estudio">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                  <StackPanel>
+                    <d:ScientificPlot x:Name="StudyPower" Caption="Potencia al cigüeñal estimada [kW]" Height="210"/>
+                    <d:ScientificPlot x:Name="StudyTorque" Caption="Par al cigüeñal estimado [N·m]" Height="210"/>
+                    <DataGrid x:Name="StudyRunRows" Height="165" IsReadOnly="True" CanUserAddRows="False"/>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+            </TabControl>
+          </DockPanel>
+        </TabItem>
+      </TabControl>
+    </Grid>
+  </DockPanel>
+</Window>

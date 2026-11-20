@@ -9,11 +9,34 @@ using Dino2.Core.Multicylinder;
 
 if (args.Length is < 2 or > 4)
 {
-    Console.Error.WriteLine("Uso: Dino2.Cli otto.json resultados.csv | --4t/--2t/--multi proyecto.json curva.csv [traza.csv] | --example-4t/--example-2t proyecto.json | --example-multi proyecto.json cilindros");
+    Console.Error.WriteLine("Uso: Dino2.Cli otto.json resultados.csv | --4t/--2t/--multi/--multi-2t proyecto.json curva.csv [traza.csv] | --example-4t/--example-2t proyecto.json | --example-multi/--example-multi-2t proyecto.json cilindros");
     return 2;
 }
 try
 {
+    if (args[0] == "--example-multi-2t" && args.Length == 3 && int.TryParse(args[2], out int count2T))
+    {
+        TwoStrokeFiles.SaveMulti(args[1], new(MultiTwoStrokeConfiguration.Example(count2T)));
+        return 0;
+    }
+    if (args[0] == "--multi-2t" && args.Length >= 3)
+    {
+        var project = TwoStrokeFiles.LoadMulti(args[1]);
+        var sweep = TwoStrokeSimulator.Sweep(project.Current);
+        TwoStrokeFiles.ExportMulti(args[2], sweep);
+        if (args.Length == 4 && sweep.Runs.FirstOrDefault(r => r.Point is not null) is { } solved)
+            TwoStrokeFiles.ExportMultiCycle(args[3], sweep, solved.Rpm);
+        if (project.Original is { } a)
+        {
+            var baseline = TwoStrokeSimulator.Sweep(a, false);
+            TwoStrokeFiles.ExportMultiComparison(Path.ChangeExtension(args[2], ".comparison.csv"), baseline, sweep, null);
+        }
+        foreach (var run in sweep.Runs)
+            Console.WriteLine(run.Point is { } p
+                ? FormattableString.Invariant($"{run.Rpm}: Pi={p.IndicatedPowerW:F2} W, P={p.ShaftPowerW:F2} W, T={p.ShaftTorqueNm:F4} Nm, cycles={run.Convergence?.Cycles}, periodic={run.Convergence?.Residual:E3}")
+                : $"{run.Rpm}: {run.Status} · {run.Failure}");
+        return sweep.Complete ? 0 : 1;
+    }
     if (args[0] == "--example-multi" && args.Length == 3 && int.TryParse(args[2], out int count))
     {
         MultiFiles.Save(args[1], new(MultiConfiguration.Example(count)));

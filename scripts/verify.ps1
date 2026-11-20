@@ -17,6 +17,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Parametric study checks failed' }
     & $dotnetExe run --project tests/Dino2.TwoStroke.Tests -c Release --no-build
     if ($LASTEXITCODE -ne 0) { throw '2T physical/numerical checks failed' }
+    & $dotnetExe run --project tests/Dino2.TwoStroke.Tests -c Release --no-build -- --stage10
+    if ($LASTEXITCODE -ne 0) { throw 'Multicylinder 2T physical/numerical checks failed' }
     & $dotnetExe run --project tests/Dino2.Multicylinder.Tests -c Release --no-build
     if ($LASTEXITCODE -ne 0) { throw 'Multicylinder physical/numerical checks failed' }
     if (!$SkipDesktop) {

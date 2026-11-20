@@ -151,8 +151,9 @@ public partial class MulticylinderWindow : Window
         var values = layout.Values();
         for (int i = 0; i < phases.Length; i++)
         {
-            phases[i].IsEnabled = i + 1 < values.Length;
-            phases[i].Text = phases[i].IsEnabled ? Format(values[i + 1]) : "";
+            bool inLayout = i + 1 < values.Length;
+            phases[i].IsEnabled = inLayout;
+            phases[i].Text = inLayout ? Format(values[i + 1]) : "";
         }
     }
 
@@ -356,8 +357,10 @@ public partial class MulticylinderWindow : Window
     {
         var dialog = new OpenFileDialog { Filter = "Proyecto multicilíndrico 4T (*.json)|*.json" };
         if (dialog.ShowDialog(this) != true || !ConfirmDiscard()) return;
-        await ExecuteAsync((_, _) => MultiFiles.Load(dialog.FileName), Restore);
+        await LoadProjectAsync(dialog.FileName);
     }
+
+    internal Task LoadProjectAsync(string path) => ExecuteAsync((_, _) => MultiFiles.Load(path), Restore);
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
