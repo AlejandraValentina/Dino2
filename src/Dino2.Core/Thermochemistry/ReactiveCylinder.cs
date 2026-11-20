@@ -16,6 +16,7 @@ public sealed class ReactiveCylinder
     internal static int MassIndex(int species) => species < 5 ? species : 17 + species - 5;
     internal static int FlowIndex(int species) => species < 5 ? 12 + species : 19 + species - 5;
     private bool equilibrating;
+    internal bool IsEquilibrating => equilibrating;
     private readonly bool useEquilibrium;
     private readonly FourStrokeConfiguration config;
     private readonly int rpm;
@@ -50,8 +51,11 @@ public sealed class ReactiveCylinder
         BurnStart = 360 - c.Combustion.SparkAdvanceDeg + 6 * rpm * c.Combustion.IgnitionDelayS;
     }
     public void Initialize(Span<double> state)
+        => Initialize(state, 0);
+
+    internal void Initialize(Span<double> state, double angle)
     {
-        double mass = config.Exhaust.PressurePa * SliderCrank.At(config.Geometry, 0).VolumeM3 /
+        double mass = config.Exhaust.PressurePa * SliderCrank.At(config.Geometry, angle).VolumeM3 /
             (exhaustR * config.Exhaust.TemperatureK);
         for (int i = 0; i < 5; i++) state[i] = mass * exhaust[i];
         state[5] = SpeciesThermodynamics.Energy(state[..5], config.Exhaust.TemperatureK);
@@ -122,6 +126,10 @@ public sealed class ReactiveCylinder
     }
 
     public void Evaluate(double angle, ReadOnlySpan<double> state, Span<double> rates)
+        => Evaluate(angle, state, rates, null, null);
+
+    internal void Evaluate(double angle, ReadOnlySpan<double> state, Span<double> rates,
+        DuctBoundary? intakeBoundary, DuctBoundary? exhaustBoundary)
     {
         Evaluations++;
         var position = SliderCrank.At(config.Geometry, angle);
@@ -139,7 +147,7 @@ public sealed class ReactiveCylinder
             Span<double> induction = stackalloc double[chamber.Length];
             Span<double> discharge = stackalloc double[chamber.Length];
             var primitive = new GasState(density, 0, p, chamber[SpeciesCount + 1], Math.Sqrt(gamma * r * t), t, gamma, r);
-            Ducts.Evaluate(angle, dps, state, rates, chamber, primitive, induction, discharge);
+            Ducts.Evaluate(angle, dps, state, rates, chamber, primitive, induction, discharge, intakeBoundary, exhaustBoundary);
             for (int i = 0; i < SpeciesCount; i++)
             {
                 double flow = (induction[i] + discharge[i]) / dps;

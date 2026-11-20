@@ -3,6 +3,12 @@ using Dino2.Core.Thermochemistry;
 
 namespace Dino2.Core.GasDynamics;
 
+internal sealed class DuctBoundary(double[] values)
+{
+    internal double[] Values { get; } = values;
+    internal GasState State { get; set; }
+}
+
 internal sealed class DuctCoupling
 {
     private sealed record End(DuctMesh Mesh, int Offset, PoppetValve Valve, double[] Reservoir, GasState Ambient);
@@ -48,23 +54,24 @@ internal sealed class DuctCoupling
     internal void StartCycle(Span<double> state) => state[integralOffset..].Clear();
 
     internal void Evaluate(double angle, double degreesPerSecond, ReadOnlySpan<double> state, Span<double> rates,
-        ReadOnlySpan<double> cylinder, GasState chamber, Span<double> intake, Span<double> exhaust)
+        ReadOnlySpan<double> cylinder, GasState chamber, Span<double> intake, Span<double> exhaust,
+        DuctBoundary? intakeBoundary = null, DuctBoundary? exhaustBoundary = null)
     {
-        StableTime = Math.Min(Evaluate(inlet, angle, state, rates, cylinder, chamber, intake),
-            Evaluate(outlet, angle, state, rates, cylinder, chamber, exhaust));
+        StableTime = Math.Min(Evaluate(inlet, angle, state, rates, cylinder, chamber, intake, intakeBoundary),
+            Evaluate(outlet, angle, state, rates, cylinder, chamber, exhaust, exhaustBoundary));
         CellEvaluations += inlet.Mesh.Cells + outlet.Mesh.Cells;
         for (int i = inlet.Offset; i < Dimension; i++) rates[i] /= degreesPerSecond;
     }
 
     private double Evaluate(End end, double angle, ReadOnlySpan<double> state, Span<double> rates,
-        ReadOnlySpan<double> cylinder, GasState chamber, Span<double> valveFlow)
+        ReadOnlySpan<double> cylinder, GasState chamber, Span<double> valveFlow, DuctBoundary? exterior)
     {
         var tube = state.Slice(end.Offset, end.Mesh.Size);
         end.Mesh.Prepare(tube);
         Span<double> outer = stackalloc double[gas.Size];
         Span<double> boundary = stackalloc double[gas.Size];
         var ambientEnd = end.Mesh.BoundaryState(tube, false, boundary);
-        gas.Flux(end.Reservoir, end.Ambient, boundary, ambientEnd, outer);
+        gas.Flux(exterior?.Values ?? end.Reservoir, exterior?.State ?? end.Ambient, boundary, ambientEnd, outer);
         for (int k = 0; k < gas.Size; k++) outer[k] *= end.Mesh.ReservoirArea;
         var valveEnd = end.Mesh.BoundaryState(tube, true, boundary);
         ValveFlux(end, angle, boundary, valveEnd, cylinder, chamber, valveFlow);
@@ -141,6 +148,18 @@ internal sealed class DuctCoupling
     {
         for (int i = inlet.Offset; i < integralOffset; i += gas.Size)
             gas.ValidateMixture(state.Slice(i, gas.Size));
+    }
+
+    internal ReadOnlySpan<double> OuterFlux(ReadOnlySpan<double> rates, bool intake) =>
+        rates.Slice(IntegralOffset(intake ? inlet : outlet), gas.Size);
+
+    internal double IntakeMassRatePerDegree(ReadOnlySpan<double> rates) =>
+        MassFlux(rates.Slice(IntegralOffset(inlet) + gas.Size, gas.Size));
+
+    internal void AccumulateStorageChange(ReadOnlySpan<double> initial, ReadOnlySpan<double> final, Span<double> delta)
+    {
+        Accumulate(inlet, initial, final, delta);
+        Accumulate(outlet, initial, final, delta);
     }
 
     internal double PeriodicError(ReadOnlySpan<double> initial, ReadOnlySpan<double> final) =>
