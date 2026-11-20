@@ -1,4 +1,4 @@
-param([string]$Application = 'artifacts/stage6-win-x64/Dino2.Desktop.exe', [switch]$VerifyResolution)
+param([string]$Application = 'artifacts/stage6-win-x64/Dino2.Desktop.exe', [switch]$VerifyResolution, [switch]$VerifyDomain)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -165,6 +165,20 @@ try {
     Click 'CalculateButton'
     Click 'CancelButton'
     $null = Status 'Cálculo cancelado'
+    if ($VerifyDomain) {
+        $partialInput = Join-Path (Split-Path -Parent $exe) 'examples/2t-125cc-partial-domain.json'
+        File-Dialog 'OpenTwoStroke' $partialInput
+        $null = Status 'Proyecto 2T recuperado'
+        Click 'CalculateButton'
+        $null = Status 'Curva 2T: 1/2' 70
+        $partial = Join-Path $output 'partial.csv'
+        File-Dialog 'ExportButton' $partial
+        $null = Status 'CSV 2T exportado'
+        $rows = @(Import-Csv -LiteralPath $partial)
+        if ($rows.Count -ne 2 -or $rows[0].status -ne 'periodic' -or $rows[1].status -ne 'OutsideDomain' -or
+            $rows[1].p_shaft_w -or $rows[1].diagnostic -notmatch '10000 RPM') { throw 'Unexpected partial-domain CSV.' }
+        Write-Output 'PASS portable reports inadmissible RPM and keeps the converged point'
+    }
     $module = ($process.Modules | Where-Object ModuleName -eq 'coreclr.dll' | Select-Object -First 1).FileName
     if (!$module.StartsWith((Split-Path -Parent $exe), [StringComparison]::OrdinalIgnoreCase)) { throw "Unexpected runtime: $module" }
     Write-Output "PASS portable cancellation and bundled runtime: $module"

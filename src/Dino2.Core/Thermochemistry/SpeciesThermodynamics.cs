@@ -2,23 +2,37 @@ using Dino2.Core.FourStroke;
 
 namespace Dino2.Core.Thermochemistry;
 
-internal sealed class NasaSpecies(string name, double molecularWeight, double[] low, double[] high)
+internal sealed class NasaSpecies
 {
-    public string Name { get; } = name;
-    public double MolecularWeight { get; } = molecularWeight; // kg/mol
-    public double R { get; } = 8.31446261815324 / molecularWeight;
-    private readonly double h298 = 8.31446261815324 / molecularWeight *
-        (Integral(low, 298.15) + low[5]);
-    private readonly double referenceIntegral = Integral(low, 298.15);
-    private readonly double highOffset = Integral(low, 1000) - Integral(high, 1000);
-    private static double Integral(double[] a, double t) => t * (a[0] + t * (a[1] / 2 + t * (a[2] / 3 + t * (a[3] / 4 + t * a[4] / 5))));
+    private readonly double[] low, high, integratedLow, integratedHigh;
+    private readonly double h298, referenceIntegral, highOffset;
+    public string Name { get; }
+    public double MolecularWeight { get; } // kg/mol
+    public double R { get; }
+
+    public NasaSpecies(string name, double molecularWeight, double[] low, double[] high)
+    {
+        Name = name;
+        MolecularWeight = molecularWeight;
+        R = 8.31446261815324 / molecularWeight;
+        this.low = low;
+        this.high = high;
+        integratedLow = IntegratedCoefficients(low);
+        integratedHigh = IntegratedCoefficients(high);
+        referenceIntegral = Integral(integratedLow, 298.15);
+        h298 = R * (referenceIntegral + low[5]);
+        highOffset = Integral(integratedLow, 1000) - Integral(integratedHigh, 1000);
+    }
+
+    private static double[] IntegratedCoefficients(double[] a) => [a[0], a[1] / 2, a[2] / 3, a[3] / 4, a[4] / 5];
+    private static double Integral(double[] a, double t) => t * (a[0] + t * (a[1] + t * (a[2] + t * (a[3] + t * a[4]))));
     public double FormationEnthalpy => h298;
     public double Cp(double t)
     {
         var a = t <= 1000 ? low : high;
         return R * (a[0] + t * (a[1] + t * (a[2] + t * (a[3] + t * a[4]))));
     }
-    public double H(double t) => h298 + R * ((t <= 1000 ? Integral(low, t) : Integral(high, t) + highOffset) - referenceIntegral);
+    public double H(double t) => h298 + R * ((t <= 1000 ? Integral(integratedLow, t) : Integral(integratedHigh, t) + highOffset) - referenceIntegral);
     public double GibbsOverRT(double t, double logT)
     {
         var a = t <= 1000 ? low : high;
@@ -107,6 +121,7 @@ public static class SpeciesThermodynamics
             double u = 0, cv = 0;
             for (int i = 0; i < masses.Length; i++)
             {
+                if (masses[i] == 0) continue;
                 u += masses[i] * U(i, t);
                 cv += masses[i] * (Cp(i, t) - SpeciesData.All[i].R);
             }

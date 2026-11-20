@@ -5,7 +5,8 @@ namespace Dino2.Core.TwoStroke;
 
 public sealed partial class TwoStrokeSimulator
 {
-    private TwoStrokePoint Run(bool trace, CancellationToken token)
+    private TwoStrokePoint Run(bool trace, CancellationToken token, double[]? seed,
+        out double[]? periodicState, out TwoStrokeConvergence? diagnostic)
     {
         var state = new double[dimension];
         var previous = new double[dimension];
@@ -15,7 +16,10 @@ public sealed partial class TwoStrokeSimulator
         Span<double> inventory = stackalloc double[N], finalInventory = stackalloc double[N];
         Span<double> composition = stackalloc double[N], chemistry = stackalloc double[N], errors = stackalloc double[N];
         var physical = new double[N];
-        Initialize(state);
+        periodicState = null;
+        diagnostic = null;
+        if (seed is null) Initialize(state);
+        else seed.CopyTo(state, 0);
         double periodic = double.PositiveInfinity;
         int streak = 0, totalSteps = 0, rejected = 0;
         for (int cycle = 1; cycle <= c.Numerics.MaximumCycles; cycle++)
@@ -50,7 +54,7 @@ public sealed partial class TwoStrokeSimulator
                     string? cause = null;
                     while (true)
                     {
-                        if (h < 1e-7) throw new NumericalStateException($"Paso 2T insuficiente ciclo {cycle} a {angle:G7}°: {cause} [pc={first.CylinderPressurePa:G5},tc={first.CylinderTemperatureK:G5},pk={first.CrankcasePressurePa:G5},tk={first.CrankcaseTemperatureK:G5},e={first.ExhaustOutKgPerS:G6},t={first.TransferKgPerS:G6},work={state[Wc]:G6},q={state[Q]:G6}]");
+                        if (!double.IsFinite(h) || h <= 0 || (h < 1e-7 && h < end - angle)) throw new NumericalStateException($"Paso 2T insuficiente ciclo {cycle} a {angle:G7}°: {cause} [pc={first.CylinderPressurePa:G5},tc={first.CylinderTemperatureK:G5},pk={first.CrankcasePressurePa:G5},tk={first.CrankcaseTemperatureK:G5},e={first.ExhaustOutKgPerS:G6},t={first.TransferKgPerS:G6},work={state[Wc]:G6},q={state[Q]:G6}]");
                         for (int i = 0; i < dimension; i++) predictor[i] = state[i] + h * k1[i];
                         try
                         {
@@ -109,7 +113,9 @@ public sealed partial class TwoStrokeSimulator
                 state[Old + i] = composition[i];
             }
             double final = Inventory(state, finalInventory, out double finalMarker);
-            periodic = PeriodicError(previous, state);
+            var (residual, dominant) = PeriodicError(previous, state);
+            diagnostic = new(cycle, residual, double.IsFinite(periodic) ? periodic : null, dominant, totalSteps, rejected);
+            periodic = residual;
             streak = periodic <= c.Numerics.PeriodicTolerance ? streak + 1 : 0;
             if (streak >= 2)
             {
@@ -142,6 +148,7 @@ public sealed partial class TwoStrokeSimulator
                 double reference = volume * c.Intake.PressurePa /
                     (SpeciesThermodynamics.GasConstant(freshMixture) * c.Intake.TemperatureK);
                 double supplied = state[Delivered] + state[ExhaustReturn];
+                periodicState = state;
                 return new(rpm, work * rpm / 60, power, shaft / (2 * Math.PI), work / volume, shaft / volume,
                     state[Wc], state[Wk], state[Q], state[FuelIn], burnFuel,
                     power > 0 ? state[FuelIn] * rpm / 60 * 3.6e9 / power : null, state[Delivered], state[TransferReturn],
@@ -150,7 +157,7 @@ public sealed partial class TwoStrokeSimulator
                     trapMass - trap, trappedSpecies, residualSpecies, peakP, peakT, cycle, steps, totalSteps, rejected, periodic, balance, samples.AsReadOnly());
             }
         }
-        throw new CycleConvergenceException($"2T a {rpm} RPM: cambio {periodic:E3} tras {c.Numerics.MaximumCycles} ciclos.");
+        throw new CycleConvergenceException($"2T a {rpm} RPM: cambio {periodic:E3} tras {c.Numerics.MaximumCycles} ciclos. Componente dominante: {diagnostic?.Dominant}.");
     }
 
     private double Inventory(ReadOnlySpan<double> state, Span<double> species, out double marker)
@@ -175,21 +182,37 @@ public sealed partial class TwoStrokeSimulator
         }
     }
 
-    private double PeriodicError(ReadOnlySpan<double> before, ReadOnlySpan<double> after)
+    private (double Error, string Dominant) PeriodicError(ReadOnlySpan<double> before, ReadOnlySpan<double> after)
     {
-        double LeastRelative(double a, double b, double scale) => Math.Abs(a - b) / Math.Max(scale, Math.Max(Math.Abs(a), Math.Abs(b)));
-        double referenceMass = c.Geometry.DisplacementM3 * c.Intake.PressurePa / (280 * c.Intake.TemperatureK);
         double error = 0;
-        for (int i = 0; i < Wc; i++)
+        int worst = 0;
+        double referenceMass = c.Geometry.DisplacementM3 * c.Intake.PressurePa / (280 * c.Intake.TemperatureK);
+        for (int i = 0; i < dimension; i++)
         {
-            double floor = i is Uc or Uk ? referenceMass * 1e6 : referenceMass;
-            error = Math.Max(error, LeastRelative(after[i], before[i], floor));
+            if (i >= Wc && i < IntakeOffset) { i = IntakeOffset - 1; continue; }
+            // Keep the stage 6 normalization to compare convergence under the same acceptance criterion.
+            double floor = i < Wc ? (i is Uc or Uk ? referenceMass * 1e6 : referenceMass)
+                : ((i - IntakeOffset) % Width) switch { N => 350, N + 1 => 1e6, _ => 1 };
+            double residual = Math.Abs(after[i] - before[i]) /
+                Math.Max(floor, Math.Max(Math.Abs(after[i]), Math.Abs(before[i])));
+            if (residual > error) { error = residual; worst = i; }
         }
-        for (int i = IntakeOffset; i < dimension; i++)
-        {
-            double floor = ((i - IntakeOffset) % Width) switch { N => 350, N + 1 => 1e6, _ => 1 };
-            error = Math.Max(error, LeastRelative(after[i], before[i], floor));
-        }
-        return error;
+
+        return (error, DominantComponent(worst));
+    }
+
+    private string DominantComponent(int index)
+    {
+        if (index < N) return $"cilindro fresco · {SpeciesThermodynamics.Name(index)}";
+        if (index < 2 * N) return $"cilindro residual · {SpeciesThermodynamics.Name(index - Old)}";
+        if (index == Uc) return "energía del cilindro";
+        if (index < Uk) return $"cárter · {SpeciesThermodynamics.Name(index - Case)}";
+        if (index == Uk) return "energía del cárter";
+        if (index == CaseTag) return "marcador fresco del cárter";
+        bool isIntake = index < outletOffset;
+        int local = index - (isIntake ? IntakeOffset : outletOffset), field = local % Width;
+        string variable = field < N ? SpeciesThermodynamics.Name(field) :
+            field == gas.Momentum ? "momento" : field == gas.Energy ? "energía" : "marcador fresco";
+        return $"{(isIntake ? "admisión" : "escape")} · celda {local / Width + 1} · {variable}";
     }
 }

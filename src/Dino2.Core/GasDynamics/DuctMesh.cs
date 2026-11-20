@@ -119,6 +119,7 @@ internal sealed class GasEquation(int speciesCount)
         double mixtureR = 0, cp = 0, cv = 0;
         for (int i = 0; i < speciesCount; i++)
         {
+            if (fractions[i] == 0) continue;
             var species = SpeciesData.All[i];
             double speciesCp = species.Cp(t);
             mixtureR += fractions[i] * species.R;
@@ -130,7 +131,7 @@ internal sealed class GasEquation(int speciesCount)
         {
             double partial = fractions[i] * density;
             destination[i] = partial;
-            energy += partial * SpeciesData.All[i].U(t);
+            if (partial != 0) energy += partial * SpeciesData.All[i].U(t);
         }
         destination[Momentum] = density * u;
         destination[Energy] = energy + .5 * density * u * u;
@@ -204,6 +205,7 @@ internal sealed partial class DuctMesh
 {
     private readonly double[] area, volume;
     private readonly GasEquation equation;
+    private readonly bool boundedPassiveTag;
     internal int Cells { get; }
     internal int Size => Cells * equation.Size;
     internal double Dx { get; }
@@ -211,9 +213,10 @@ internal sealed partial class DuctMesh
     internal double ReservoirArea => area[0];
     internal double Volume(int cell) => volume[cell];
 
-    internal DuctMesh(DuctGeometry geometry, GasEquation equation, DuctScheme scheme = DuctScheme.FirstOrder)
+    internal DuctMesh(DuctGeometry geometry, GasEquation equation, DuctScheme scheme = DuctScheme.FirstOrder, bool boundedPassiveTag = false)
     {
         this.equation = equation;
+        this.boundedPassiveTag = boundedPassiveTag;
         Cells = geometry.Cells;
         if (scheme == DuctScheme.Muscl)
         {
@@ -233,7 +236,8 @@ internal sealed partial class DuctMesh
     }
 
     internal DuctMesh(DuctGeometry geometry, GasEquation equation, DuctScheme scheme,
-        Func<double, double> diameterAtM, IReadOnlyList<double> knots) : this(geometry, equation, scheme)
+        Func<double, double> diameterAtM, IReadOnlyList<double> knots, bool boundedPassiveTag = false)
+        : this(geometry, equation, scheme, boundedPassiveTag)
     {
         double Area(double x)
         {

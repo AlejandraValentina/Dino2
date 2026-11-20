@@ -13,6 +13,7 @@ public sealed partial class TwoStrokeSimulator
     private const int Short = ExhaustReturn + 1, OuterH = Short + 1, OuterTag = OuterH + 1, Outer = OuterTag + 1, IntakeOffset = Outer + N;
 
     private readonly TwoStrokeConfiguration c;
+    private readonly TwoStrokeProfile? profile;
     private readonly GasEquation gas = new(N);
     private readonly TwoStrokeDuct inlet, outlet;
     private readonly double[] freshMixture;
@@ -22,9 +23,10 @@ public sealed partial class TwoStrokeSimulator
     private double burnFuel;
     private bool burning;
 
-    private TwoStrokeSimulator(TwoStrokeConfiguration configuration, int rpm)
+    private TwoStrokeSimulator(TwoStrokeConfiguration configuration, int rpm, TwoStrokeProfile? profile = null)
     {
         c = configuration;
+        this.profile = profile;
         this.rpm = rpm;
         dps = 6 * rpm;
         meanSpeed = 2 * c.Geometry.StrokeM * rpm / 60;
@@ -35,8 +37,8 @@ public sealed partial class TwoStrokeSimulator
         soc = 360 - c.Combustion.AdvanceDeg + dps * c.Combustion.DelayS;
         duration = dps * c.Combustion.DurationS;
         freshMixture = Extended(SpeciesThermodynamics.FreshMixture(c.Combustion.AirFuelRatio));
-        inlet = TwoStrokeDuct.Intake(c, gas, freshMixture);
-        outlet = TwoStrokeDuct.Exhaust(c, gas);
+        inlet = TwoStrokeDuct.Intake(c, gas, freshMixture, profile);
+        outlet = TwoStrokeDuct.Exhaust(c, gas, profile);
         outletOffset = IntakeOffset + inlet.Size;
         dimension = outletOffset + outlet.Size;
         var breaks = new List<double> { open, close, soc, soc + duration, open + 360 };
@@ -96,14 +98,23 @@ public sealed partial class TwoStrokeSimulator
         double vc = piston.VolumeM3, vk = CrankcaseVolume(vc);
         double travel = (vc - clearance) / pistonArea;
         Span<double> masses = stackalloc double[N], fractions = stackalloc double[N], outFractions = stackalloc double[N];
+        long start = profile is null ? 0 : TwoStrokeProfile.Timestamp();
         CylinderComposition(angle, y, vc, masses, out double tc);
+        if (profile is not null)
+        {
+            long now = TwoStrokeProfile.Timestamp();
+            profile.CylinderThermo += now - start;
+            profile.Evaluations++;
+            start = now;
+        }
         var crankcase = y.Slice(Case, N);
         double mc = SpeciesThermodynamics.TotalMass(masses), mk = SpeciesThermodynamics.TotalMass(crankcase);
         double tk = SpeciesThermodynamics.Temperature(crankcase, y[Uk], c.Intake.TemperatureK);
+        if (profile is not null) profile.CrankcaseThermo += TwoStrokeProfile.Timestamp() - start;
         double rc = SpeciesThermodynamics.GasConstant(masses), rk = SpeciesThermodynamics.GasConstant(crankcase);
         double pc = mc * rc * tc / vc, pk = mk * rk * tk / vk;
         double fresh = SpeciesThermodynamics.TotalMass(y[..N]), fc = Fraction(fresh, mc), fk = Fraction(y[CaseTag], mk);
-        double extracted = fc * c.FreshExtractionRatio / (1 - fc + fc * c.FreshExtractionRatio);
+        double extracted = ExhaustFreshFraction(fc, c.FreshExtractionRatio);
         for (int i = 0; i < N; i++)
         {
             fractions[i] = crankcase[i] / mk;
@@ -161,6 +172,9 @@ public sealed partial class TwoStrokeSimulator
             pReed, pExhaust);
         return Math.Min(dtI, dtE) * c.Numerics.Courant * dps;
     }
+
+    internal static double ExhaustFreshFraction(double freshFraction, double extractionRatio) =>
+        freshFraction * extractionRatio / (1 - freshFraction + freshFraction * extractionRatio);
 
     private static double Fraction(double part, double whole) => Math.Clamp(part / whole, 0, 1);
 }

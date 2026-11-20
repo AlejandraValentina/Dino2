@@ -68,17 +68,19 @@ public static partial class TwoStrokeFiles
     public static void Export(string path, TwoStrokeSweep sweep)
     {
         using var csv = File.CreateText(path);
-        const string header = "model,rpm,status,diagnostic,pi_w,p_shaft_w,t_shaft_nm,imep_pa,bmep_pa,bsfc_g_kwh,delivery_ratio,trapping_efficiency,scavenging_efficiency,charging_efficiency,fresh_delivered_kg,fresh_transfer_return_kg,fresh_trapped_kg,fresh_exhaust_out_kg,fresh_exhaust_return_kg,residual_kg,peak_p_pa,peak_t_k,cycles,steps,periodic_error,mass_error_kg,energy_error_j,fresh_marker_error_kg,cycle_steps_total,rejected_steps,fuel_supplied_kg,fuel_burned_kg,work_cylinder_j,work_crankcase_j,wall_heat_j,residual_fuel_kg,residual_o2_kg,residual_n2_kg,residual_co2_kg,residual_h2o_kg,residual_co_kg,residual_h2_kg";
+        const string header = "model,rpm,status,diagnostic,pi_w,p_shaft_w,t_shaft_nm,imep_pa,bmep_pa,bsfc_g_kwh,delivery_ratio,trapping_efficiency,scavenging_efficiency,charging_efficiency,fresh_delivered_kg,fresh_transfer_return_kg,fresh_trapped_kg,fresh_exhaust_out_kg,fresh_exhaust_return_kg,residual_kg,peak_p_pa,peak_t_k,cycles,steps,periodic_error,mass_error_kg,energy_error_j,fresh_marker_error_kg,cycle_steps_total,rejected_steps,fuel_supplied_kg,fuel_burned_kg,work_cylinder_j,work_crankcase_j,wall_heat_j,residual_fuel_kg,residual_o2_kg,residual_n2_kg,residual_co2_kg,residual_h2o_kg,residual_co_kg,residual_h2_kg,numerical_revision,net_fresh_exhaust_kg,trapping_per_transfer_delivery,fresh_accounting_residual_kg,completed_cycles,final_periodic_residual,previous_periodic_residual,dominant_component,accepted_steps_diagnostic,rejected_steps_diagnostic";
         csv.WriteLine(header);
         foreach (var run in sweep.Runs)
         {
+            var d = run.Convergence;
+            string snapshot = FormattableString.Invariant($"{d?.Cycles},{d?.Residual:R},{d?.PreviousResidual:R},{Quote(d?.Dominant ?? "")},{d?.AcceptedSteps},{d?.RejectedSteps}");
             if (run.Point is not { } p)
             {
-                csv.WriteLine($"{sweep.ModelId},{run.Rpm},{run.Status},{Quote(run.Failure ?? "")}" + new string(',', header.Count(c => c == ',') - 3));
+                csv.WriteLine($"{sweep.ModelId},{run.Rpm},{run.Status},{Quote(run.Failure ?? "")}" + new string(',', header.Count(c => c == ',') - 12) + string.Join(',', Quote(sweep.NumericalRevision ?? "stage6"), "", "", "", snapshot));
                 continue;
             }
             var residual = p.ResidualCompositionKg;
-            csv.WriteLine(FormattableString.Invariant($"{sweep.ModelId},{p.Rpm},periodic,,{p.IndicatedPowerW:R},{p.ShaftPowerW:R},{p.ShaftTorqueNm:R},{p.ImepPa:R},{p.BmepPa:R},{p.BsfcGPerKwh:R},{p.DeliveryRatio:R},{p.TrappingEfficiency:R},{p.ScavengingEfficiency:R},{p.ChargingEfficiency:R},{p.FreshDeliveredKg:R},{p.FreshTransferReturnKg:R},{p.FreshTrappedKg:R},{p.FreshExhaustOutKg:R},{p.FreshExhaustReturnKg:R},{p.ResidualMassKg:R},{p.PeakPressurePa:R},{p.PeakTemperatureK:R},{p.Cycles},{p.Steps},{p.PeriodicError:R},{p.Balance.MassKg:R},{p.Balance.EnergyJ:R},{p.Balance.FreshMarkerKg:R},{p.TotalAcceptedSteps},{p.TotalRejectedSteps},{p.FuelMassKg:R},{p.FuelBurnedKg:R},{p.CylinderWorkJ:R},{p.CrankcaseWorkJ:R},{p.WallHeatJ:R},{residual.FuelKg:R},{residual.OxygenKg:R},{residual.NitrogenKg:R},{residual.CarbonDioxideKg:R},{residual.WaterKg:R},{residual.CarbonMonoxideKg:R},{residual.HydrogenKg:R}"));
+            csv.WriteLine(FormattableString.Invariant($"{sweep.ModelId},{p.Rpm},periodic,,{p.IndicatedPowerW:R},{p.ShaftPowerW:R},{p.ShaftTorqueNm:R},{p.ImepPa:R},{p.BmepPa:R},{p.BsfcGPerKwh:R},{p.DeliveryRatio:R},{p.TrappingEfficiency:R},{p.ScavengingEfficiency:R},{p.ChargingEfficiency:R},{p.FreshDeliveredKg:R},{p.FreshTransferReturnKg:R},{p.FreshTrappedKg:R},{p.FreshExhaustOutKg:R},{p.FreshExhaustReturnKg:R},{p.ResidualMassKg:R},{p.PeakPressurePa:R},{p.PeakTemperatureK:R},{p.Cycles},{p.Steps},{p.PeriodicError:R},{p.Balance.MassKg:R},{p.Balance.EnergyJ:R},{p.Balance.FreshMarkerKg:R},{p.TotalAcceptedSteps},{p.TotalRejectedSteps},{p.FuelMassKg:R},{p.FuelBurnedKg:R},{p.CylinderWorkJ:R},{p.CrankcaseWorkJ:R},{p.WallHeatJ:R},{residual.FuelKg:R},{residual.OxygenKg:R},{residual.NitrogenKg:R},{residual.CarbonDioxideKg:R},{residual.WaterKg:R},{residual.CarbonMonoxideKg:R},{residual.HydrogenKg:R},{Quote(sweep.NumericalRevision ?? "stage6")},{p.NetFreshExhaustKg:R},{p.TrappingPerTransferDelivery:R},{p.FreshAccountingResidualKg:R},{snapshot}"));
         }
     }
 
@@ -93,18 +95,18 @@ public static partial class TwoStrokeFiles
     public static void ExportComparison(string path, TwoStrokeSweep a, TwoStrokeSweep b)
     {
         using var csv = File.CreateText(path);
-        csv.WriteLine("rpm,a_shaft_w,b_shaft_w,delta_w,a_shaft_nm,b_shaft_nm,delta_nm,a_fresh_trapped_kg,b_fresh_trapped_kg");
+        csv.WriteLine("rpm,a_shaft_w,b_shaft_w,delta_w,a_shaft_nm,b_shaft_nm,delta_nm,a_fresh_trapped_kg,b_fresh_trapped_kg,a_numerical_revision,b_numerical_revision");
         foreach (var (left, right) in a.Runs.Join(b.Runs, x => x.Rpm, x => x.Rpm, (a, b) => (a.Point, b.Point)))
         {
             if (left is null || right is null) continue;
-            csv.WriteLine(FormattableString.Invariant($"{left.Rpm},{left.ShaftPowerW:R},{right.ShaftPowerW:R},{right.ShaftPowerW - left.ShaftPowerW:R},{left.ShaftTorqueNm:R},{right.ShaftTorqueNm:R},{right.ShaftTorqueNm - left.ShaftTorqueNm:R},{left.FreshTrappedKg:R},{right.FreshTrappedKg:R}"));
+            csv.WriteLine(FormattableString.Invariant($"{left.Rpm},{left.ShaftPowerW:R},{right.ShaftPowerW:R},{right.ShaftPowerW - left.ShaftPowerW:R},{left.ShaftTorqueNm:R},{right.ShaftTorqueNm:R},{right.ShaftTorqueNm - left.ShaftTorqueNm:R},{left.FreshTrappedKg:R},{right.FreshTrappedKg:R},{Quote(a.NumericalRevision ?? "stage6")},{Quote(b.NumericalRevision ?? "stage6")}"));
         }
     }
     public static void ExportComparisonResolution(string path, TwoStrokeComparisonEvidence evidence)
     {
         using var csv = File.CreateText(path);
-        csv.WriteLine("model,rpm,scale,shaft_a_nm,shaft_b_nm,delta_nm,observed_band_nm,verdict,diagnostic");
+        csv.WriteLine("model,rpm,scale,shaft_a_nm,shaft_b_nm,delta_nm,observed_band_nm,verdict,numerical_revision,diagnostic");
         foreach (var level in evidence.Check.Levels)
-            csv.WriteLine(FormattableString.Invariant($"{TwoStrokeConfiguration.ModelId},{evidence.Rpm},{level.Scale},{level.ReferenceScore:R},{level.CandidateScore:R},{level.Advantage:R},{evidence.Check.ObservedBand:R},{evidence.Check.Verdict},{Quote(level.Error ?? "")}"));
+            csv.WriteLine(FormattableString.Invariant($"{TwoStrokeConfiguration.ModelId},{evidence.Rpm},{level.Scale},{level.ReferenceScore:R},{level.CandidateScore:R},{level.Advantage:R},{evidence.Check.ObservedBand:R},{evidence.Check.Verdict},{Quote(evidence.Check.NumericalRevision ?? "stage6")},{Quote(level.Error ?? "")}"));
     }
 }

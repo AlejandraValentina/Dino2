@@ -21,11 +21,20 @@ public sealed record TwoStrokePoint(int Rpm, double IndicatedPowerW, double Shaf
     TwoStrokeBalance Balance, IReadOnlyList<TwoStrokeSample> Trace)
 {
     public double IndicatedTorqueNm => IndicatedPowerW / (Rpm * Math.PI / 30);
+    public double NetFreshExhaustKg => FreshExhaustOutKg - FreshExhaustReturnKg;
+    public double NetFreshTransferKg => FreshDeliveredKg - FreshTransferReturnKg;
+    public double? TrappingPerTransferDelivery => FreshDeliveredKg > 0 ? FreshTrappedKg / FreshDeliveredKg : null;
+    public double FreshAccountingResidualKg => FreshTrappedKg - NetFreshTransferKg + NetFreshExhaustKg;
 }
 
 public enum TwoStrokeRunStatus { Periodic, NonConverged, OutsideDomain, NumericalFailure }
-public sealed record TwoStrokeRun(int Rpm, TwoStrokePoint? Point, string? Failure, TwoStrokeRunStatus Status);
-public sealed record TwoStrokeSweep(TwoStrokeConfiguration Configuration, IReadOnlyList<TwoStrokeRun> Runs)
+public sealed record TwoStrokeConvergence(int Cycles, double Residual, double? PreviousResidual, string Dominant,
+    int AcceptedSteps, int RejectedSteps);
+
+public sealed record TwoStrokeRun(int Rpm, TwoStrokePoint? Point, string? Failure, TwoStrokeRunStatus Status,
+    TwoStrokeConvergence? Convergence = null);
+public sealed record TwoStrokeSweep(TwoStrokeConfiguration Configuration, IReadOnlyList<TwoStrokeRun> Runs,
+    string? NumericalRevision = null)
 {
     public string ModelId => TwoStrokeConfiguration.ModelId;
     public bool Complete => Runs.Count == Configuration.Speeds.Values().Count() && Runs.All(run => run.Point is not null);
@@ -41,21 +50,11 @@ public sealed partial class TwoStrokeSimulator
         foreach (int rpm in configuration.Speeds.Values())
         {
             cancellation.ThrowIfCancellationRequested();
-            TwoStrokeRun run;
-            try { run = new(rpm, new TwoStrokeSimulator(configuration, rpm).Run(trace, cancellation), null, TwoStrokeRunStatus.Periodic); }
-            catch (ArithmeticException exception)
-            {
-                run = new(rpm, null, exception.Message, exception switch
-                {
-                    CycleConvergenceException => TwoStrokeRunStatus.NonConverged,
-                    ModelDomainException => TwoStrokeRunStatus.OutsideDomain,
-                    _ => TwoStrokeRunStatus.NumericalFailure
-                });
-            }
+            var run = Solve(configuration, rpm, trace, cancellation, null, out _);
             results.Add(run);
             progress?.Report(run);
         }
-        return new(configuration, results.AsReadOnly());
+        return new(configuration, results.AsReadOnly(), TwoStrokeConfiguration.NumericalRevision);
     }
 
     public static TwoStrokePoint Simulate(TwoStrokeConfiguration configuration, int rpm, bool trace = true,
@@ -63,6 +62,49 @@ public sealed partial class TwoStrokeSimulator
     {
         configuration = configuration with { Speeds = new RpmRange(rpm, rpm, 1) };
         configuration.Validate();
-        return new TwoStrokeSimulator(configuration, rpm).Run(trace, cancellation);
+        configuration.ValidateOperatingPoint(rpm);
+        return new TwoStrokeSimulator(configuration, rpm).Run(trace, cancellation, null, out _, out _);
+    }
+
+    // A converged state is transferred only within a single fixed engine and at the same EVO phase.
+    // Kept as a diagnostic so reference sweeps retain independent initial conditions.
+    internal static IReadOnlyList<TwoStrokeRun> ExploreContinuation(TwoStrokeConfiguration configuration,
+        IEnumerable<int> sequence, CancellationToken cancellation = default)
+    {
+        configuration.Validate();
+        var allowedSpeeds = configuration.Speeds.Values().ToHashSet();
+        var results = new List<TwoStrokeRun>();
+        double[]? seed = null;
+        foreach (int rpm in sequence)
+        {
+            if (!allowedSpeeds.Contains(rpm)) throw new ArgumentException("RPM fuera de la grilla de continuación.");
+            cancellation.ThrowIfCancellationRequested();
+            results.Add(Solve(configuration, rpm, false, cancellation, seed, out seed));
+        }
+        return results.AsReadOnly();
+    }
+
+    private static TwoStrokeRun Solve(TwoStrokeConfiguration configuration, int rpm, bool trace,
+        CancellationToken cancellation, double[]? seed, out double[]? periodicState)
+    {
+        TwoStrokeConvergence? diagnostic = null;
+        periodicState = null;
+        try
+        {
+            configuration.ValidateOperatingPoint(rpm);
+            var point = new TwoStrokeSimulator(configuration, rpm).Run(trace, cancellation, seed,
+                out periodicState, out diagnostic);
+            return new(rpm, point, null, TwoStrokeRunStatus.Periodic, diagnostic);
+        }
+        catch (ArithmeticException exception)
+        {
+            var status = exception switch
+            {
+                CycleConvergenceException => TwoStrokeRunStatus.NonConverged,
+                ModelDomainException => TwoStrokeRunStatus.OutsideDomain,
+                _ => TwoStrokeRunStatus.NumericalFailure
+            };
+            return new(rpm, null, exception.Message, status, diagnostic);
+        }
     }
 }

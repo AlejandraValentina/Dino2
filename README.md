@@ -8,9 +8,11 @@ Aplicación Windows en C# / WPF / .NET 10 para motores monocilíndricos **4T con
 
 **Etapa 6.** Desde la ventana principal, elegí **Motor 2T**. La configuración, el cálculo y los estudios específicos se organizan en una ventana independiente. [Modelo 2T](docs/modelo-2t.md) · [Informe y guía de etapa 6](docs/etapa6.md).
 
+**Etapa 7.** El ejemplo **2t-125cc-wide-rpm.json** amplía la verificación a 20 regímenes entre 500 y 10 000 RPM. Los diagnósticos identifican el componente que limita la periodicidad y distinguen resultados de revisiones numéricas distintas. [Consolidación y evidencia](docs/etapa7.md).
+
 ## Ejecutar en Windows
 
-Abrir `artifacts/stage6-win-x64/Dino2.Desktop.exe`, o extraer **todo** `artifacts/Dino2-stage6-win-x64.zip` y abrir el ejecutable. La distribución incluye el runtime; no hace falta instalar .NET para usarla. Los artefactos generados no se incluyen en Git.
+Abrir `artifacts/stage7-win-x64/Dino2.Desktop.exe`, o extraer **todo** `artifacts/Dino2-stage7-win-x64.zip` y abrir el ejecutable. La distribución incluye el runtime; no hace falta instalar .NET para usarla. Los artefactos generados no se incluyen en Git.
 
 Para 2T, abrí "examples/2t-125cc.json" desde **Abrir proyecto 2T…** y pulsá **Simular 2T**. El ejemplo A/B de escape está en "examples/2t-125cc-escape-ab.json". La [guía de etapa 6](docs/etapa6.md) describe el estudio, el contraste y las exportaciones.
 
@@ -85,10 +87,10 @@ Cantera no es una dependencia de la aplicación. Las comparaciones de equilibrio
 ## Distribución y prueba del ejecutable
 
 ```powershell
-.\scripts\publish.ps1 -Destination artifacts/stage6-win-x64 -Archive artifacts/Dino2-stage6-win-x64.zip
-.\scripts\smoke-publish.ps1 -Application artifacts/stage6-win-x64/Dino2.Desktop.exe
-.\scripts\smoke-studies.ps1 -Application artifacts/stage6-win-x64/Dino2.Desktop.exe
-.\scripts\smoke-two-stroke.ps1 -Application artifacts/stage6-win-x64/Dino2.Desktop.exe
+.\scripts\publish.ps1 -Destination artifacts/stage7-win-x64 -Archive artifacts/Dino2-stage7-win-x64.zip
+.\scripts\smoke-publish.ps1 -Application artifacts/stage7-win-x64/Dino2.Desktop.exe
+.\scripts\smoke-studies.ps1 -Application artifacts/stage7-win-x64/Dino2.Desktop.exe
+.\scripts\smoke-two-stroke.ps1 -Application artifacts/stage7-win-x64/Dino2.Desktop.exe
 ```
 
 Publish produce carpeta y ZIP Windows x64 con runtime, ejemplos y documentación. La primera ejecución puede necesitar red para descargar los paquetes oficiales del runtime. Sin instalador ni firma en esta etapa. La prueba publicada usa Windows UI Automation para abrir el 4T y calcular con depósitos y conductos, abrir y calcular el Otto independiente, comprobar el runtime incluido y cerrar las ventanas. Requiere sesión gráfica.

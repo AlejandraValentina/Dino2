@@ -277,7 +277,9 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
             var values = plan.Variants[row.Id].Values;
             return (Candidate: new Candidate(row.Id, row.Id == 0 ? "Base del estudio" : string.Join(" / ", values.Select(x => TwoStrokeWindow.F(x))),
                 row.Status.ToString(), score.Score, score.LowMarginNm,
-                check is null ? "Pendiente de refinamiento" : TwoStrokeWindow.StudyLabel(check.Verdict), row.Error ?? score.Exclusion ?? ""),
+                check is null ? "Pendiente de refinamiento" : TwoStrokeWindow.StudyLabel(check.Verdict) +
+                    (check.NumericalRevision == TwoStrokeConfiguration.NumericalRevision ? "" : " · evidencia histórica"),
+                row.Error ?? score.Exclusion ?? ""),
                 Eligible: score.Eligible);
         }).OrderByDescending(x => x.Eligible)
             .ThenByDescending(x => x.Candidate.Objetivo is double value ? plan.Definition.Objective.Preference(value) : double.NegativeInfinity)
