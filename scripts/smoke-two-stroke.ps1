@@ -211,9 +211,6 @@ try {
         Write-Output 'PASS portable rejects original audit tampering'
     }
 
-    Click 'CalculateButton'
-    Click 'CancelButton'
-    $null = Status 'Cálculo cancelado'
     if ($VerifyDomain) {
         $partialInput = Join-Path (Split-Path -Parent $exe) 'examples/2t-125cc-partial-domain.json'
         File-Dialog 'OpenTwoStroke' $partialInput
@@ -228,6 +225,12 @@ try {
             $rows[1].p_shaft_w -or $rows[1].diagnostic -notmatch '10000 RPM') { throw 'Unexpected partial-domain CSV.' }
         Write-Output 'PASS portable reports inadmissible RPM and keeps the converged point'
     }
+    # Use a new multi-RPM workload so a cached one-point result cannot beat UI Automation.
+    Edit 'RPM inicio' '4000'
+    Edit 'RPM fin' '7500'
+    Click 'CalculateButton'
+    Click 'CancelButton'
+    $null = Status 'Cálculo cancelado'
     $module = ($process.Modules | Where-Object ModuleName -eq 'coreclr.dll' | Select-Object -First 1).FileName
     if (!$module.StartsWith((Split-Path -Parent $exe), [StringComparison]::OrdinalIgnoreCase)) { throw "Unexpected runtime: $module" }
     Write-Output "PASS portable cancellation and bundled runtime: $module"
