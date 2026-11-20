@@ -5,14 +5,40 @@ using Dino2.Core.FourStroke;
 using Dino2.Core.TwoStroke;
 using Dino2.Core.GasDynamics;
 using Dino2.Core.Thermochemistry;
+using Dino2.Core.Multicylinder;
 
 if (args.Length is < 2 or > 4)
 {
-    Console.Error.WriteLine("Uso: Dino2.Cli otto.json resultados.csv | --4t proyecto.json resultados.csv [traza.csv] | --example-4t proyecto.json | --example-2t proyecto.json | --2t proyecto.json curva.csv [traza.csv]");
+    Console.Error.WriteLine("Uso: Dino2.Cli otto.json resultados.csv | --4t/--2t/--multi proyecto.json curva.csv [traza.csv] | --example-4t/--example-2t proyecto.json | --example-multi proyecto.json cilindros");
     return 2;
 }
 try
 {
+    if (args[0] == "--example-multi" && args.Length == 3 && int.TryParse(args[2], out int count))
+    {
+        MultiFiles.Save(args[1], new(MultiConfiguration.Example(count)));
+        return 0;
+    }
+    if (args[0] == "--multi" && args.Length >= 3)
+    {
+        var project = MultiFiles.Load(args[1]);
+        var multicylinder = MultiSimulator.Run(project.Current);
+        MultiFiles.Export(args[2], multicylinder);
+        if (args.Length == 4 && multicylinder.Points.FirstOrDefault(p => p.Status == MultiStatus.Converged) is { } cycle)
+            MultiFiles.ExportTrace(args[3], multicylinder, cycle.Rpm);
+        if (project.Original is { } a)
+        {
+            var original = MultiSimulator.Run(a);
+            MultiFiles.ExportComparison(Path.ChangeExtension(args[2], ".comparison.csv"), original, multicylinder,
+                MultiComparison.Compare(original, multicylinder));
+        }
+        foreach (var point in multicylinder.Points)
+            Console.WriteLine(point.Metrics is { } m
+                ? FormattableString.Invariant($"{point.Rpm}: Pi={m.IndicatedPowerW:F2} W, Pb={m.BrakePowerW:F2} W, Tb={m.BrakeTorqueNm:F4} Nm, cycles={point.Cycles}, periodic={point.PeriodicError:E3}")
+                : $"{point.Rpm}: {point.Status} · {point.Detail}");
+        Console.WriteLine(FormattableString.Invariant($"{MultiConfiguration.ModelId}: {multicylinder.ElapsedMilliseconds / 1000:F3} s."));
+        return multicylinder.Points.All(p => p.Status == MultiStatus.Converged) ? 0 : 1;
+    }
     if (args[0] == "--example-2t" && args.Length == 2)
     {
         TwoStrokeFiles.Save(args[1], new(TwoStrokeConfiguration.Example, null));
