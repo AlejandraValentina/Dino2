@@ -14,6 +14,7 @@ Extraé todo el ZIP Windows x64 y abrí **Dino2.Desktop.exe**. El portable inclu
 - [Integración y verificación de etapa 9](docs/etapa9.md)
 - [Modelo multicilíndrico 2T](docs/modelo-multicilindrico-2t.md)
 - [Integración y verificación de etapa 10](docs/etapa10.md)
+- [Recuperación científica de etapa 11 y dominio verificado](docs/etapa11.md)
 
 ## Compilar y comprobar
 

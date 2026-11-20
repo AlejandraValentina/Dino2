@@ -37,7 +37,11 @@ function Control([string]$id, [switch]$Label) {
 }
 
 function Click([string]$id, [switch]$Label) {
-    (Control $id -Label:$Label).GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    $control = Wait-For {
+        $candidate = Find-Control $root $id -Label:$Label
+        if ($null -ne $candidate -and $candidate.Current.IsEnabled) { $candidate }
+    } "enabled control $id"
+    $control.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
 }
 
 function Select-Tab([string]$id) {
@@ -55,10 +59,14 @@ function Edit([string]$label, [string]$value) {
 }
 
 function Status([string]$prefix, [int]$seconds = 22) {
-    Wait-For {
-        $message = (Control 'Status').Current.Name
-        if ($message.StartsWith($prefix)) { return $message }
-    } "$prefix (initial: $((Control 'Status').Current.Name))" $seconds
+    try {
+        Wait-For {
+            $message = (Control 'Status').Current.Name
+            if ($message.StartsWith($prefix)) { return $message }
+        } $prefix $seconds
+    } catch {
+        throw "$($_.Exception.Message) · final status: $((Control 'Status').Current.Name)"
+    }
 }
 
 function File-Dialog([string]$control, [string]$path, [switch]$Label) {
@@ -195,7 +203,9 @@ try {
         Write-Output 'PASS portable rejects corrupted project and retains the previous results'
     }
     if ($TamperedProject) {
-        File-Dialog 'OpenTwoStroke' $TamperedProject
+        $fixture = Join-Path $output 'audit-tampered.json'
+        Copy-Item -LiteralPath $TamperedProject -Destination $fixture
+        File-Dialog 'OpenTwoStroke' $fixture
         $null = Status 'La curva 2T y su configuración deben corresponder'
         if (!(Control 'ExportButton').Current.IsEnabled) { throw 'The rejected file replaced the working curve.' }
         Write-Output 'PASS portable rejects original audit tampering'

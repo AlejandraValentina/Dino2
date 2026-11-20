@@ -1,5 +1,17 @@
 # Manual de Dino2 Desktop
 
+## Conductos y resultados de la etapa 11
+
+Abrí `examples/4t-recovery-wall.json` desde la pantalla 4T o `examples/2t-recovery-pressure.json` desde la pantalla 2T. Calculá la curva y consultá el diagnóstico del régimen junto a los gráficos. Los ejemplos contienen geometrías sintéticas.
+
+- **Extremo de presión.** Representa un depósito exterior ideal con reflexión. Para 4T monocilíndrico se puede elegir el contorno por ramal. **Histórico adaptado** recupera la formulación de proyectos previos y es útil como referencia para medir cuánto influye el contorno. Sus curvas de longitud requieren esa salvedad.
+- **Pared de conducto.** Indicá rugosidad en µm y temperatura de pared en K si disponés de valores aplicables. Rugosidad −1 desactiva las fuentes. Rugosidad 0 significa pared lisa. Temperatura 0 conserva una pared adiabática con fricción cuando la rugosidad está activada.
+- **Duración de combustión.** En el modo Wiebe, el valor explícito en grados de cigüeñal tiene prioridad sobre el tiempo en segundos. Vacío selecciona segundos. La ley condicionada calcula su propia duración.
+- **Regímenes incompletos.** Un régimen inadmisible o fallido aparece con su diagnóstico y sin punto calculado. Los puntos válidos se conservan. La curva 2T absoluta requiere un contraste separado de malla para estudiar cambios pequeños. El contraste A/B exige condiciones numéricas y de contorno comparables.
+- **Procedencia.** Las nuevas curvas registran compilación y revisión numérica. Para recuperar resultados históricos de procedencia incompleta, conservá el proyecto, verificá sus hipótesis y repetí el cálculo. Los proyectos 2T nuevos llevan un resumen SHA-256 del contenido y se comprueba la coherencia física de las curvas guardadas.
+
+Los resultados se interpretan dentro del [dominio verificado de la etapa 11](etapa11.md).
+
 ## Inicio y proyectos
 
 Extraé el contenido completo del portable y ejecutá **Dino2.Desktop.exe**. La ventana inicial es **Motor 4T** y carga un ejemplo sintético. **Motor 2T** y **Otto de referencia** abren sus espacios de trabajo. Desde 2T, **Volver a 4T** conserva el proyecto, las curvas y el estudio de la sesión. Para continuar en otro momento, guardá los archivos antes de cerrar Dino2. La aplicación inicia con el ejemplo y cada proyecto guardado se recupera con **Abrir**.

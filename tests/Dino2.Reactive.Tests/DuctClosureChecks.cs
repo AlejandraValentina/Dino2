@@ -94,12 +94,9 @@ internal static class DuctClosureChecks
             "Throttled motored case violates balances.");
         Check(motored.Trace.All(s => s.PressurePa > 0 && s.IntakePortPressurePa > 0 && s.ExhaustPortPressurePa > 0),
             "Motored pressure negative.");
-        try
-        {
-            EngineSimulation.Run(a with { Solver = a.Solver with { MaximumCycles = 3 } });
-            throw new Exception("A deliberately unconverged run published a point.");
-        }
-        catch (ArithmeticException) { }
+        var incomplete = EngineSimulation.Run(a with { Solver = a.Solver with { MaximumCycles = 3 } });
+        Check(incomplete.Points.Count == 0 && incomplete.Failures.Single().Kind == FourStrokeFailureKind.NonConverged,
+            "A deliberately unconverged run must return a diagnostic and no point.");
     }
 
     private static Pair RunPair(FourStrokeConfiguration a, FourStrokeConfiguration b, int cells, DuctScheme scheme,
