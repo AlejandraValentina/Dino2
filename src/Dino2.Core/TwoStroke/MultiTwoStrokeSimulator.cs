@@ -39,7 +39,8 @@ public sealed partial class TwoStrokeSimulator
             results.Add(run);
             progress?.Report(run);
         }
-        return new(configuration, results.AsReadOnly());
+        return new(configuration, results.AsReadOnly()) { Provenance = ResultProvenance.Capture(MultiTwoStrokeConfiguration.ModelId,
+            configuration.Cylinder.Revision + "-network-recovery-v1") };
     }
 
     private sealed class JointCycle
@@ -102,7 +103,7 @@ public sealed partial class TwoStrokeSimulator
             {
                 intake = new(new DuctMesh(a.Trunk, gas, c.Numerics.Scheme, boundedPassiveTag: true), a.VolumeM3,
                     gas, c.Intake, members[0].Cylinder.freshMixture, 1,
-                    Area(c.IntakeDuct.ReservoirDiameterM), members.Length, 6.0 * rpm);
+                    Area(c.IntakeDuct.ReservoirDiameterM), members.Length, 6.0 * rpm, c.Numerics.Exterior);
                 size += intake.Dimension;
             }
             exhaustOffset = size;
@@ -110,7 +111,7 @@ public sealed partial class TwoStrokeSimulator
             {
                 exhaust = new(TwoStrokeDuct.ExpansionMesh(c.Expansion, gas, c.Numerics.Scheme), e.JunctionVolumeM3,
                     gas, c.Tail, TwoStrokeDuct.TailMixture(c), 0,
-                    Area(e.Primary.ReservoirDiameterM), members.Length, 6.0 * rpm);
+                    Area(e.Primary.ReservoirDiameterM), members.Length, 6.0 * rpm, c.Numerics.Exterior);
                 size += exhaust.Dimension;
             }
             y = new double[size]; before = new double[size]; k1 = new double[size];
@@ -360,7 +361,7 @@ public sealed partial class TwoStrokeSimulator
             double ub = member.Cylinder.Inventory(b, final, out double tb);
             delta.Clear();
             for (int i = 0; i < N; i++) delta[i] = final[i] - initial[i] - b[Outer + i];
-            delta[gas.Energy] = ub - ua + b[Wc] + b[Wk] + b[Q] - b[OuterH];
+            delta[gas.Energy] = ub - ua + b[Wc] + b[Wk] + b[Q] - b[OuterH] - b[DuctHeat];
             delta[gas.Tag] = tb - ta + member.MarkerRemoved - b[OuterTag];
             return MakeBalance(delta, member.Chemistry);
         }

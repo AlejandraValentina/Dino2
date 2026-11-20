@@ -150,7 +150,9 @@ Test("Unreacted fuel carries chemical enthalpy; cancellation and nonconvergence 
     bool cancelled=false;
     try{EngineSimulation.Run(one,cancel.Token);}catch(OperationCanceledException){cancelled=true;}
     Assert(cancelled,"Cancellation ignored");
-    Reject(()=>EngineSimulation.Run(one with{Solver=c.Solver with{MaximumCycles=3}}));
+    var failed = EngineSimulation.Run(one with{Solver=c.Solver with{MaximumCycles=3}});
+    Assert(failed.Points.Count == 0 && failed.Failures.Single().Kind == FourStrokeFailureKind.NonConverged,
+        "No convergencia queda asociada a la RPM.");
     Reject(()=>FourStrokeSimulator.Run(one));
 });
 Test("Reproducible reference-v1, frozen-v2 and conditioned-v2 comparisons and sensitivities", () =>

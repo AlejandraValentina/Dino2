@@ -3,8 +3,20 @@ using Dino2.Core.FourStroke;
 using Dino2.Core.Numerics;
 using Dino2.Storage;
 
+if (args is ["--recovery"])
+{
+    ReservoirChecks.Run();
+    return 0;
+}
+if (args is ["--campaign", var mode])
+{
+    Stage11Campaign.Run(mode);
+    return 0;
+}
+
 var tests = new List<(string, Action)>();
 void Test(string name, Action action) => tests.Add((name, action));
+Test("Physical reservoir boundaries, quarter-wave and distributed wall sources", ReservoirChecks.Run);
 void Assert(bool value, string message) { if (!value) throw new Exception(message); }
 void Near(double value, double expected, double tolerance = 1e-8) =>
     Assert(double.IsFinite(value) && Math.Abs(value - expected) <= tolerance, $"Expected {expected:R}, got {value:R}");
@@ -156,8 +168,9 @@ Test("Cancellation and explicit nonconvergence failures", () =>
     using var cancel = new CancellationTokenSource(); cancel.Cancel();
     try { FourStrokeSimulator.Run(single, cancel.Token); throw new Exception("Cancellation ignored"); }
     catch (OperationCanceledException) { }
-    try { FourStrokeSimulator.Run(single with { Solver = c.Solver with { MaximumCycles = 3 } }); throw new Exception("Nonconvergence accepted"); }
-    catch (ArithmeticException) { }
+    var failed = FourStrokeSimulator.Run(single with { Solver = c.Solver with { MaximumCycles = 3 } });
+    Assert(failed.Points.Count == 0 && failed.Failures.Single().Kind == FourStrokeFailureKind.NonConverged,
+        "Nonconvergence must retain operating status.");
 });
 Test("Motoring, limiting RPM and valve timing regression", () =>
 {

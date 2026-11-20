@@ -82,7 +82,8 @@ internal static class DesktopAuditSmoke
         var point = await Task.Run(() => TwoStrokeSimulator.Simulate(input, 5000));
         var basis = input with { Speeds = new(1000, 8900, 100) };
         var runs = basis.Speeds.Values().Select(rpm =>
-            new TwoStrokeRun(rpm, point with { Rpm = rpm }, null, TwoStrokeRunStatus.Periodic)).ToArray();
+            new TwoStrokeRun(rpm, point with { Rpm = rpm, IndicatedPowerW = point.IndicatedPowerW * rpm / 5000,
+                ShaftPowerW = point.ShaftPowerW * rpm / 5000 }, null, TwoStrokeRunStatus.Periodic)).ToArray();
         var project = new TwoStrokeProject(basis, null, new(basis, runs, TwoStrokeConfiguration.NumericalRevision));
         string largePath = Path.Combine(output, "audit-large-project.json");
         TwoStrokeFiles.Save(largePath, project);

@@ -12,7 +12,8 @@ public static class TwoStrokeComparison
     {
         if (pa.Rpm != pb.Rpm || !a.Speeds.Values().Contains(pa.Rpm) || !b.Speeds.Values().Contains(pb.Rpm))
             throw new ArgumentException("El contraste requiere el mismo régimen en A y B.");
-        if (a.Numerics.Scheme != b.Numerics.Scheme || a.Numerics.Courant != b.Numerics.Courant ||
+        if (a.Numerics.Scheme != b.Numerics.Scheme || a.Numerics.Exterior != b.Numerics.Exterior ||
+            a.Combustion.DurationDeg.HasValue != b.Combustion.DurationDeg.HasValue || a.Numerics.Courant != b.Numerics.Courant ||
             a.Numerics.MaximumStepDeg != b.Numerics.MaximumStepDeg || a.Numerics.PeriodicTolerance != b.Numerics.PeriodicTolerance)
             throw new ArgumentException("Usá el mismo esquema, CFL, paso máximo y tolerancia periódica en A y B.");
         static bool SimilarSpacing(double lengthA, int nA, double lengthB, int nB) =>
@@ -47,7 +48,7 @@ public static class TwoStrokeComparison
         }
         var (verdict, band) = StudyVerification.Classify(levels);
         return new(1, 0, verdict, band, levels.AsReadOnly(), clock.Elapsed.TotalMilliseconds,
-            NumericalRevision: TwoStrokeConfiguration.NumericalRevision);
+            NumericalRevision: a.Revision);
     }
 
     private static StudyLevel Level(int scale, TwoStrokePoint a, TwoStrokePoint b) =>

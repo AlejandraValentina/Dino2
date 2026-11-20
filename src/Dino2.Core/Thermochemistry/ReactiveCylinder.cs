@@ -76,7 +76,10 @@ public sealed class ReactiveCylinder
         SocResidual = 1 - state[11] * (config.Combustion.AirFuelRatio + 1) / config.Combustion.AirFuelRatio / mass;
         // Tag roundoff at the pure-fresh limit is not a physical residual correction.
         if (SocResidual is < 0 and > -1e-10) SocResidual = 0;
-        BurnDuration = 6 * rpm * ConditionedBurn.DurationSeconds(config, rpm, SocT, SocP, SocResidual);
+        if (config.Thermochemistry!.BurnLaw == BurnLaw.ConditionScaledWiebe && (SocResidual < 0 || SocResidual > .2))
+            throw new ModelDomainException($"{rpm} RPM: fracción residual al inicio de combustión {SocResidual:G5}; la correlación admite 0–0,2.");
+        BurnDuration = config.Thermochemistry.BurnLaw == BurnLaw.PrescribedWiebe ? config.Combustion.CrankDuration(rpm) :
+            6 * rpm * ConditionedBurn.DurationSeconds(config, rpm, SocT, SocP, SocResidual);
         if (!double.IsFinite(BurnDuration) || BurnDuration <= 0 || BurnStart + BurnDuration >= config.ExhaustValve.OpensDeg)
             throw new ModelDomainException($"{rpm} RPM: la combustión condicionada no termina antes del escape. Revise duración y condiciones.");
         TargetFuel = config.Combustion.HeatReleaseEfficiency * Math.Min(state[0], state[1] / -SpeciesThermodynamics.ReactionMassRatio(1));

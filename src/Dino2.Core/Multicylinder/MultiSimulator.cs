@@ -20,9 +20,13 @@ public static class MultiSimulator
         {
             cancellation.ThrowIfCancellationRequested();
             progress?.Report($"{rpm} RPM · {configuration.Phases.Count} cilindros");
-            points.Add(new CoupledCycle(configuration, rpm, captureTrace, progress).Run(cancellation));
+            if (configuration.Cylinder.OperatingPointError(rpm) is { } error)
+                points.Add(new(rpm, MultiStatus.OutsideDomain, error, 1, 0, 0, null, [], [], null));
+            else
+                points.Add(new CoupledCycle(configuration, rpm, captureTrace, progress).Run(cancellation));
         }
-        return new(configuration, points.AsReadOnly(), clock.Elapsed.TotalMilliseconds);
+        return new(configuration, points.AsReadOnly(), clock.Elapsed.TotalMilliseconds) {
+            Provenance = ResultProvenance.Capture(MultiConfiguration.ModelId, configuration.Cylinder.ModelIdentifier + "-network-recovery-v1") };
     }
 
     internal static double Wrap(double angle) => FiringPhases.Wrap(angle, 720);
@@ -91,9 +95,9 @@ public static class MultiSimulator
                 var ducts = cylinder.Ducts!;
                 double Area(double diameter) => Math.PI * diameter * diameter / 4;
                 intake = new(shared.Intake, gas, ducts.Scheme, cylinder.Intake, fresh, 1 - fresh[0],
-                    Area(ducts.Intake.ReservoirDiameterM), phases.Length, degreesPerSecond);
+                    Area(ducts.Intake.ReservoirDiameterM), phases.Length, degreesPerSecond, ducts.IntakeBoundary);
                 exhaust = new(shared.Exhaust, gas, ducts.Scheme, cylinder.Exhaust, burned, 0,
-                    Area(ducts.Exhaust.ReservoirDiameterM), phases.Length, degreesPerSecond);
+                    Area(ducts.Exhaust.ReservoirDiameterM), phases.Length, degreesPerSecond, ducts.ExhaustBoundary);
                 size += intake.Dimension;
             }
             exhaustOffset = size;
@@ -397,7 +401,7 @@ public static class MultiSimulator
                     inventory[k] += b[index] - a[index];
                     transported[k] = b[ReactiveCylinder.FlowIndex(k)];
                 }
-                inventory[gas.Energy] += b[5] - a[5] + b[8] + b[6];
+                inventory[gas.Energy] += b[5] - a[5] + b[8] + b[6] - ducts.Heat(b);
                 var balance = ducts.Balance(a, b, transported, b[9]);
                 runnerMomentum = Math.Max(runnerMomentum, balance.Momentum);
                 interfaceSpecies = Math.Max(interfaceSpecies, balance.Species);

@@ -101,6 +101,8 @@ public partial class TwoStrokeWindow
         Add(combustion, "Relación aire/combustible [kg/kg]", c => c.Combustion.AirFuelRatio, (c,v) => c with { Combustion = c.Combustion with { AirFuelRatio = v } });
         Add(combustion, "Demora de encendido [ms]", c => c.Combustion.DelayS * 1000, (c,v) => c with { Combustion = c.Combustion with { DelayS = v / 1000 } });
         Add(combustion, "Duración Wiebe [ms]", c => c.Combustion.DurationS * 1000, (c,v) => c with { Combustion = c.Combustion with { DurationS = v / 1000 } });
+        Add(combustion, "Duración Wiebe [°] · 0 usa ms", c => c.Combustion.DurationDeg ?? 0,
+            (c,v) => c with { Combustion = c.Combustion with { DurationDeg = v == 0 ? null : v } });
         Add(combustion, "Fracción de mezcla reactiva quemada", c => c.Combustion.BurnFraction, (c,v) => c with { Combustion = c.Combustion with { BurnFraction = v } });
         Add(combustion, "Exponente Wiebe", c => c.Combustion.WiebeExponent, (c,v) => c with { Combustion = c.Combustion with { WiebeExponent = v } });
         Add(combustion, "Temperatura de pared [K]", c => c.Thermal.WallTemperatureK, (c,v) => c with { Thermal = c.Thermal with { WallTemperatureK = v } });
@@ -113,6 +115,19 @@ public partial class TwoStrokeWindow
         Add(numerics, "Celdas escape", c => c.Expansion.Cells, (c,v) => c with { Expansion = c.Expansion with { Cells = Integer(v) } });
         Add(numerics, "Paso máximo [°]", c => c.Numerics.MaximumStepDeg, (c,v) => c with { Numerics = c.Numerics with { MaximumStepDeg = v } });
         Add(numerics, "CFL", c => c.Numerics.Courant, (c,v) => c with { Numerics = c.Numerics with { Courant = v } });
+        Add(numerics, "Boca exterior · 1 presión física · 0 adaptada histórica", c => (int)c.Numerics.Exterior,
+            (c,v) => c with { Numerics = c.Numerics with { Exterior = (ExteriorBoundary)Integer(v) } });
+        static DuctWall? WallRoughness(DuctWall? wall, double value) => value == -1 ? null : new(value / 1e6, wall?.TemperatureK);
+        static DuctWall? WallTemperature(DuctWall? wall, double value) => value == 0 && wall is null ? null :
+            new(wall?.RoughnessM ?? 0, value == 0 ? null : value);
+        Add(reed, "Rugosidad de admisión [µm] · −1 omite pared", c => c.IntakeDuct.Wall is { } w ? w.RoughnessM * 1e6 : -1,
+            (c,v) => c with { IntakeDuct = c.IntakeDuct with { Wall = WallRoughness(c.IntakeDuct.Wall, v) } });
+        Add(reed, "Pared de admisión [K] · 0 adiabática", c => c.IntakeDuct.Wall?.TemperatureK ?? 0,
+            (c,v) => c with { IntakeDuct = c.IntakeDuct with { Wall = WallTemperature(c.IntakeDuct.Wall, v) } });
+        Add(exhaust, "Rugosidad de expansión [µm] · −1 omite pared", c => c.Expansion.Wall is { } w ? w.RoughnessM * 1e6 : -1,
+            (c,v) => c with { Expansion = c.Expansion with { Wall = WallRoughness(c.Expansion.Wall, v) } });
+        Add(exhaust, "Pared de expansión [K] · 0 adiabática", c => c.Expansion.Wall?.TemperatureK ?? 0,
+            (c,v) => c with { Expansion = c.Expansion with { Wall = WallTemperature(c.Expansion.Wall, v) } });
         Add(numerics, "Tolerancia periódica", c => c.Numerics.PeriodicTolerance, (c,v) => c with { Numerics = c.Numerics with { PeriodicTolerance = v } });
         Add(numerics, "Ciclos máximos", c => c.Numerics.MaximumCycles, (c,v) => c with { Numerics = c.Numerics with { MaximumCycles = Integer(v) } });
         return fields;

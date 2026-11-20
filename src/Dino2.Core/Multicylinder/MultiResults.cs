@@ -28,4 +28,7 @@ public sealed record MultiMetrics(double IndicatedPowerW, double BrakePowerW, do
     double FrictionWorkJ, double FuelKgPerCycle);
 
 public sealed record MultiResult(MultiConfiguration Configuration, IReadOnlyList<MultiPoint> Points,
-    double ElapsedMilliseconds);
+    double ElapsedMilliseconds)
+{
+    public ResultProvenance? Provenance { get; init; }
+}

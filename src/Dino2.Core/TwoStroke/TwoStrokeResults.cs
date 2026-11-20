@@ -37,6 +37,7 @@ public sealed record TwoStrokeSweep(TwoStrokeConfiguration Configuration, IReadO
     string? NumericalRevision = null)
 {
     public string ModelId => TwoStrokeConfiguration.ModelId;
+    public ResultProvenance? Provenance { get; init; }
     public bool Complete => Runs.Count == Configuration.Speeds.Values().Count() && Runs.All(run => run.Point is not null);
 }
 
@@ -54,7 +55,8 @@ public sealed partial class TwoStrokeSimulator
             results.Add(run);
             progress?.Report(run);
         }
-        return new(configuration, results.AsReadOnly(), TwoStrokeConfiguration.NumericalRevision);
+        return new(configuration, results.AsReadOnly(), configuration.Revision)
+            { Provenance = ResultProvenance.Capture(TwoStrokeConfiguration.ModelId, configuration.Revision) };
     }
 
     public static TwoStrokePoint Simulate(TwoStrokeConfiguration configuration, int rpm, bool trace = true,

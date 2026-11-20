@@ -179,7 +179,8 @@ public partial class MulticylinderWindow : Window
         var c = template.Cylinder;
         foreach (var p in Parameters)
         {
-            if (p.Group == "Comb. v2" && burnLaw.SelectedItem is not BurnLaw.ConditionScaledWiebe) continue;
+            if ((p.Group == "Comb. v2" && burnLaw.SelectedItem is not BurnLaw.ConditionScaledWiebe) ||
+                (p.Key == "DurationDeg" && burnLaw.SelectedItem is BurnLaw.ConditionScaledWiebe)) continue;
             double value = Value(engine[p.Key], p.Label, p.Integer);
             var previous = p.Get(c);
             if (value != previous * p.Scale) c = p.Set(c, value / p.Scale);
@@ -194,7 +195,8 @@ public partial class MulticylinderWindow : Window
                 HeatTransferEvidence = Edited(evidence.HeatTransferEvidence), FrictionEvidence = Edited(evidence.FrictionEvidence) };
         }
         c = c with { Ducts = c.Ducts! with { Scheme = (DuctScheme)scheme.SelectedItem },
-            Thermochemistry = evidence with { BurnLaw = law } };
+            Thermochemistry = evidence with { BurnLaw = law }, Combustion = law == BurnLaw.ConditionScaledWiebe
+                ? c.Combustion with { DurationDeg = null } : c.Combustion };
         ManifoldSide Side(string key)
         {
             var existing = template.Manifolds ?? MultiConfiguration.Example().Manifolds!;
@@ -244,6 +246,7 @@ public partial class MulticylinderWindow : Window
         foreach (var field in collector.Values) field.IsEnabled = shared.IsChecked == true;
         foreach (var p in Parameters.Where(p => p.Group == "Comb. v2"))
             engine[p.Key].IsEnabled = burnLaw.SelectedItem is BurnLaw.ConditionScaledWiebe;
+        engine["DurationDeg"].IsEnabled = burnLaw.SelectedItem is not BurnLaw.ConditionScaledWiebe;
         string order;
         try { order = string.Join(" → ", ReadPhases().FiringOrder()); }
         catch (ArgumentException) { order = "revisar desfases"; }

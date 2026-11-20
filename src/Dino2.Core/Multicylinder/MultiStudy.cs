@@ -137,6 +137,9 @@ public static class MultiComparison
     private static void RequireComparable(MultiConfiguration a, MultiConfiguration b)
     {
         if (a.Phases.Count != b.Phases.Count || a.Cylinder.Ducts!.Scheme != b.Cylinder.Ducts!.Scheme ||
+            a.Cylinder.Ducts.IntakeBoundary != b.Cylinder.Ducts.IntakeBoundary ||
+            a.Cylinder.Ducts.ExhaustBoundary != b.Cylinder.Ducts.ExhaustBoundary ||
+            a.Cylinder.Combustion.DurationDeg.HasValue != b.Cylinder.Combustion.DurationDeg.HasValue ||
             a.Cylinder.Thermochemistry!.BurnLaw != b.Cylinder.Thermochemistry!.BurnLaw ||
             (a.Manifolds is null) != (b.Manifolds is null))
             throw new ArgumentException("El contraste exige igual número de cilindros, topología, esquema y ley de combustión.");

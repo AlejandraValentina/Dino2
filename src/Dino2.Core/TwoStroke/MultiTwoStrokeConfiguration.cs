@@ -58,6 +58,7 @@ public sealed record MultiTwoStrokeRun(int Rpm, TwoStrokeRunStatus Status, Multi
 
 public sealed record MultiTwoStrokeSweep(MultiTwoStrokeConfiguration Configuration, IReadOnlyList<MultiTwoStrokeRun> Runs)
 {
+    public ResultProvenance? Provenance { get; init; }
     public bool Complete => Runs.Count == Configuration.Cylinder.Speeds.Values().Count() &&
         Runs.All(r => r.Status == TwoStrokeRunStatus.Periodic);
 }

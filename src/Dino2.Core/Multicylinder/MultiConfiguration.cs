@@ -82,7 +82,7 @@ public sealed record MultiConfiguration(FourStrokeConfiguration Cylinder, Firing
         if (Cylinder is null || Phases is null || Cylinder.Ducts is null)
             throw new ArgumentException("Se requieren fases y un modelo 4T termoquímico con ramales 1D.");
         Phases.Validate();
-        Cylinder.Validate();
+        Cylinder.Validate(false);
         if (Manifolds is { } network)
         {
             if (network.Intake is null || network.Exhaust is null)

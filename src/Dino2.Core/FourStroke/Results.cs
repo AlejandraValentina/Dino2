@@ -26,11 +26,48 @@ public sealed record FourStrokePoint(int Rpm, double IndicatedPowerW, double Bra
 public sealed record DuctDiagnostics(double MassResidualKg, double MaximumSpeciesResidualKg, double EnergyResidualJ,
     double PeriodicError, long CellEvaluations, double MomentumResidualNs = 0);
 
+public enum FourStrokeFailureKind { OutsideDomain, NonConverged, NumericalFailure }
+public sealed record FourStrokeFailure(int Rpm, FourStrokeFailureKind Kind, string Message);
+
 public sealed record FourStrokeResult(FourStrokeConfiguration Configuration,
     IReadOnlyList<FourStrokePoint> Points, double ElapsedMilliseconds)
 {
     public const string ModelId = "four-stroke-0d-air-v1";
     public string Model { get; init; } = ModelId;
+    public ResultProvenance? Provenance { get; init; }
+    public IReadOnlyList<FourStrokeFailure> Failures { get; init; } = [];
+    public bool Complete => Failures.Count == 0 && Points.Count == Configuration.Speeds.Values().Count();
+}
+
+internal static class FourStrokeSweep
+{
+    internal static FourStrokeResult Execute(FourStrokeConfiguration c, Func<int, FourStrokePoint> solve,
+        CancellationToken cancellation, IProgress<string>? progress)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var points = new List<FourStrokePoint>();
+        var failures = new List<FourStrokeFailure>();
+        foreach (int rpm in c.Speeds.Values())
+        {
+            cancellation.ThrowIfCancellationRequested();
+            progress?.Report($"Simulando {rpm} RPM…");
+            try { points.Add(solve(rpm)); }
+            catch (ArithmeticException error)
+            {
+                var kind = error switch
+                {
+                    ModelDomainException => FourStrokeFailureKind.OutsideDomain,
+                    CycleConvergenceException => FourStrokeFailureKind.NonConverged,
+                    _ => FourStrokeFailureKind.NumericalFailure
+                };
+                failures.Add(new(rpm, kind, error.Message));
+            }
+        }
+        return new(c, points.AsReadOnly(), clock.Elapsed.TotalMilliseconds)
+            { Model = c.ModelIdentifier, Failures = failures.AsReadOnly(),
+                Provenance = ResultProvenance.Capture(c.ModelIdentifier, "four-stroke-recovery-v1" +
+                    (c.Combustion.DurationDeg.HasValue ? "-wiebe-angle" : "")) };
+    }
 }
 
 public sealed record ComparisonPoint(int Rpm, double OriginalBrakePowerW, double VariantBrakePowerW,

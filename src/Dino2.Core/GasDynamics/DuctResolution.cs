@@ -20,6 +20,7 @@ public sealed record DuctResolution(int Rpm, MeshSignal BrakePowerW, MeshSignal 
     {
         if (a.Configuration.Ducts is not { } left || b.Configuration.Ducts is not { } right) return false;
         return left.Scheme == right.Scheme && left.Courant == right.Courant &&
+            left.IntakeBoundary == right.IntakeBoundary && left.ExhaustBoundary == right.ExhaustBoundary &&
             left.Intake.Cells <= 64 && left.Exhaust.Cells <= 64 &&
             right.Intake.Cells <= 64 && right.Exhaust.Cells <= 64 &&
             a.Configuration with { Ducts = right, Speeds = b.Configuration.Speeds } == b.Configuration;

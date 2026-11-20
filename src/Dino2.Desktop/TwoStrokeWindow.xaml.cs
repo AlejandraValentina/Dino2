@@ -15,7 +15,7 @@ namespace Dino2.Desktop;
 
 public partial class TwoStrokeWindow : Window
 {
-    private TwoStrokeConfiguration template = TwoStrokeConfiguration.Example;
+    private TwoStrokeConfiguration template = TwoStrokeConfiguration.RecoveryExample;
     private TwoStrokeConfiguration? original;
     private TwoStrokeSweep? curve, baseline;
     private TwoStrokeComparisonEvidence? comparisonEvidence;
@@ -123,7 +123,7 @@ public partial class TwoStrokeWindow : Window
         if (!CanDiscard()) return;
         original = null;
         baseline = curve = null;
-        Populate(TwoStrokeConfiguration.Example);
+        Populate(TwoStrokeConfiguration.RecoveryExample);
         dirty = false;
         ShowStatus("Ejemplo 2T cargado.");
     }
@@ -161,6 +161,7 @@ public partial class TwoStrokeWindow : Window
     private async void Calculate_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
         var config = CurrentConfiguration();
+        var stamp = Dino2.Core.ResultProvenance.Capture(TwoStrokeConfiguration.ModelId, config.Revision);
         var pending = new List<TwoStrokeRun>();
         var clock = Stopwatch.StartNew();
         await Execute("Calculando curva 2T…", async token =>
@@ -169,7 +170,7 @@ public partial class TwoStrokeWindow : Window
             {
                 if (operation?.Token != token) return;
                 pending.Add(run);
-                curve = new(config, pending.ToArray(), TwoStrokeConfiguration.NumericalRevision);
+                curve = new(config, pending.ToArray(), config.Revision) { Provenance = stamp };
                 Render();
                 ShowStatus($"{run.Rpm} RPM · {StateLabel(run.Status)} · {pending.Count}/{config.Speeds.Values().Count()}");
             });
@@ -194,7 +195,7 @@ public partial class TwoStrokeWindow : Window
             }
             catch (OperationCanceledException)
             {
-                if (pending.Count > 0) { curve = new(config, pending.ToArray(), TwoStrokeConfiguration.NumericalRevision); dirty = true; }
+                if (pending.Count > 0) { curve = new(config, pending.ToArray(), config.Revision) { Provenance = stamp }; dirty = true; }
                 Render();
                 ShowStatus($"Cálculo cancelado. {pending.Count} regímenes procesados.");
             }
@@ -206,8 +207,8 @@ public partial class TwoStrokeWindow : Window
         if (ComparisonRpm.SelectedItem is not int rpm || original is null || curve is null) return;
         var a = original;
         var b = curve.Configuration;
-        bool refreshBaseline = baseline?.NumericalRevision != TwoStrokeConfiguration.NumericalRevision ||
-            curve.NumericalRevision != TwoStrokeConfiguration.NumericalRevision;
+        bool refreshBaseline = baseline?.NumericalRevision != a.Revision || curve.NumericalRevision != b.Revision ||
+            baseline?.Provenance is null || curve.Provenance is null;
         var pa = baseline!.Runs.Single(r => r.Rpm == rpm).Point!;
         var pb = curve.Runs.Single(r => r.Rpm == rpm).Point!;
         await Execute("Verificando malla A/B…", async token =>
@@ -230,7 +231,7 @@ public partial class TwoStrokeWindow : Window
     private void RenderResolution()
     {
         if (comparisonEvidence is not { Rpm: var rpm, Check: var result }) return;
-        string revision = result.NumericalRevision == TwoStrokeConfiguration.NumericalRevision ? "" : " · evidencia histórica";
+        string revision = result.NumericalRevision == curve?.Configuration.Revision ? "" : " · evidencia histórica o de otra revisión";
         Resolution.Text = $"{rpm} RPM · {StudyLabel(result.Verdict)} · " +
             string.Join(" / ", result.Levels.Select(l => $"×{l.Scale} {F(l.Advantage)}")) +
             $" N·m · banda observada {F(result.ObservedBand)} N·m{revision} " +
@@ -300,7 +301,7 @@ public partial class TwoStrokeWindow : Window
         comparisonEvidence = project.Resolution;
         RenderResolution();
         dirty = false;
-        ShowStatus("Proyecto 2T recuperado.");
+        ShowStatus("Proyecto 2T recuperado." + (curve is null ? "" : " " + Dino2.Core.ResultProvenance.Describe(curve.Provenance)));
     }
 
     private void Save_Click(object sender, RoutedEventArgs e) => Guard(() =>
@@ -329,7 +330,7 @@ public partial class TwoStrokeWindow : Window
         if (TracePoint() is not { } point) return;
         string? path = Choose(true, "CSV (*.csv)|*.csv", "ciclo-2t.csv");
         if (path is null) return;
-        TwoStrokeFiles.ExportTrace(path, point);
+        TwoStrokeFiles.ExportTrace(path, point, curve?.Provenance);
         ShowStatus("Traza 2T exportada.");
     });
 
@@ -357,6 +358,9 @@ public partial class TwoStrokeWindow : Window
             baseline.NumericalRevision != curve.NumericalRevision
             ? "A y B se calcularon con revisiones numéricas distintas. Verificar malla recalcula ambos casos con la revisión actual."
             : "Diferencias B − A en regímenes comunes. Resolución de par y potencia al mismo régimen.";
+        if (baseline?.Configuration.Numerics.Exterior == Core.GasDynamics.ExteriorBoundary.HistoricalRiemann ||
+            curve?.Configuration.Numerics.Exterior == Core.GasDynamics.ExteriorBoundary.HistoricalRiemann)
+            ComparisonNotice.Text += " Borde adaptado histórico. Sintonía restringida.";
         ComparisonGrid.ItemsSource = pairs;
         FillRpm(ComparisonRpm, pairs.Select(p => p.RPM));
         FillRpm(TraceRpm, Points(curve).Where(p => p.Trace.Count > 0).Select(p => p.Rpm));
@@ -369,6 +373,9 @@ public partial class TwoStrokeWindow : Window
             return;
         }
         GeometrySummary.Text = FormattableString.CurrentCulture($"{cfg.Geometry.DisplacementM3 * 1e6:F1} cm³ · Compresión geométrica {cfg.Geometry.CompressionRatio:G4} · Atrapada {cfg.TrappedCompressionRatio:F2} · Primaria {cfg.PrimaryCompressionRatio:F2}\nEscape abre {cfg.Exhaust.Opening(cfg.Geometry):F1}° · Transfers {cfg.Transfer.Opening(cfg.Geometry):F1}° después de PMS.");
+        if (curve is not null)
+            GeometrySummary.Text += "\nPeriodicidad y resolución espacial son comprobaciones distintas. Curva absoluta sin contraste de malla.\n" +
+                Dino2.Core.ResultProvenance.Describe(curve.Provenance);
         RenderTrace();
     }
 

@@ -10,20 +10,24 @@ internal sealed class ManifoldVolume
     private readonly DuctMesh trunk;
     private readonly double volume, flowArea, degreesPerSecond;
     private readonly DuctBoundary exterior;
+    private readonly ExteriorBoundary boundaryMode;
     internal DuctBoundary Junction { get; }
     private int Integral => gas.Size + trunk.Size;
-    internal int Dimension => Integral + gas.Size;
+    internal int Dimension => Integral + gas.Size + 1;
     internal int Cells => trunk.Cells;
 
     internal ManifoldVolume(ManifoldSide side, GasEquation gas, DuctScheme scheme, Reservoir reservoir,
-        double[] mixture, double tag, double runnerArea, int cylinders, double degreesPerSecond)
+        double[] mixture, double tag, double runnerArea, int cylinders, double degreesPerSecond,
+        ExteriorBoundary boundaryMode = ExteriorBoundary.HistoricalRiemann)
         : this(new DuctMesh(side.Trunk, gas, scheme), side.VolumeM3, gas, reservoir, mixture, tag,
-            runnerArea, cylinders, degreesPerSecond) { }
+            runnerArea, cylinders, degreesPerSecond, boundaryMode) { }
 
     internal ManifoldVolume(DuctMesh mesh, double volumeM3, GasEquation gas, Reservoir reservoir,
-        double[] mixture, double tag, double runnerArea, int cylinders, double degreesPerSecond)
+        double[] mixture, double tag, double runnerArea, int cylinders, double degreesPerSecond,
+        ExteriorBoundary boundaryMode = ExteriorBoundary.HistoricalRiemann)
     {
         this.gas = gas;
+        this.boundaryMode = boundaryMode;
         this.degreesPerSecond = degreesPerSecond;
         volume = volumeM3;
         trunk = mesh;
@@ -49,7 +53,7 @@ internal sealed class ManifoldVolume
         Span<double> outer = stackalloc double[gas.Size];
         Span<double> inner = stackalloc double[gas.Size];
         var outside = trunk.BoundaryState(tube, false, edge);
-        gas.Flux(exterior.Values, exterior.State, edge, outside, outer);
+        ReservoirBoundary.Flux(gas, boundaryMode, exterior.Values, exterior.State, edge, outside, outer);
         var inside = trunk.BoundaryState(tube, true, edge);
         gas.Flux(edge, inside, Junction.Values, Junction.State, inner);
         for (int i = 0; i < gas.Size; i++)
@@ -57,7 +61,8 @@ internal sealed class ManifoldVolume
             outer[i] *= trunk.ReservoirArea;
             inner[i] *= trunk.ValveArea;
         }
-        double time = trunk.Rates(tube, rate[gas.Size..Integral], outer, inner);
+        double time = trunk.Rates(tube, rate[gas.Size..Integral], outer, inner, out _, out double heat);
+        rate[^1] = heat / degreesPerSecond;
         for (int i = gas.Size; i < Integral; i++) rate[i] /= degreesPerSecond;
         for (int i = 0; i < gas.Size; i++)
         {
@@ -105,6 +110,7 @@ internal sealed class ManifoldVolume
                 residual[k] += trunk.Volume(cell) * (final[i] - initial[i]);
             }
         }
+        residual[gas.Energy] -= final[^1];
     }
 
     internal (double JunctionPa, double TrunkPa) Pressures(ReadOnlySpan<double> state) =>

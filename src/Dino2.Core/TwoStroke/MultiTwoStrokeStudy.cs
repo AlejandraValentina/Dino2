@@ -152,6 +152,8 @@ public static class MultiTwoStrokeComparison
     {
         if (a.Phases.Count != b.Phases.Count || (a.SharedIntake is null) != (b.SharedIntake is null) ||
             (a.SharedExhaust is null) != (b.SharedExhaust is null) || a.Cylinder.Numerics.Scheme != b.Cylinder.Numerics.Scheme ||
+            a.Cylinder.Numerics.Exterior != b.Cylinder.Numerics.Exterior ||
+            a.Cylinder.Combustion.DurationDeg.HasValue != b.Cylinder.Combustion.DurationDeg.HasValue ||
             a.Cylinder.Combustion.ProductEquilibrium != b.Cylinder.Combustion.ProductEquilibrium)
             throw new ArgumentException("El contraste requiere igual cantidad de cilindros, topología, esquema y química.");
         var timer = Stopwatch.StartNew();

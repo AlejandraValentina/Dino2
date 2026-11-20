@@ -76,11 +76,19 @@ public static class StudyRunner
         try
         {
             cancellation.ThrowIfCancellationRequested();
-            variant.Configuration.Validate();
+            variant.Configuration.Validate(false);
             onExecute?.Invoke();
             var result = EngineSimulation.Run(variant.Configuration, cancellation);
-            return new(variant.Id, StudyStatus.Completed, Array.AsReadOnly(result.Points.Select(StudyPoint.From).ToArray()),
-                null, clock.Elapsed.TotalMilliseconds);
+            var failure = result.Failures.FirstOrDefault();
+            var status = failure?.Kind switch
+            {
+                null => StudyStatus.Completed,
+                FourStrokeFailureKind.OutsideDomain => StudyStatus.Inadmissible,
+                FourStrokeFailureKind.NonConverged => StudyStatus.NonConverged,
+                _ => StudyStatus.NumericalFailure
+            };
+            return new(variant.Id, status, Array.AsReadOnly(result.Points.Select(StudyPoint.From).ToArray()),
+                failure is null ? null : $"{failure.Rpm} RPM · {failure.Message}", clock.Elapsed.TotalMilliseconds);
         }
         catch (CycleConvergenceException ex) { return Failed(StudyStatus.NonConverged, ex.Message); }
         catch (ArgumentException ex) { return Failed(StudyStatus.Inadmissible, ex.Message); }

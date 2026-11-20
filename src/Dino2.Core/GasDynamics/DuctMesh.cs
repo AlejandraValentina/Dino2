@@ -5,6 +5,7 @@ namespace Dino2.Core.GasDynamics;
 
 public sealed record DuctGeometry(double LengthM, double ReservoirDiameterM, double ValveDiameterM, int Cells)
 {
+    public DuctWall? Wall { get; init; }
     internal void Validate()
     {
         if (!double.IsFinite(LengthM) || LengthM is < .08 or > 3 ||
@@ -12,20 +13,39 @@ public sealed record DuctGeometry(double LengthM, double ReservoirDiameterM, dou
             !double.IsFinite(ValveDiameterM) || ValveDiameterM is < .015 or > .15 ||
             Cells is < 8 or > 256)
             throw new ArgumentException("Conducto: longitud 0,08–3 m, diámetros 15–150 mm y 8–256 celdas.");
+        Wall?.Validate(Math.Min(ReservoirDiameterM, ValveDiameterM));
     }
 }
 
 public enum DuctScheme { FirstOrder, Muscl }
+public enum ExteriorBoundary { HistoricalRiemann, PressureReservoir }
 
 public sealed record GasPath(DuctGeometry Intake, DuctGeometry Exhaust, double Courant = .45, DuctScheme Scheme = DuctScheme.FirstOrder)
 {
+    public ExteriorBoundary Exterior { get; init; }
+    public ExteriorBoundary? IntakeExterior { get; init; }
+    public ExteriorBoundary? ExhaustExterior { get; init; }
+    public ExteriorBoundary IntakeBoundary => IntakeExterior ?? Exterior;
+    public ExteriorBoundary ExhaustBoundary => ExhaustExterior ?? Exterior;
     public const string ModelId = "four-stroke-isooctane-ducts-v4";
     public const string MusclModelId = "four-stroke-isooctane-ducts-v4-muscl";
-    public string Identifier => Scheme == DuctScheme.Muscl ? MusclModelId : ModelId;
+    public string Identifier => (Scheme == DuctScheme.Muscl ? MusclModelId : ModelId) +
+        ((IntakeBoundary, ExhaustBoundary) switch
+        {
+            (ExteriorBoundary.PressureReservoir, ExteriorBoundary.PressureReservoir) => "-pressure-boundary",
+            (ExteriorBoundary.PressureReservoir, _) => "-pressure-intake",
+            (_, ExteriorBoundary.PressureReservoir) => "-pressure-exhaust",
+            _ => ""
+        }) +
+        (Intake.Wall is not null || Exhaust.Wall is not null ? "-wall" : "");
     public static GasPath Example => new(new(.35, .042, .036, 24), new(.65, .036, .032, 32));
+    public static GasPath RecoveryExample => new(new DuctGeometry(.35, .042, .036, 24) { Wall = new(.00002, 320) },
+        new DuctGeometry(.85, .036, .032, 42) { Wall = new(.00004, 500) }, Scheme: DuctScheme.Muscl)
+        { Exterior = ExteriorBoundary.PressureReservoir };
     public void Validate()
     {
-        if (!Enum.IsDefined(Scheme) || Intake is null || Exhaust is null || !double.IsFinite(Courant) || Courant is < .05 or > .5)
+        if (!Enum.IsDefined(Scheme) || !Enum.IsDefined(Exterior) || !Enum.IsDefined(IntakeBoundary) || !Enum.IsDefined(ExhaustBoundary) ||
+            Intake is null || Exhaust is null || !double.IsFinite(Courant) || Courant is < .05 or > .5)
             throw new ArgumentException("Se requieren ambos conductos y CFL entre 0,05 y 0,5.");
         Intake.Validate();
         Exhaust.Validate();
@@ -53,14 +73,14 @@ internal sealed class GasEquation(int speciesCount)
         {
             double value = cell[i];
             if (!double.IsFinite(value) || value < -1e-12)
-                throw new NumericalStateException("Densidad parcial no física en el conducto.");
+                throw new NumericalStateException($"Densidad parcial no física en el conducto, especie {i}: {value:E4} kg/m³.");
             density += value;
             minimum += value * energyAtMinimum[i];
             maximum += value * energyAtMaximum[i];
         }
         double energy = cell[Energy] - .5 * cell[Momentum] * cell[Momentum] / density;
         if (density <= 1e-9 || !(energy >= minimum && energy <= maximum))
-            throw new NumericalStateException("Estado del conducto fuera de 200–6000 K.");
+            throw new NumericalStateException($"Estado del conducto fuera de 200–6000 K: ρ={density:G6}, u_int={energy:G6}, intervalo [{minimum:G6}, {maximum:G6}] J/m³.");
     }
 
     internal GasState Decode(ReadOnlySpan<double> cell, double temperatureGuess = 600)
@@ -179,7 +199,7 @@ internal sealed class GasEquation(int speciesCount)
         }
     }
 
-    private void PhysicalFlux(ReadOnlySpan<double> cell, GasState gas, Span<double> flux)
+    internal void PhysicalFlux(ReadOnlySpan<double> cell, GasState gas, Span<double> flux)
     {
         for (int i = 0; i < Size; i++) flux[i] = gas.Velocity * cell[i];
         flux[Momentum] += gas.Pressure;
@@ -206,6 +226,7 @@ internal sealed partial class DuctMesh
     private readonly double[] area, volume;
     private readonly GasEquation equation;
     private readonly bool boundedPassiveTag;
+    private readonly DuctWall? wall;
     internal int Cells { get; }
     internal int Size => Cells * equation.Size;
     internal double Dx { get; }
@@ -217,6 +238,7 @@ internal sealed partial class DuctMesh
     {
         this.equation = equation;
         this.boundedPassiveTag = boundedPassiveTag;
+        wall = geometry.Wall;
         Cells = geometry.Cells;
         if (scheme == DuctScheme.Muscl)
         {
@@ -266,12 +288,17 @@ internal sealed partial class DuctMesh
 
     internal double Rates(ReadOnlySpan<double> state, Span<double> rate,
         ReadOnlySpan<double> leftBoundary, ReadOnlySpan<double> rightBoundary, out double wallForce)
+        => Rates(state, rate, leftBoundary, rightBoundary, out wallForce, out _);
+
+    internal double Rates(ReadOnlySpan<double> state, Span<double> rate,
+        ReadOnlySpan<double> leftBoundary, ReadOnlySpan<double> rightBoundary, out double wallForce, out double wallHeat)
     {
         int width = equation.Size;
         Span<double> leftFlux = stackalloc double[width];
         Span<double> rightFlux = stackalloc double[width];
         leftBoundary.CopyTo(leftFlux);
         wallForce = 0;
+        wallHeat = 0;
         var left = centers is null ? equation.Decode(state[..width]) : centers[0];
         double cflTime = double.PositiveInfinity;
         for (int i = 0; i < Cells; i++)
@@ -302,6 +329,15 @@ internal sealed partial class DuctMesh
             double inverseVolume = 1 / volume[i];
             for (int k = 0; k < width; k++) rate[offset + k] = (leftFlux[k] - rightFlux[k]) * inverseVolume;
             double force = left.Pressure * (area[i + 1] - area[i]);
+            if (wall is not null)
+            {
+                double diameter = Math.Sqrt(4 * volume[i] / (Math.PI * Dx));
+                var (momentum, heat, relax) = wall.Sources(left, diameter);
+                force += momentum * volume[i];
+                rate[offset + equation.Energy] += heat;
+                wallHeat += heat * volume[i];
+                cflTime = Math.Min(cflTime, relax);
+            }
             rate[offset + equation.Momentum] += force * inverseVolume;
             wallForce += force;
             rightFlux.CopyTo(leftFlux);

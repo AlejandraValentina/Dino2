@@ -10,7 +10,8 @@ public sealed partial class TwoStrokeSimulator
     private const int Old = N, Uc = 2 * N, Case = Uc + 1, Uk = Case + N, CaseTag = Uk + 1;
     private const int Wc = CaseTag + 1, Wk = Wc + 1, Q = Wk + 1, FuelIn = Q + 1;
     private const int Delivered = FuelIn + 1, TransferReturn = Delivered + 1, ExhaustReturn = TransferReturn + 1;
-    private const int Short = ExhaustReturn + 1, OuterH = Short + 1, OuterTag = OuterH + 1, Outer = OuterTag + 1, IntakeOffset = Outer + N;
+    private const int Short = ExhaustReturn + 1, OuterH = Short + 1, OuterTag = OuterH + 1, Outer = OuterTag + 1,
+        DuctHeat = Outer + N, IntakeOffset = DuctHeat + 1;
 
     private readonly TwoStrokeConfiguration c;
     private readonly TwoStrokeProfile? profile;
@@ -36,7 +37,7 @@ public sealed partial class TwoStrokeSimulator
         open = c.Exhaust.Opening(c.Geometry);
         close = 360 - open;
         soc = 360 - c.Combustion.AdvanceDeg + dps * c.Combustion.DelayS;
-        duration = dps * c.Combustion.DurationS;
+        duration = c.Combustion.CrankDuration(rpm);
         freshMixture = Extended(SpeciesThermodynamics.FreshMixture(c.Combustion.AirFuelRatio));
         inlet = TwoStrokeDuct.Intake(c, gas, freshMixture, profile);
         outlet = exhaustPrimary is null ? TwoStrokeDuct.Exhaust(c, gas, profile) : TwoStrokeDuct.Primary(c, exhaustPrimary, gas);
@@ -135,9 +136,9 @@ public sealed partial class TwoStrokeSimulator
         Span<double> reedFlux = stackalloc double[Width], exhaustFlux = stackalloc double[Width];
         Span<double> outerIntake = stackalloc double[Width], outerExhaust = stackalloc double[Width];
         double dtI = inlet.Rates(y.Slice(IntakeOffset, inlet.Size), rate.Slice(IntakeOffset, inlet.Size), k,
-            caseDonor, 0, c.Reed, outerIntake, reedFlux, out double pReed, intakeBoundary);
+            caseDonor, 0, c.Reed, outerIntake, reedFlux, out double pReed, out double intakeHeat, intakeBoundary);
         double dtE = outlet.Rates(y[outletOffset..], rate[outletOffset..], e, cylinderDonor,
-            c.Exhaust.Area(travel), null, outerExhaust, exhaustFlux, out double pExhaust, exhaustBoundary);
+            c.Exhaust.Area(travel), null, outerExhaust, exhaustFlux, out double pExhaust, out double exhaustHeat, exhaustBoundary);
         for (int i = 0; i < intakeRate.Length; i++) intakeRate[i] = outerIntake[i] / dps;
         for (int i = 0; i < exhaustRate.Length; i++) exhaustRate[i] = outerExhaust[i] / dps;
         double transfer = ReactiveCylinder.Nozzle(c.Transfer.Area(travel), pk, tk, rk, k.Gamma, pc, tc, rc,
@@ -176,6 +177,7 @@ public sealed partial class TwoStrokeSimulator
         rate[Short] = Math.Max(0, -exhaustTag) / dps;
         rate[OuterH] = (outerIntake[gas.Energy] + outerExhaust[gas.Energy]) / dps;
         rate[OuterTag] = (outerIntake[gas.Tag] + outerExhaust[gas.Tag]) / dps;
+        rate[DuctHeat] = (intakeHeat + exhaustHeat) / dps;
         for (int i = IntakeOffset; i < rate.Length; i++) rate[i] /= dps;
         sample = new(angle, pc, tc, pk, tk, inletMass, transfer, -exhaustMass, vc, vk, fresh, mc,
             pReed, pExhaust);

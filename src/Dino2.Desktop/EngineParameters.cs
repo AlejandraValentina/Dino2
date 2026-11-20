@@ -31,6 +31,8 @@ internal sealed record EngineParameter(string Key, string Group, string Label,
         new("Spark", "Combustión", "Avance [° antes PMS combustión]", c => c.Combustion.SparkAdvanceDeg, (c,v) => c with { Combustion = c.Combustion with { SparkAdvanceDeg = v } }),
         new("Delay", "Combustión", "Retraso ignición [ms]", c => c.Combustion.IgnitionDelayS, (c,v) => c with { Combustion = c.Combustion with { IgnitionDelayS = v } }, 1000),
         new("Duration", "Combustión", "Duración prescrita [ms]", c => c.Combustion.DurationS, (c,v) => c with { Combustion = c.Combustion with { DurationS = v } }, 1000),
+        new("DurationDeg", "Combustión", "Duración prescrita [°] · 0 usa ms", c => c.Combustion.DurationDeg ?? 0,
+            (c,v) => c with { Combustion = c.Combustion with { DurationDeg = v == 0 ? null : v } }),
         new("Afr", "Combustión", "Relación aire/combustible [kg/kg]", c => c.Combustion.AirFuelRatio, (c,v) => c with { Combustion = c.Combustion with { AirFuelRatio = v } }),
         new("Lhv", "Combustión", "PCI [MJ/kg combustible]", c => c.Combustion.LowerHeatingValueJPerKg, (c,v) => c with { Combustion = c.Combustion with { LowerHeatingValueJPerKg = v } }, 1e-6),
         new("BurnEfficiency", "Combustión", "Fracción de energía liberada [0–1]", c => c.Combustion.HeatReleaseEfficiency, (c,v) => c with { Combustion = c.Combustion with { HeatReleaseEfficiency = v } }),
@@ -83,7 +85,19 @@ internal sealed record EngineParameter(string Key, string Group, string Label,
             yield return Field("ReservoirBore", "diámetro en depósito [mm]", d => d.ReservoirDiameterM, (d, v) => d with { ReservoirDiameterM = v });
             yield return Field("ValveBore", "diámetro en válvula [mm]", d => d.ValveDiameterM, (d, v) => d with { ValveDiameterM = v });
             yield return Field("Cells", "celdas", d => d.Cells, (d, v) => d with { Cells = (int)v }, 1, true);
+            yield return Field("Roughness", "rugosidad [µm] · −1 omite pared",
+                d => d.Wall?.RoughnessM ?? -.000001, (d, v) => d with
+                { Wall = v == -.000001 ? null : new(v, d.Wall?.TemperatureK) }, 1e6);
+            yield return Field("WallT", "pared [K] · 0 adiabática",
+                d => d.Wall?.TemperatureK ?? 0, (d, v) => d with
+                { Wall = v == 0 && d.Wall is null ? null : new(d.Wall?.RoughnessM ?? 0, v == 0 ? null : v) }, 1);
         }
+        yield return new("IntakeBoundary", "Conductos", "Boca de admisión · 1 presión física · 0 adaptada histórica",
+            c => (int)(c.Ducts ?? GasPath.Example).IntakeBoundary,
+            (c, v) => c.Ducts is null ? c : c with { Ducts = c.Ducts with { IntakeExterior = (ExteriorBoundary)(int)v } }, Integer: true);
+        yield return new("ExhaustBoundary", "Conductos", "Boca de escape · 1 presión física · 0 adaptada histórica",
+            c => (int)(c.Ducts ?? GasPath.Example).ExhaustBoundary,
+            (c, v) => c.Ducts is null ? c : c with { Ducts = c.Ducts with { ExhaustExterior = (ExteriorBoundary)(int)v } }, Integer: true);
         yield return new("Courant", "Conductos", "CFL", c => (c.Ducts ?? GasPath.Example).Courant,
             (c, v) => c.Ducts is null ? c : c with { Ducts = c.Ducts with { Courant = v } });
     }

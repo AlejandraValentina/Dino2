@@ -11,12 +11,12 @@ internal sealed class DuctBoundary(double[] values)
 
 internal sealed class DuctCoupling
 {
-    private sealed record End(DuctMesh Mesh, int Offset, PoppetValve Valve, double[] Reservoir, GasState Ambient);
+    private sealed record End(DuctMesh Mesh, int Offset, PoppetValve Valve, double[] Reservoir, GasState Ambient, ExteriorBoundary Mode);
 
     private readonly GasEquation gas;
     private readonly End inlet, outlet;
     private readonly int integralOffset;
-    internal int Dimension => integralOffset + 4 * gas.Size + 2;
+    internal int Dimension => integralOffset + 4 * gas.Size + 4;
     internal double Courant { get; }
     internal double StableTime { get; private set; }
     internal long CellEvaluations { get; private set; }
@@ -25,18 +25,19 @@ internal sealed class DuctCoupling
     {
         var path = config.Ducts!;
         gas = new GasEquation(intake.Length);
-        inlet = Create(path.Intake, config.Intake, config.IntakeValve, intake, 1 - intake[0], offset, path.Scheme);
-        outlet = Create(path.Exhaust, config.Exhaust, config.ExhaustValve, exhaust, 0, inlet.Offset + inlet.Mesh.Size, path.Scheme);
+        inlet = Create(path.Intake, config.Intake, config.IntakeValve, intake, 1 - intake[0], offset, path.Scheme, path.IntakeBoundary);
+        outlet = Create(path.Exhaust, config.Exhaust, config.ExhaustValve, exhaust, 0, inlet.Offset + inlet.Mesh.Size, path.Scheme, path.ExhaustBoundary);
         integralOffset = outlet.Offset + outlet.Mesh.Size;
         Courant = path.Courant;
     }
 
-    private End Create(DuctGeometry geometry, Reservoir reservoir, PoppetValve valve, double[] fractions, double tag, int offset, DuctScheme scheme)
+    private End Create(DuctGeometry geometry, Reservoir reservoir, PoppetValve valve, double[] fractions, double tag,
+        int offset, DuctScheme scheme, ExteriorBoundary mode)
     {
         var mesh = new DuctMesh(geometry, gas, scheme);
         var state = new double[gas.Size];
         gas.Encode(state, fractions, reservoir.PressurePa, reservoir.TemperatureK, 0, tag);
-        return new(mesh, offset, valve, state, gas.Decode(state));
+        return new(mesh, offset, valve, state, gas.Decode(state), mode);
     }
 
     internal void Initialize(Span<double> state)
@@ -71,15 +72,20 @@ internal sealed class DuctCoupling
         Span<double> outer = stackalloc double[gas.Size];
         Span<double> boundary = stackalloc double[gas.Size];
         var ambientEnd = end.Mesh.BoundaryState(tube, false, boundary);
-        gas.Flux(exterior?.Values ?? end.Reservoir, exterior?.State ?? end.Ambient, boundary, ambientEnd, outer);
+        if (exterior is null)
+            ReservoirBoundary.Flux(gas, end.Mode, end.Reservoir, end.Ambient, boundary, ambientEnd, outer);
+        else
+            gas.Flux(exterior.Values, exterior.State, boundary, ambientEnd, outer);
         for (int k = 0; k < gas.Size; k++) outer[k] *= end.Mesh.ReservoirArea;
         var valveEnd = end.Mesh.BoundaryState(tube, true, boundary);
         ValveFlux(end, angle, boundary, valveEnd, cylinder, chamber, valveFlow);
         int integral = IntegralOffset(end);
         outer.CopyTo(rates.Slice(integral, gas.Size));
         valveFlow.CopyTo(rates.Slice(integral + gas.Size, gas.Size));
-        double time = end.Mesh.Rates(tube, rates.Slice(end.Offset, end.Mesh.Size), outer, valveFlow, out double wallForce);
+        double time = end.Mesh.Rates(tube, rates.Slice(end.Offset, end.Mesh.Size), outer, valveFlow,
+            out double wallForce, out double wallHeat);
         rates[ForceIndex(end)] = wallForce;
+        rates[ForceIndex(end) + 2] = wallHeat;
         return time;
     }
 
@@ -203,6 +209,7 @@ internal sealed class DuctCoupling
     private int IntegralOffset(End end) => integralOffset + (ReferenceEquals(end, inlet) ? 0 : 2 * gas.Size);
 
     private int ForceIndex(End end) => integralOffset + 4 * gas.Size + (ReferenceEquals(end, inlet) ? 0 : 1);
+    internal double Heat(ReadOnlySpan<double> state) => state[ForceIndex(inlet) + 2] + state[ForceIndex(outlet) + 2];
 
     private (double Mass, double Species, double Energy, double Momentum) EndBalance(End end, ReadOnlySpan<double> initial, ReadOnlySpan<double> final)
     {
@@ -217,7 +224,7 @@ internal sealed class DuctCoupling
             mass += error;
             species = Math.Max(species, Math.Abs(error));
         }
-        return (mass, species, residual[gas.Energy] - final[offset + gas.Energy] + final[offset + gas.Size + gas.Energy],
+        return (mass, species, residual[gas.Energy] - final[offset + gas.Energy] + final[offset + gas.Size + gas.Energy] - final[ForceIndex(end) + 2],
             residual[gas.Momentum] - final[offset + gas.Momentum] + final[offset + gas.Size + gas.Momentum] - final[ForceIndex(end)]);
     }
 

@@ -1,0 +1,24 @@
+<Project>
+  <Target Name="IdentifyDino2Tree" BeforeTargets="GetAssemblyAttributes"
+          Condition="'$(MSBuildProjectName)' == 'Dino2.Core' and '$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <Dino2TreeStatus>unknown</Dino2TreeStatus>
+    </PropertyGroup>
+    <Exec Command="git status --porcelain --untracked-files=normal" WorkingDirectory="$(MSBuildProjectDirectory)"
+          ConsoleToMSBuild="true" IgnoreExitCode="true" StandardOutputImportance="Low" StandardErrorImportance="Low"
+          Condition="Exists('$(MSBuildThisFileDirectory).git')">
+      <Output TaskParameter="ConsoleOutput" ItemName="_Dino2GitChanges" />
+      <Output TaskParameter="ExitCode" PropertyName="_Dino2GitExitCode" />
+    </Exec>
+    <PropertyGroup Condition="'$(_Dino2GitExitCode)' == '0'">
+      <Dino2TreeStatus Condition="'@(_Dino2GitChanges)' == ''">clean</Dino2TreeStatus>
+      <Dino2TreeStatus Condition="'@(_Dino2GitChanges)' != ''">dirty</Dino2TreeStatus>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Dino2TreeStatus</_Parameter1>
+        <_Parameter2>$(Dino2TreeStatus)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+</Project>

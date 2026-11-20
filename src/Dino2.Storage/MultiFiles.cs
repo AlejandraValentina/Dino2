@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Dino2.Core;
 using Dino2.Core.Multicylinder;
 using Dino2.Core.Studies;
 
@@ -133,6 +134,7 @@ public static class MultiFiles
     {
         using var writer = File.CreateText(path);
         Metadata(writer, result.Configuration);
+        writer.WriteLine("# provenance=" + JsonSerializer.Serialize(result.Provenance, Options));
         writer.WriteLine("status,rpm,indicated_power_W,brake_power_W,indicated_torque_Nm,brake_torque_Nm,imep_Pa,bmep_Pa,volumetric_efficiency,work_J,friction_J,net_intake_fuel_kg,mass_residual_kg,max_element_residual_kg,energy_residual_J,nitrogen_residual_kg,max_interface_species_residual_kg,max_interface_energy_residual_J,runner_momentum_residual_Ns,cycles,periodic_error,elapsed_ms,accepted_steps,rejected_steps,cell_evaluations");
         foreach (var p in result.Points)
         {
@@ -153,6 +155,7 @@ public static class MultiFiles
         if (point.Status != MultiStatus.Converged) throw new ArgumentException("El ciclo requiere una solución periódica.");
         using var writer = File.CreateText(path);
         Metadata(writer, result.Configuration);
+        writer.WriteLine("# provenance=" + JsonSerializer.Serialize(result.Provenance, Options));
         writer.WriteLine($"# rpm={rpm}");
         writer.WriteLine("cylinder,firing_offset_deg,crank_angle_deg,cylinder_pressure_Pa,cylinder_temperature_K,cylinder_mass_kg,volume_m3,intake_port_Pa,exhaust_port_Pa,intake_kg_s,exhaust_kg_s,intake_plenum_Pa,exhaust_plenum_Pa,intake_trunk_Pa,exhaust_trunk_Pa,total_indicated_torque_Nm,cylinder_work_J,fuel_kg,O2_kg,N2_kg,CO2_kg,H2O_kg,CO_kg,H2_kg");
         foreach (var cylinder in point.Cylinders)

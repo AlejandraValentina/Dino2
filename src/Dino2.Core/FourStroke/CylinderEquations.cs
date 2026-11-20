@@ -24,7 +24,7 @@ public sealed class CylinderEquations
         intakeEnthalpy = AirProperties.Enthalpy(config.Intake.TemperatureK);
         exhaustEnthalpy = AirProperties.Enthalpy(config.Exhaust.TemperatureK);
         BurnStartDeg = 360 - config.Combustion.SparkAdvanceDeg + degreesPerSecond * config.Combustion.IgnitionDelayS;
-        BurnDurationDeg = degreesPerSecond * config.Combustion.DurationS;
+        BurnDurationDeg = config.Combustion.CrankDuration(rpm);
     }
 
     public CycleSample Sample(double angle, ReadOnlySpan<double> y)

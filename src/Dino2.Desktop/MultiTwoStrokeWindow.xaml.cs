@@ -317,7 +317,8 @@ public partial class MultiTwoStrokeWindow : Window
         RestoreStudy(project.Study);
         dirty = false;
         Render();
-        M2Status.Text = "Proyecto 2T multicilíndrico abierto.";
+        M2Status.Text = "Proyecto 2T multicilíndrico abierto." +
+            (curve is null ? "" : " " + Dino2.Core.ResultProvenance.Describe(curve.Provenance));
     }
 
     private async void Open_Click(object sender, RoutedEventArgs e)

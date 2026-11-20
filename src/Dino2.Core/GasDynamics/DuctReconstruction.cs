@@ -1,3 +1,5 @@
+using Dino2.Core.FourStroke;
+
 namespace Dino2.Core.GasDynamics;
 
 internal sealed partial class DuctMesh
@@ -41,7 +43,12 @@ internal sealed partial class DuctMesh
         int n = equation.SpeciesCount, width = equation.Size, stride = width + 1;
         var q = state.Slice(i * width, width);
         double last = centers![i].Temperature;
-        var center = equation.Decode(q, last is >= 200 and <= 6000 ? last : 600);
+        GasState center;
+        try { center = equation.Decode(q, last is >= 200 and <= 6000 ? last : 600); }
+        catch (NumericalStateException ex)
+        {
+            throw new NumericalStateException($"Celda {i + 1}/{Cells}: {ex.Message}");
+        }
         centers[i] = center;
         var v = primitives.AsSpan(i * stride, stride);
         for (int k = 0; k < n; k++) v[k] = q[k] / center.Density;

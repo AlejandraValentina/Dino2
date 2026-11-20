@@ -140,7 +140,7 @@ public sealed partial class TwoStrokeSimulator
                     return sum;
                 }
                 var balance = new TwoStrokeBalance(physical.Sum(), SpeciesMasses.From(errors), Element(0), Element(1),
-                    Element(2), Element(3), final - initial + state[Wc] + state[Wk] + state[Q] - state[OuterH],
+                    Element(2), Element(3), final - initial + state[Wc] + state[Wk] + state[Q] - state[OuterH] - state[DuctHeat],
                     finalMarker - initialMarker + removedMarker - state[OuterTag]);
                 double work = state[Wc] + state[Wk], volume = c.Geometry.DisplacementM3;
                 double shaft = work - LossModels.FrictionMep(c.Friction, peakP, meanSpeed) * volume;

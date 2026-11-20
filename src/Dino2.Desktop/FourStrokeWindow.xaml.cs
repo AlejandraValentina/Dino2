@@ -155,6 +155,7 @@ public partial class FourStrokeWindow : Window
         foreach (var parameter in EngineParameter.All.Where(p => p.Group == "Conductos"))
             fields[parameter.Key].IsEnabled = configuration.Ducts is not null;
         fields["LocalTolerance"].IsEnabled = configuration.Ducts is null;
+        fields["DurationDeg"].IsEnabled = configuration.Thermochemistry?.BurnLaw != BurnLaw.ConditionScaledWiebe;
         void Label(string key,string text)=>((TextBlock)((Label)FindName("Label_"+key)).Content).Text=text;
         Label("Duration",configuration.Thermochemistry?.BurnLaw==BurnLaw.ConditionScaledWiebe?"Duración de referencia [ms]":"Duración prescrita [ms]");
         Label("BurnEfficiency",configuration.Thermochemistry is null?"Fracción de energía liberada [0–1]":"Conversión de combustible [0–1]");
@@ -162,7 +163,7 @@ public partial class FourStrokeWindow : Window
         fields["Lhv"].ToolTip=configuration.Thermochemistry is null?"PCI prescrito del modelo de referencia":"PCI del iso-octano gaseoso derivado de entalpías NASA; no se añade de nuevo al balance total.";
         evidenceEditor.Populate(configuration.Thermochemistry);
         ModelNotice.Text = configuration.Ducts is not null
-            ? "Conductos según Euler 1D, con transición lineal de diámetro. Paredes adiabáticas y sin rozamiento. Simulación numérica sin validación experimental."
+            ? "Conductos cuasi-1D. Verificá contorno y pared en Conductos. El borde adaptado histórico queda como referencia. Validación experimental pendiente."
             : configuration.Thermochemistry is null
             ? "Referencia v1: pseudoaire con cp(T), Wiebe prescrita, depósitos sin ondas y pérdidas empíricas. Sin validación experimental de motor."
             : configuration.Thermochemistry.UsesEquilibrium
@@ -183,6 +184,7 @@ public partial class FourStrokeWindow : Window
             if ((parameter.Group == "Conductos" && config.Ducts is null) ||
                 (parameter.Group == "Comb. v2" && config.Thermochemistry?.BurnLaw != BurnLaw.ConditionScaledWiebe) ||
                 (parameter.Key == "LocalTolerance" && config.Ducts is not null) ||
+                (parameter.Key == "DurationDeg" && config.Thermochemistry?.BurnLaw == BurnLaw.ConditionScaledWiebe) ||
                 (parameter.Key == "Lhv" && config.Thermochemistry is not null)) continue;
             if (!double.TryParse(input.Text.Trim().Replace(',', '.'), NumberStyles.Float,
                 CultureInfo.InvariantCulture, out double value) || !double.IsFinite(value))
@@ -193,7 +195,7 @@ public partial class FourStrokeWindow : Window
                 config = parameter.Set(config, value / parameter.Scale);
         }
         if(config.Thermochemistry is not null) config=config with{Thermochemistry=evidenceEditor.Read(config.Thermochemistry)};
-        if(validate) config.Validate();
+        if(validate) config.Validate(false);
         return config;
     }
 
@@ -212,7 +214,7 @@ public partial class FourStrokeWindow : Window
                 OriginalResult = await Task.Run(() => EngineSimulation.Run(original, token, progress), token);
             CurrentResult = await Task.Run(() => EngineSimulation.Run(config, token, progress), token);
             RenderResults();
-            Status.Text = $"{CurrentResult.Points.Count} RPM · {CurrentResult.ElapsedMilliseconds:F0} ms · {CurrentResult.Model}. Sin validación experimental de motor.";
+            Status.Text = $"{CurrentResult.Points.Count}/{config.Speeds.Values().Count()} RPM · {CurrentResult.ElapsedMilliseconds:F0} ms · {CurrentResult.Model}. Ver diagnósticos.";
         }
         catch (OperationCanceledException) { Status.Text = "Simulación cancelada. A se conserva; no se publican resultados parciales."; }
         catch (Exception ex) when (Expected(ex)) { Status.Text = "No se completó la simulación: " + ex.Message; }
@@ -234,7 +236,7 @@ public partial class FourStrokeWindow : Window
         {
             var config=ReadConfiguration(false);
             bool ducts = PhysicsModel.SelectedIndex >= 5;
-            var path = config.Ducts ?? GasPath.Example;
+            var path = config.Ducts ?? GasPath.RecoveryExample;
             config = config with { Ducts = ducts ? path with
             {
                 Scheme = PhysicsModel.SelectedIndex >= 7 ? DuctScheme.Muscl : DuctScheme.FirstOrder
@@ -250,6 +252,7 @@ public partial class FourStrokeWindow : Window
                     HeatTransferEvidence=settings.HeatTransferEvidence with{Status=EvidenceStatus.Estimated},
                     FrictionEvidence=settings.FrictionEvidence with{Status=EvidenceStatus.Estimated}};
                 config=config with{Thermochemistry=settings,Combustion=config.Combustion with{
+                    DurationDeg=settings.BurnLaw == BurnLaw.ConditionScaledWiebe ? null : config.Combustion.DurationDeg,
                     LowerHeatingValueJPerKg=SpeciesThermodynamics.LowerHeatingValue,
                     AirFuelRatio=wasLegacy?SpeciesThermodynamics.StoichiometricAfr:config.Combustion.AirFuelRatio}};
             }
@@ -288,8 +291,11 @@ public partial class FourStrokeWindow : Window
         void Explicit(FourStrokeResult? r, string name, Brush color)
         {
             if (r is null) return;
-            lines.Add(new(name + " indicada", r.Points.Select(p => new Point(p.Rpm, power ? p.IndicatedPowerW / 1000 : p.IndicatedTorqueNm)).ToArray(), color, true));
-            lines.Add(new(name + " cigüeñal", r.Points.Select(p => new Point(p.Rpm, power ? p.BrakePowerW / 1000 : p.BrakeTorqueNm)).ToArray(), color));
+            var points = r.Points.ToDictionary(p => p.Rpm);
+            Point[] Plot(Func<FourStrokePoint, double> ordinate) => r.Configuration.Speeds.Values().Select(rpm =>
+                new Point(rpm, points.TryGetValue(rpm, out var p) ? ordinate(p) : double.NaN)).ToArray();
+            lines.Add(new(name + " indicada", Plot(p => power ? p.IndicatedPowerW / 1000 : p.IndicatedTorqueNm), color, true));
+            lines.Add(new(name + " cigüeñal", Plot(p => power ? p.BrakePowerW / 1000 : p.BrakeTorqueNm), color));
         }
         Explicit(OriginalResult, "A", Brushes.SteelBlue);
         Explicit(CurrentResult, original is null ? "Actual" : "B", Brushes.DarkOrange);
@@ -303,19 +309,37 @@ public partial class FourStrokeWindow : Window
         KeepOriginalButton.IsEnabled = ExportButton.IsEnabled = CurrentResult is not null && !busy;
         var r = CurrentResult;
         Summary.Text = r is null ? (OriginalResult is null ? "Sin simulación para la configuración actual." : "Original A conservado. La configuración actual requiere simulación.") :
-            FormattableString.Invariant($"{r.Configuration.Geometry.DisplacementM3 * 1e6:F2} cm³ · {r.Points.Count} RPM · {r.ElapsedMilliseconds:F0} ms · Tmáx {r.Points.Max(p => p.PeakTemperatureK):F0} K.");
+            FormattableString.Invariant($"{r.Configuration.Geometry.DisplacementM3 * 1e6:F2} cm³ · {r.Points.Count} RPM · {r.ElapsedMilliseconds:F0} ms") +
+            (r.Points.Count == 0 ? "." : $" · Tmáx {r.Points.Max(p => p.PeakTemperatureK):F0} K.");
         if(r?.Configuration.Thermochemistry is not null)
             Summary.Text+=$" Extrapolación de combustión: {r.Points.Count(p=>p.Chemistry!.FlameCorrelationExtrapolated)}/{r.Points.Count} RPM. Ver diagnósticos.";
-        ResultGrid.ItemsSource = r?.Points.Select(p => new { p.Rpm, Indicada_neta_kW = p.IndicatedPowerW / 1000,
-            Cigüeñal_kW = p.BrakePowerW / 1000, Par_indicado_Nm = p.IndicatedTorqueNm, Par_cigüeñal_Nm = p.BrakeTorqueNm,
-            BMEP_bar = p.BmepPa / 1e5, Eficiencia_volumétrica = p.VolumetricEfficiency,
-            Eficiencia_indicada = p.IndicatedEfficiency, Eficiencia_cigüeñal = p.BrakeEfficiency, Ciclos = p.Cycles }).ToArray();
+        ResultGrid.ItemsSource = r?.Configuration.Speeds.Values().Select(rpm =>
+        {
+            var p = r.Points.SingleOrDefault(x => x.Rpm == rpm);
+            var failure = r.Failures.SingleOrDefault(x => x.Rpm == rpm);
+            string status = failure?.Kind switch
+            {
+                FourStrokeFailureKind.OutsideDomain => "Fuera de dominio",
+                FourStrokeFailureKind.NonConverged => "Sin periodicidad",
+                FourStrokeFailureKind.NumericalFailure => "Fallo numérico",
+                _ => "Periódico"
+            };
+            return new { Rpm = rpm, Estado = status, Indicada_neta_kW = p?.IndicatedPowerW / 1000,
+                Cigüeñal_kW = p?.BrakePowerW / 1000, Par_indicado_Nm = p?.IndicatedTorqueNm,
+                Par_cigüeñal_Nm = p?.BrakeTorqueNm, BMEP_bar = p?.BmepPa / 1e5, Eficiencia_volumétrica = p?.VolumetricEfficiency,
+                Eficiencia_indicada = p?.IndicatedEfficiency, Eficiencia_cigüeñal = p?.BrakeEfficiency, Ciclos = p?.Cycles,
+                Combustión_extrapolada = p?.Chemistry?.FlameCorrelationExtrapolated, Diagnóstico = failure?.Message };
+        }).ToArray();
         var comparison = OriginalResult is not null && r is not null ? EngineComparison.Compare(OriginalResult, r) : null;
         ComparisonGrid.ItemsSource = comparison?.Select(p => new { p.Rpm, A_kW = p.OriginalBrakePowerW / 1000, B_kW = p.VariantBrakePowerW / 1000,
             Delta_kW = p.PowerDifferenceW / 1000, A_Nm = p.OriginalBrakeTorqueNm, B_Nm = p.VariantBrakeTorqueNm, Delta_Nm = p.TorqueDifferenceNm, Delta_VE = p.FillingDifference }).ToArray();
         ComparisonNotice.Text = comparison is null ? "Conserve A, modifique un parámetro y vuelva a simular. El original no cambia al editar." :
             $"B − A: {comparison.Count} RPM comunes exactas; sin interpolación. Se comparan estimaciones al cigüeñal. " +
             (comparison is not null && OriginalResult!.Model!=r!.Model?"A/B usan modelos diferentes: no atribuya la diferencia a una modificación mecánica.":"Positivo = aumenta, negativo = disminuye en el modelo; no demuestra una ganancia experimental.");
+        static bool Historical(GasPath? path) => path is not null && (path.IntakeBoundary == ExteriorBoundary.HistoricalRiemann ||
+            path.ExhaustBoundary == ExteriorBoundary.HistoricalRiemann);
+        if (comparison is not null && (Historical(OriginalResult?.Configuration.Ducts) || Historical(r?.Configuration.Ducts)))
+            ComparisonNotice.Text += " Referencia histórica con borde adaptado. Comparación de sintonía restringida.";
         bool ducts = OriginalResult?.Configuration.Ducts is not null && r?.Configuration.Ducts is not null;
         ResolutionPanel.Visibility = ducts ? Visibility.Visible : Visibility.Collapsed;
         if (ducts)
@@ -344,7 +368,7 @@ public partial class FourStrokeWindow : Window
                 TraceRpm.SelectedItem = inspected is int rpm && traceSpeeds.Contains(rpm) ? rpm :
                     traceSpeeds.Contains(3000) ? 3000 : traceSpeeds[0];
         }
-        if (r is not null) RenderTrace();
+        if (r?.Points.Count > 0) RenderTrace();
         else { PressureChart.SetLines([]); PvChart.SetLines([]); TemperatureChart.SetLines([]); CycleDiagnostics.Text = ""; }
         if (r?.Configuration.Ducts is null)
         {
@@ -352,6 +376,12 @@ public partial class FourStrokeWindow : Window
             PortCaption.Text = "Seleccione un modelo 1D y simule para ver la presión de los conductos.";
         }
         Diagnostics.Text = BuildDiagnostics(r);
+        if (r is not null)
+        {
+            Diagnostics.Text = Dino2.Core.ResultProvenance.Describe(r.Provenance) + "\n" + Diagnostics.Text;
+            if (r.Failures.Count > 0)
+                Diagnostics.Text = string.Join("\n", r.Failures.Select(f => $"{f.Rpm} RPM · {f.Kind} · {f.Message}")) + "\n\n" + Diagnostics.Text;
+        }
     }
 
     private static string BuildDiagnostics(FourStrokeResult? r)
@@ -504,8 +534,8 @@ public partial class FourStrokeWindow : Window
     {
         if (CurrentResult is null) return;
         FourStrokeFiles.Export(path, CurrentResult);
-        int rpm = TraceRpm.SelectedItem is int selected ? selected : CurrentResult.Points[0].Rpm;
-        FourStrokeFiles.ExportTrace(Path.ChangeExtension(path, ".trace.csv"), CurrentResult, rpm);
+        if (CurrentResult.Points.FirstOrDefault() is { } first)
+            FourStrokeFiles.ExportTrace(Path.ChangeExtension(path, ".trace.csv"), CurrentResult, TraceRpm.SelectedItem is int selected ? selected : first.Rpm);
         if (OriginalResult is not null)
         {
             FourStrokeFiles.Export(Path.ChangeExtension(path, ".original.csv"), OriginalResult);

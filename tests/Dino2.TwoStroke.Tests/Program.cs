@@ -201,6 +201,19 @@ try
     var reloaded = TwoStrokeFiles.Load(path);
     Check(reloaded.Current == variant && reloaded.Original == config &&
         reloaded.OriginalResult!.Runs[0].Point!.Trace.SequenceEqual(pointA.Trace), "project round trip");
+    var edited = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+    var editedPoint = edited["project"]!["currentResult"]!["runs"]![0]!["point"]!;
+    editedPoint["peakPressurePa"] = pointB.PeakPressurePa + 100;
+    string editedFile = Path.Combine(temporary, "tamper.json");
+    File.WriteAllText(editedFile, edited.ToJsonString());
+    try { TwoStrokeFiles.Load(editedFile); throw new Exception("Digest alterado aceptado."); }
+    catch (InvalidDataException ex) when (ex.Message.Contains("SHA-256", StringComparison.Ordinal)) { }
+    edited["format"] = "dino2-two-stroke-project-v1";
+    edited.AsObject().Remove("integrity");
+    editedPoint["shaftPowerW"] = pointB.IndicatedPowerW * 32;
+    File.WriteAllText(editedFile, edited.ToJsonString());
+    try { TwoStrokeFiles.Load(editedFile); throw new Exception("Potencia incoherente aceptada."); }
+    catch (InvalidDataException ex) when (ex.Message.Contains("deben corresponder", StringComparison.Ordinal)) { }
     TwoStrokeFiles.ExportComparison(Path.Combine(temporary, "compare.csv"), first, second);
     TwoStrokeFiles.Export(Path.Combine(temporary, "curve.csv"), first);
     TwoStrokeFiles.ExportTrace(Path.Combine(temporary, "trace.csv"), pointA);
@@ -210,6 +223,7 @@ try
     TwoStrokeFiles.Save(partial, new(invalidOperatingPoint, null, partialDomain));
     var replay = TwoStrokeFiles.Load(partial).CurrentResult!;
     Check(replay.NumericalRevision == TwoStrokeConfiguration.NumericalRevision &&
+        replay.Provenance is { ResultSchema: 1 } stamp && stamp.Build.Length > 0 &&
         replay.Runs[0].Convergence == partialDomain.Runs[0].Convergence &&
         replay.Runs[1].Status == TwoStrokeRunStatus.OutsideDomain, "partial RPM persistence and numerical revision");
     string partialCsv = Path.Combine(temporary, "partial.csv");

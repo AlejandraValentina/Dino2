@@ -8,7 +8,11 @@ public sealed record Reservoir(double PressurePa, double TemperatureK);
 public sealed record PoppetValve(double DiameterM, double MaximumLiftM, int Count,
     double DischargeCoefficient, double OpensDeg, double ClosesDeg);
 public sealed record Combustion(double SparkAdvanceDeg, double IgnitionDelayS, double DurationS,
-    double AirFuelRatio, double LowerHeatingValueJPerKg, double HeatReleaseEfficiency, double WiebeExponent);
+    double AirFuelRatio, double LowerHeatingValueJPerKg, double HeatReleaseEfficiency, double WiebeExponent)
+{
+    public double? DurationDeg { get; init; }
+    internal double CrankDuration(int rpm) => DurationDeg ?? 6 * rpm * DurationS;
+}
 public sealed record ThermalBoundary(double WallTemperatureK, double HohenbergMultiplier);
 public sealed record MechanicalLosses(double ConstantPa, double PeakPressureFactor,
     double SpeedPaPerMPerS, double SpeedSquaredPaPerM2PerS2);
@@ -49,7 +53,7 @@ public sealed record FourStrokeConfiguration(CylinderGeometry Geometry,
         // Literature transfer, NOT calibrated to this synthetic cylinder. See model documentation.
         new(50000, .006, 9000, 45), new(1000, 6000, 500), SolverSettings.Default);
 
-    public void Validate()
+    public void Validate(bool operatingPoints = true)
     {
         if (Geometry is null || Intake is null || Exhaust is null || IntakeValve is null || ExhaustValve is null ||
             Combustion is null || Thermal is null || Friction is null || Speeds is null || Solver is null)
@@ -77,6 +81,12 @@ public sealed record FourStrokeConfiguration(CylinderGeometry Geometry,
         Range(Combustion.SparkAdvanceDeg, -10, 60, "Avance [° antes del PMS de combustión]");
         Range(Combustion.IgnitionDelayS, 0, .003, "Retraso de ignición [s]");
         Range(Combustion.DurationS, .0003, .006, "Duración de combustión [s]");
+        if (Combustion.DurationDeg is double duration)
+        {
+            Range(duration, 5, 180, "Duración de combustión [°]");
+            if (Thermochemistry?.BurnLaw == Core.Thermochemistry.BurnLaw.ConditionScaledWiebe)
+                throw new ArgumentException("La duración en grados requiere la ley Wiebe prescrita.");
+        }
         Range(Combustion.AirFuelRatio, 12, 25, "Relación aire/combustible");
         Range(Combustion.LowerHeatingValueJPerKg, 0, 50e6, "PCI [J/kg]");
         Range(Combustion.HeatReleaseEfficiency, 0, 1, "Fracción de energía liberada");
@@ -99,13 +109,19 @@ public sealed record FourStrokeConfiguration(CylinderGeometry Geometry,
             if (Thermochemistry?.UsesEquilibrium != true)
                 throw new ArgumentException("Los conductos 1D se acoplan al cilindro con equilibrio UV.");
         }
-        foreach (int rpm in Speeds.Values())
-        {
-            var start = 360 - Combustion.SparkAdvanceDeg + 6 * rpm * Combustion.IgnitionDelayS;
-            if (start <= IntakeValve.ClosesDeg || start >= ExhaustValve.OpensDeg ||
-                ((Thermochemistry is null || Thermochemistry.BurnLaw == Core.Thermochemistry.BurnLaw.PrescribedWiebe) && start + 6 * rpm * Combustion.DurationS >= ExhaustValve.OpensDeg))
-                throw new ArgumentException($"A {rpm} RPM la combustión sale del intervalo con válvulas cerradas. Revise avance, duración y distribución.");
-        }
+        if (operatingPoints)
+            foreach (int rpm in Speeds.Values())
+                if (OperatingPointError(rpm) is { } error) throw new ArgumentException(error);
+    }
+
+    internal string? OperatingPointError(int rpm)
+    {
+        var start = 360 - Combustion.SparkAdvanceDeg + 6 * rpm * Combustion.IgnitionDelayS;
+        bool prescribed = Thermochemistry?.BurnLaw != Core.Thermochemistry.BurnLaw.ConditionScaledWiebe;
+        return start <= IntakeValve.ClosesDeg || start >= ExhaustValve.OpensDeg ||
+            (prescribed && start + Combustion.CrankDuration(rpm) >= ExhaustValve.OpensDeg)
+            ? $"A {rpm} RPM la combustión sale del intervalo con válvulas cerradas. Revisá avance, duración y distribución."
+            : null;
     }
 
     private static void Range(double value, double minimum, double maximum, string label)

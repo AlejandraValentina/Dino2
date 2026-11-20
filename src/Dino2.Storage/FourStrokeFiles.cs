@@ -23,15 +23,18 @@ public static class FourStrokeFiles
     private static readonly JsonSerializerOptions FlatOptions = new(Options) { WriteIndented = false };
     private static readonly JsonSerializerOptions DiagnosticOptions = new(FlatOptions) { IgnoreReadOnlyProperties = false };
     private static string ProjectModel(FourStrokeProject project) =>
-        project.Current.Ducts?.Scheme == DuctScheme.Muscl || project.Original?.Ducts?.Scheme == DuctScheme.Muscl ? GasPath.MusclModelId :
+        new[] { project.Current, project.Original }.FirstOrDefault(c =>
+            c?.Ducts is { } d && (d.IntakeBoundary != ExteriorBoundary.HistoricalRiemann ||
+                d.ExhaustBoundary != ExteriorBoundary.HistoricalRiemann || d.Intake.Wall is not null || d.Exhaust.Wall is not null))?.ModelIdentifier ??
+        (project.Current.Ducts?.Scheme == DuctScheme.Muscl || project.Original?.Ducts?.Scheme == DuctScheme.Muscl ? GasPath.MusclModelId :
         project.Current.Ducts is not null || project.Original?.Ducts is not null ? GasPath.ModelId :
         project.Current.Thermochemistry?.UsesEquilibrium == true || project.Original?.Thermochemistry?.UsesEquilibrium == true
             ? ThermochemicalOptions.EquilibriumModelId
-            : project.Current.Thermochemistry?.Identifier ?? project.Original?.Thermochemistry?.Identifier ?? FourStrokeResult.ModelId;
+            : project.Current.Thermochemistry?.Identifier ?? project.Original?.Thermochemistry?.Identifier ?? FourStrokeResult.ModelId);
 
     public static void Save(string path, FourStrokeProject project)
     {
-        project.Current.Validate(); project.Original?.Validate();
+        project.Current.Validate(false); project.Original?.Validate(false);
         string destination = Path.GetFullPath(path), temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
@@ -53,7 +56,7 @@ public static class FourStrokeFiles
         if (document.SchemaVersion != 1 || document.Project?.Current is null)
             throw new InvalidDataException("Modelo, versión o proyecto 4T incompatible.");
         if (document.Model != ProjectModel(document.Project)) throw new InvalidDataException("El modelo declarado no coincide con las opciones termoquímicas.");
-        document.Project.Current.Validate(); document.Project.Original?.Validate();
+        document.Project.Current.Validate(false); document.Project.Original?.Validate(false);
         return document.Project;
     }
     private static string Number(double value) => double.IsFinite(value) ? value.ToString("R", CultureInfo.InvariantCulture) : "NA";
@@ -62,6 +65,7 @@ public static class FourStrokeFiles
         string expected=result.Configuration.ModelIdentifier;
         if(result.Model!=expected)throw new InvalidDataException("El resultado y la configuración declaran modelos diferentes.");
         text.AppendLine("# model=" + result.Model);
+        text.AppendLine("# provenance=" + JsonSerializer.Serialize(result.Provenance, FlatOptions));
         text.AppendLine(result.Configuration.Thermochemistry is null
             ? "# evidence=model prediction; pseudo-air 0D; prescribed Wiebe; Hohenberg; empirical friction requires calibration; no experimental validation; input measurements not certified"
             : result.Configuration.Thermochemistry.UsesEquilibrium
@@ -70,7 +74,7 @@ public static class FourStrokeFiles
         if (result.Configuration.Thermochemistry is not null)
             text.AppendLine("# chemical_energy=internal_energy_J and flow_enthalpy_J include formation energies; heat_released_J is diagnostic ONLY, never add it to the total-energy balance");
         if (result.Configuration.Ducts is not null)
-            text.AppendLine("# ducts=quasi-1D Euler; pressure and mass flow are resolved at valve ends; inviscid adiabatic pipes; no experimental validation");
+            text.AppendLine("# ducts=quasi-1D with configurable distributed wall sources and exterior boundary; pressure and mass flow resolved at valve ends");
         text.AppendLine("# configuration_SI=" + JsonSerializer.Serialize(result.Configuration, FlatOptions));
         text.AppendLine("# units=SI; angle in degrees; NA=undefined (e.g. efficiency with zero fuel energy)");
     }
@@ -88,6 +92,8 @@ public static class FourStrokeFiles
             text.AppendLine("# chemistry_diagnostics=" + JsonSerializer.Serialize(new { p.Rpm, p.Chemistry }, DiagnosticOptions));
         foreach (var p in result.Points.Where(p => p.GasDynamics is not null))
             text.AppendLine("# duct_diagnostics=" + JsonSerializer.Serialize(new { p.Rpm, p.GasDynamics }, DiagnosticOptions));
+        foreach (var failure in result.Failures)
+            text.AppendLine("# failed_rpm=" + JsonSerializer.Serialize(failure, FlatOptions));
         File.WriteAllText(path, text.ToString(), new UTF8Encoding(false));
     }
     public static void ExportTrace(string path, FourStrokeResult result, int rpm)

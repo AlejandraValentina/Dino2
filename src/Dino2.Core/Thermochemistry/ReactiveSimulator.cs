@@ -15,20 +15,15 @@ public static class ReactiveSimulator
 {
     public static FourStrokeResult Run(FourStrokeConfiguration c, CancellationToken cancellation = default, IProgress<string>? progress = null)
     {
-        c.Validate();
+        c.Validate(false);
         if (c.Thermochemistry is null) throw new ArgumentException("El modelo reactivo requiere opciones explícitas.");
-        var clock = Stopwatch.StartNew(); var points = new List<FourStrokePoint>();
-        foreach (int rpm in c.Speeds.Values())
-        {
-            progress?.Report($"Mezcla reactiva: {rpm} RPM…");
-            points.Add(Simulate(c, rpm, cancellation));
-        }
-        return new(c, points.AsReadOnly(), clock.Elapsed.TotalMilliseconds) { Model = c.ModelIdentifier };
+        return FourStrokeSweep.Execute(c, rpm => Simulate(c, rpm, cancellation), cancellation, progress);
     }
     public static FourStrokePoint Simulate(FourStrokeConfiguration c, int rpm, CancellationToken cancellation = default)
     {
-        c.Validate();
+        c.Validate(false);
         if (c.Thermochemistry is null || !c.Speeds.Values().Contains(rpm)) throw new ArgumentException("Configuración/RPM reactiva inválida.");
+        if (c.OperatingPointError(rpm) is { } errorMessage) throw new ModelDomainException(errorMessage);
         var clock = Stopwatch.StartNew(); var eq = new ReactiveCylinder(c, rpm);
         OdeFunction derivative = eq.Evaluate;
         int n = eq.Dimension;
@@ -69,6 +64,7 @@ public static class ReactiveSimulator
                     step = Math.Min(step, boundary - angle);
                     eq.PumpingInterval = angle < 180 - 1e-9 || angle >= 540 - 1e-9;
                     double error = double.PositiveInfinity;
+                    string? rejectedState = null;
                     try
                     {
                         if (eq.Ducts is not null)
@@ -102,7 +98,7 @@ public static class ReactiveSimulator
                             }
                         }
                     }
-                    catch (NumericalStateException) { }
+                    catch (NumericalStateException exception) { rejectedState = exception.Message; }
                     if (error <= 1)
                     {
                         (y, refined) = (refined, y); angle += step; accepted++;
@@ -115,7 +111,7 @@ public static class ReactiveSimulator
                     else rejected++;
                     step = Math.Min(c.Solver.MaximumStepDeg, step * (error == 0 ? 2 : Math.Clamp(.9 * Math.Pow(1 / error, .2), .2, 2)));
                     if (step < 1e-7 && boundary - angle > 1e-8)
-                        throw new ArithmeticException($"{rpm} RPM a {angle:F5}°: estado reactivo irresoluble; no se recortan especies ni temperatura.");
+                        throw new ArithmeticException($"{rpm} RPM a {angle:F5}°: estado reactivo irresoluble. {rejectedState}");
                 }
                 angle = boundary;
                 if (Math.Abs(boundary - c.IntakeValve.ClosesDeg) < 1e-8) freshAirRetained = y[11];

@@ -14,6 +14,22 @@ if (args.Length is < 2 or > 4)
 }
 try
 {
+    if (args[0] == "--example-recovery-2t" && args.Length == 2)
+    {
+        TwoStrokeFiles.Save(args[1], new(TwoStrokeConfiguration.RecoveryExample, null));
+        return 0;
+    }
+    if (args[0] == "--example-recovery-4t" && args.Length == 2)
+    {
+        var basis = ThermochemicalOptions.EquilibriumExample;
+        FourStrokeFiles.Save(args[1], new(basis with
+        {
+            Thermochemistry = basis.Thermochemistry! with { BurnLaw = BurnLaw.PrescribedWiebe },
+            Ducts = GasPath.RecoveryExample, Speeds = new(3000, 6000, 1500),
+            Solver = basis.Solver with { PeriodicTolerance = .0001, MaximumCycles = 125 }
+        }, null));
+        return 0;
+    }
     if (args[0] == "--example-multi-2t" && args.Length == 3 && int.TryParse(args[2], out int count2T))
     {
         TwoStrokeFiles.SaveMulti(args[1], new(MultiTwoStrokeConfiguration.Example(count2T)));
@@ -74,7 +90,7 @@ try
         var current = TwoStrokeSimulator.Sweep(project.Current, args.Length == 4);
         TwoStrokeFiles.Export(args[2], current);
         if (args.Length == 4 && current.Runs.FirstOrDefault(r => r.Point is not null)?.Point is { } p)
-            TwoStrokeFiles.ExportTrace(args[3], p);
+            TwoStrokeFiles.ExportTrace(args[3], p, current.Provenance);
         if (project.Original is not null)
         {
             var original = TwoStrokeSimulator.Sweep(project.Original, false);
@@ -107,7 +123,8 @@ try
         var project = FourStrokeFiles.Load(args[1]);
         var simulation = EngineSimulation.Run(project.Current);
         FourStrokeFiles.Export(args[2], simulation);
-        if (args.Length == 4) FourStrokeFiles.ExportTrace(args[3], simulation, simulation.Points[0].Rpm);
+        if (args.Length == 4 && simulation.Points.FirstOrDefault() is { } firstPoint)
+            FourStrokeFiles.ExportTrace(args[3], simulation, firstPoint.Rpm);
         if (project.Original is not null)
         {
             var original = EngineSimulation.Run(project.Original);
@@ -116,7 +133,8 @@ try
         Console.WriteLine($"{simulation.Model}: {simulation.Points.Count} RPM, {simulation.ElapsedMilliseconds:F1} ms. Sin validación experimental.");
         foreach (var p in simulation.Points)
             Console.WriteLine(FormattableString.Invariant($"{p.Rpm}: Pi={p.IndicatedPowerW:F2} W, Pb={p.BrakePowerW:F2} W, Tb={p.BrakeTorqueNm:F4} Nm, VE={p.VolumetricEfficiency:F5}, cycles={p.Cycles}, periodic={p.PeriodicError:E3}"));
-        return 0;
+        foreach (var f in simulation.Failures) Console.WriteLine($"{f.Rpm}: {f.Kind} · {f.Message}");
+        return simulation.Complete ? 0 : 1;
     }
     if (args.Length != 2) throw new ArgumentException("Argumentos inválidos. Use --4t proyecto.json resultados.csv [traza.csv].");
     var result = OttoCycle.Calculate(ConfigurationFile.Load(args[0]));

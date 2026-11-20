@@ -3,7 +3,8 @@ using Dino2.Core.Thermochemistry;
 
 namespace Dino2.Core.TwoStroke;
 
-internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] ghost, GasState reservoir, TwoStrokeProfile? profile)
+internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] ghost, GasState reservoir,
+    ExteriorBoundary boundaryMode, TwoStrokeProfile? profile)
 {
     internal int Size => mesh.Size;
     internal int Cells => mesh.Cells;
@@ -16,17 +17,19 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
     }
 
     internal static TwoStrokeDuct Intake(TwoStrokeConfiguration c, GasEquation gas, double[] fractions, TwoStrokeProfile? profile) =>
-        Create(new(c.IntakeDuct, gas, c.Numerics.Scheme, boundedPassiveTag: true), gas, fractions, c.Intake.PressurePa, c.Intake.TemperatureK, 1, profile);
+        Create(new(c.IntakeDuct, gas, c.Numerics.Scheme, boundedPassiveTag: true), gas, fractions,
+            c.Intake.PressurePa, c.Intake.TemperatureK, 1, c.Numerics.Exterior, profile);
 
     internal static TwoStrokeDuct Exhaust(TwoStrokeConfiguration c, GasEquation gas, TwoStrokeProfile? profile)
-        => Create(ExpansionMesh(c.Expansion, gas, c.Numerics.Scheme), gas, TailMixture(c), c.Tail.PressurePa, c.Tail.TemperatureK, 0, profile);
+        => Create(ExpansionMesh(c.Expansion, gas, c.Numerics.Scheme), gas, TailMixture(c), c.Tail.PressurePa,
+            c.Tail.TemperatureK, 0, c.Numerics.Exterior, profile);
 
     internal static TwoStrokeDuct Primary(TwoStrokeConfiguration c, DuctGeometry primary, GasEquation gas) =>
         Create(new(primary, gas, c.Numerics.Scheme, boundedPassiveTag: true), gas, TailMixture(c),
-            c.Tail.PressurePa, c.Tail.TemperatureK, 0, null);
+            c.Tail.PressurePa, c.Tail.TemperatureK, 0, c.Numerics.Exterior, null);
 
     internal static DuctMesh ExpansionMesh(ExpansionChamber e, GasEquation gas, DuctScheme scheme) =>
-        new(new(e.LengthM, e.StingerDiameterM, e.InletDiameterM, e.Cells), gas,
+        new(new DuctGeometry(e.LengthM, e.StingerDiameterM, e.InletDiameterM, e.Cells) { Wall = e.Wall }, gas,
             scheme, e.DiameterFromTail, e.MeshKnots(), boundedPassiveTag: true);
 
     internal static double[] TailMixture(TwoStrokeConfiguration c)
@@ -36,17 +39,18 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
         return [0, air[1] / fraction, air[2] / fraction, 0, 0, 0, 0];
     }
 
-    private static TwoStrokeDuct Create(DuctMesh mesh, GasEquation gas, double[] fractions, double p, double t, double tag, TwoStrokeProfile? profile)
+    private static TwoStrokeDuct Create(DuctMesh mesh, GasEquation gas, double[] fractions, double p, double t, double tag,
+        ExteriorBoundary boundaryMode, TwoStrokeProfile? profile)
     {
         var ghost = new double[gas.Size];
         var boundary = gas.Encode(ghost, fractions, p, t, 0, tag);
-        return new(mesh, gas, ghost, boundary, profile);
+        return new(mesh, gas, ghost, boundary, boundaryMode, profile);
     }
 
     // Positive flux enters the engine. The single port flux is also the duct right boundary.
     internal double Rates(ReadOnlySpan<double> tube, Span<double> rate, GasState plenum,
         ReadOnlySpan<double> donor, double portArea, Reed? reed, Span<double> outer, Span<double> inner, out double facePressure,
-        DuctBoundary? exterior = null)
+        out double wallHeat, DuctBoundary? exterior = null)
     {
         Span<double> face = stackalloc double[gas.Size];
         long start = profile is null ? 0 : TwoStrokeProfile.Timestamp();
@@ -58,7 +62,10 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
             start = now;
         }
         var left = mesh.BoundaryState(tube, false, face);
-        gas.Flux(exterior?.Values ?? ghost, exterior?.State ?? reservoir, face, left, outer);
+        if (exterior is null)
+            ReservoirBoundary.Flux(gas, boundaryMode, ghost, reservoir, face, left, outer);
+        else
+            gas.Flux(exterior.Values, exterior.State, face, left, outer);
         for (int i = 0; i < outer.Length; i++) outer[i] *= mesh.ReservoirArea;
 
         var right = mesh.BoundaryState(tube, true, face);
@@ -101,7 +108,7 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
             profile.InterfaceFlux += now - start;
             start = now;
         }
-        double dt = mesh.Rates(tube, rate, outer, inner);
+        double dt = mesh.Rates(tube, rate, outer, inner, out _, out wallHeat);
         if (profile is not null) profile.DuctBalance += TwoStrokeProfile.Timestamp() - start;
         return dt;
     }

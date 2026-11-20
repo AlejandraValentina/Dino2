@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Dino2.Core;
 using Dino2.Core.Studies;
 using Dino2.Core.TwoStroke;
 
@@ -11,23 +12,26 @@ public sealed record MultiTwoStrokeProject(MultiTwoStrokeConfiguration Current, 
 
 public static partial class TwoStrokeFiles
 {
-    private const string MultiFormat = "dino2-multicylinder-two-stroke-project-v1";
-    private sealed record MultiDocument(string Format, string Model, MultiTwoStrokeProject Project);
+    private const string LegacyMultiFormat = "dino2-multicylinder-two-stroke-project-v1";
+    private const string MultiFormat = "dino2-multicylinder-two-stroke-project-v2";
+    private sealed record MultiDocument(string Format, string Model, MultiTwoStrokeProject Project, string? Integrity = null);
 
     public static MultiTwoStrokeProject LoadMulti(string path)
     {
         using var stream = File.OpenRead(path);
         var document = JsonSerializer.Deserialize<MultiDocument>(stream, Json);
-        if (document is not { Format: MultiFormat, Model: MultiTwoStrokeConfiguration.ModelId, Project: { } project })
+        if (document is not { Format: MultiFormat or LegacyMultiFormat, Model: MultiTwoStrokeConfiguration.ModelId, Project: { } project })
             throw new InvalidDataException("Proyecto multicilíndrico 2T incompatible.");
         ValidateMulti(project);
+        ProjectIntegrity.Check(project, document.Integrity, document.Format == MultiFormat, IntegrityJson);
         return project;
     }
 
     public static void SaveMulti(string path, MultiTwoStrokeProject project)
     {
         ValidateMulti(project);
-        WriteJson(path, new MultiDocument(MultiFormat, MultiTwoStrokeConfiguration.ModelId, project));
+        WriteJson(path, new MultiDocument(MultiFormat, MultiTwoStrokeConfiguration.ModelId, project,
+            ProjectIntegrity.Digest(project, IntegrityJson)));
     }
 
     private static void ValidateMulti(MultiTwoStrokeProject p)
@@ -68,6 +72,9 @@ public static partial class TwoStrokeFiles
         if (c is null || c != sweep.Configuration || sweep.Runs is null || sweep.Runs.Any(r => r is null) ||
             !c.Cylinder.Speeds.Values().SequenceEqual(sweep.Runs.Select(r => r.Rpm)))
             throw new InvalidDataException("Curva multicilíndrica incompatible con su configuración.");
+        if (sweep.Provenance is { } provenance &&
+            !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Revision + "-network-recovery-v1"))
+            throw new InvalidDataException("La revisión declarada de la curva multicilíndrica no corresponde a su configuración.");
         foreach (var run in sweep.Runs)
         {
             if (!Enum.IsDefined(run.Status) || (run.Point is not null) != (run.Status == TwoStrokeRunStatus.Periodic))
@@ -76,9 +83,16 @@ public static partial class TwoStrokeFiles
             if (p.Rpm != run.Rpm || run.Convergence is null || p.Balance is null || p.Cycle is null ||
                 p.Cylinders is null || p.Cylinders.Count != c.Phases.Count ||
                 p.Cylinders.Where((v, index) => v is null || v.Number != index + 1 || v.PhaseDeg != c.Phases.Values()[index] ||
-                    v.Point is null || v.Point.Rpm != p.Rpm || v.Point.Trace is null || v.Point.Trace.Count != p.Cycle.Count).Any() ||
+                    v.Point is null || v.Point.Rpm != p.Rpm || v.Point.Trace is null || v.Point.Trace.Count != p.Cycle.Count ||
+                    !Consistent(v.Point, c.Cylinder.Geometry.DisplacementM3)).Any() ||
                 (!(allowSummary && p.Cycle.Count == 0) && (p.Cycle.Count is < 2 or > 362 || p.Cycle[0].AngleDeg != 0 || p.Cycle[^1].AngleDeg != 360)))
                 throw new InvalidDataException("Diagnósticos de cilindros o ciclo incompatibles.");
+            double omega = p.Rpm * Math.PI / 30, volume = c.DisplacementM3;
+            if (!Agree(p.Cylinders.Sum(e => e.Point.IndicatedPowerW), p.IndicatedPowerW) ||
+                !Agree(p.Cylinders.Sum(e => e.Point.ShaftPowerW), p.ShaftPowerW) ||
+                !Agree(p.IndicatedTorqueNm * omega, p.IndicatedPowerW) || !Agree(p.ShaftTorqueNm * omega, p.ShaftPowerW) ||
+                !Agree(p.IndicatedPowerW * 60 / p.Rpm / volume, p.ImepPa) || !Agree(p.ShaftPowerW * 60 / p.Rpm / volume, p.BmepPa))
+                throw new InvalidDataException("El rendimiento multicilíndrico no coincide con la suma de los cilindros, el par o el trabajo.");
         }
     }
 
@@ -93,6 +107,7 @@ public static partial class TwoStrokeFiles
     {
         using var csv = File.CreateText(path);
         MultiMetadata(csv, curve.Configuration);
+        CsvProvenance(csv, curve.Provenance, "provenance");
         csv.WriteLine("rpm,status,indicated_power_W,shaft_power_W,indicated_torque_Nm,shaft_torque_Nm,imep_Pa,bmep_Pa,bsfc_g_kWh,cycles,periodic_error,mass_error_kg,energy_error_J,maximum_interface_species_error_kg,maximum_interface_energy_error_J,elapsed_ms,cell_evaluations,detail");
         foreach (var r in curve.Runs)
         {
@@ -106,6 +121,7 @@ public static partial class TwoStrokeFiles
         var p = curve.Runs.Single(r => r.Rpm == rpm).Point ?? throw new ArgumentException("El régimen no tiene ciclo periódico.");
         using var csv = File.CreateText(path);
         MultiMetadata(csv, curve.Configuration);
+        CsvProvenance(csv, curve.Provenance, "provenance");
         csv.WriteLine("rpm,cylinder,phase_deg,angle_from_cylinder1_EVO_deg,p_cylinder_Pa,t_cylinder_K,p_crankcase_Pa,t_crankcase_K,p_intake_port_Pa,p_exhaust_port_Pa,p_intake_junction_Pa,p_exhaust_junction_Pa,p_intake_trunk_Pa,p_exhaust_trunk_Pa,reed_kg_s,transfer_kg_s,exhaust_out_kg_s,fresh_cylinder_kg,mass_cylinder_kg,indicated_gas_torque_Nm");
         foreach (var member in p.Cylinders)
             for (int i = 0; i < p.Cycle.Count; i++)
@@ -120,6 +136,7 @@ public static partial class TwoStrokeFiles
     {
         using var csv = File.CreateText(path);
         MultiMetadata(csv, curve.Configuration);
+        CsvProvenance(csv, curve.Provenance, "provenance");
         csv.WriteLine("rpm,cylinder,phase_deg,indicated_power_W,shaft_power_W,cylinder_work_J,crankcase_work_J,wall_heat_J,delivery_ratio,trapping_efficiency,scavenging_efficiency,charging_efficiency,fresh_delivered_kg,fresh_trapped_kg,fresh_exhaust_out_kg,fresh_exhaust_return_kg,residual_kg,p_peak_Pa,periodic_error");
         foreach (var r in curve.Runs)
             foreach (var member in r.Point?.Cylinders ?? [])
@@ -135,6 +152,8 @@ public static partial class TwoStrokeFiles
         using var csv = File.CreateText(path);
         MultiMetadata(csv, a.Configuration, "A_configuration_SI");
         MultiMetadata(csv, b.Configuration, "B_configuration_SI");
+        CsvProvenance(csv, a.Provenance, "A_provenance");
+        CsvProvenance(csv, b.Provenance, "B_provenance");
         if (check is not null) csv.WriteLine("# contrast=" + JsonSerializer.Serialize(check, new JsonSerializerOptions(Json) { WriteIndented = false }));
         csv.WriteLine("rpm,delta_power_W,delta_torque_Nm,delta_fresh_trapped_kg,verdict,observed_band_Nm");
         foreach (var d in MultiTwoStrokeComparison.Compare(a, b))

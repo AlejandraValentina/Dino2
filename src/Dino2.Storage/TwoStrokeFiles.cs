@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Dino2.Core;
 using Dino2.Core.TwoStroke;
 
 namespace Dino2.Storage;
@@ -10,24 +11,27 @@ public sealed record TwoStrokeProject(TwoStrokeConfiguration Current, TwoStrokeC
 
 public static partial class TwoStrokeFiles
 {
-    private const string Format = "dino2-two-stroke-project-v1";
+    private const string LegacyFormat = "dino2-two-stroke-project-v1";
+    private const string Format = "dino2-two-stroke-project-v2";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
-    private sealed record Document(string Format, string Model, TwoStrokeProject Project);
+    private static readonly JsonSerializerOptions IntegrityJson = new(Json) { WriteIndented = false, IgnoreReadOnlyProperties = true };
+    private sealed record Document(string Format, string Model, TwoStrokeProject Project, string? Integrity = null);
 
     public static TwoStrokeProject Load(string path)
     {
         using var stream = File.OpenRead(path);
         var doc = JsonSerializer.Deserialize<Document>(stream, Json);
-        if (doc?.Format != Format || doc.Model != TwoStrokeConfiguration.ModelId || doc.Project is null)
+        if (doc is null || doc.Format is not (Format or LegacyFormat) || doc.Model != TwoStrokeConfiguration.ModelId || doc.Project is null)
             throw new InvalidDataException("Archivo de proyecto 2T incompatible.");
         Validate(doc.Project);
+        ProjectIntegrity.Check(doc.Project, doc.Integrity, doc.Format == Format, IntegrityJson);
         return doc.Project;
     }
 
     public static void Save(string path, TwoStrokeProject project)
     {
         Validate(project);
-        WriteJson(path, new Document(Format, TwoStrokeConfiguration.ModelId, project));
+        WriteJson(path, new Document(Format, TwoStrokeConfiguration.ModelId, project, ProjectIntegrity.Digest(project, IntegrityJson)));
     }
 
     private static void Validate(TwoStrokeProject project)
@@ -51,9 +55,31 @@ public static partial class TwoStrokeFiles
             sweep.Runs.Any(run => run is null) ||
             !sweep.Runs.Select(r => r.Rpm).SequenceEqual(configuration!.Speeds.Values().Take(sweep.Runs.Count)) ||
             sweep.Runs.Any(run => !Enum.IsDefined(run.Status) || (run.Point is { } point
-                ? point.Rpm != run.Rpm || point.Trace is null || point.Balance is null || run.Status != TwoStrokeRunStatus.Periodic || run.Failure is not null
+                ? point.Rpm != run.Rpm || point.Trace is null || point.Balance is null || run.Status != TwoStrokeRunStatus.Periodic ||
+                  run.Failure is not null || !Consistent(point, configuration.Geometry.DisplacementM3)
                 : run.Status == TwoStrokeRunStatus.Periodic || string.IsNullOrWhiteSpace(run.Failure))))
             throw new InvalidDataException("La curva 2T y su configuración deben corresponder.");
+        if (sweep.Provenance is { } provenance &&
+            !ValidProvenance(provenance, TwoStrokeConfiguration.ModelId, configuration.Revision))
+            throw new InvalidDataException("La revisión declarada de la curva 2T no corresponde a su configuración.");
+    }
+
+    private static bool ValidProvenance(ResultProvenance p, string model, string revision) =>
+        p.PhysicsModel == model && p.NumericalRevision == revision && p.ResultSchema == 1 &&
+        !string.IsNullOrWhiteSpace(p.Build) && p.SourceTree is "clean" or "dirty" or "unknown" && p.CalculatedUtc.Offset == TimeSpan.Zero;
+
+    private static bool Agree(double expected, double actual) => double.IsFinite(actual) && double.IsFinite(expected) &&
+        Math.Abs(expected - actual) <= 1e-8 * Math.Max(1, Math.Max(Math.Abs(expected), Math.Abs(actual)));
+
+    private static bool Consistent(TwoStrokePoint p, double displacement)
+    {
+        double indicatedWork = p.CylinderWorkJ + p.CrankcaseWorkJ;
+        double shaftWork = p.ShaftTorqueNm * 2 * Math.PI;
+        return Agree(indicatedWork * p.Rpm / 60, p.IndicatedPowerW) && Agree(shaftWork * p.Rpm / 60, p.ShaftPowerW) &&
+            Agree(indicatedWork / displacement, p.ImepPa) && Agree(shaftWork / displacement, p.BmepPa) &&
+            (p.ShaftPowerW <= p.IndicatedPowerW || Agree(p.ShaftPowerW, p.IndicatedPowerW)) &&
+            p.FreshTrappedKg >= -1e-12 && p.ResidualMassKg >= -1e-12 && Agree(p.TrappedCompositionKg.Sum, p.FreshTrappedKg + p.ResidualMassKg) &&
+            Agree(p.ResidualCompositionKg.Sum, p.ResidualMassKg);
     }
 
     private static void WriteJson<T>(string path, T value)
@@ -84,14 +110,21 @@ public static partial class TwoStrokeFiles
             var residual = p.ResidualCompositionKg;
             csv.WriteLine(FormattableString.Invariant($"{sweep.ModelId},{p.Rpm},periodic,,{p.IndicatedPowerW:R},{p.ShaftPowerW:R},{p.ShaftTorqueNm:R},{p.ImepPa:R},{p.BmepPa:R},{p.BsfcGPerKwh:R},{p.DeliveryRatio:R},{p.TrappingEfficiency:R},{p.ScavengingEfficiency:R},{p.ChargingEfficiency:R},{p.FreshDeliveredKg:R},{p.FreshTransferReturnKg:R},{p.FreshTrappedKg:R},{p.FreshExhaustOutKg:R},{p.FreshExhaustReturnKg:R},{p.ResidualMassKg:R},{p.PeakPressurePa:R},{p.PeakTemperatureK:R},{p.Cycles},{p.Steps},{p.PeriodicError:R},{p.Balance.MassKg:R},{p.Balance.EnergyJ:R},{p.Balance.FreshMarkerKg:R},{p.TotalAcceptedSteps},{p.TotalRejectedSteps},{p.FuelMassKg:R},{p.FuelBurnedKg:R},{p.CylinderWorkJ:R},{p.CrankcaseWorkJ:R},{p.WallHeatJ:R},{residual.FuelKg:R},{residual.OxygenKg:R},{residual.NitrogenKg:R},{residual.CarbonDioxideKg:R},{residual.WaterKg:R},{residual.CarbonMonoxideKg:R},{residual.HydrogenKg:R},{Quote(sweep.NumericalRevision ?? "stage6")},{p.NetFreshExhaustKg:R},{p.TrappingPerTransferDelivery:R},{p.FreshAccountingResidualKg:R},{snapshot}"));
         }
+        CsvProvenance(csv, sweep.Provenance, "provenance");
     }
 
-    public static void ExportTrace(string path, TwoStrokePoint point)
+    public static void ExportTrace(string path, TwoStrokePoint point, ResultProvenance? provenance = null)
     {
         using var csv = File.CreateText(path);
         csv.WriteLine("rpm,angle_from_tdc_deg,p_cylinder_pa,t_cylinder_k,p_crankcase_pa,t_crankcase_k,reed_kg_s,transfer_kg_s,exhaust_out_kg_s,v_cylinder_m3,v_crankcase_m3,fresh_cylinder_kg,total_cylinder_kg,reed_face_pressure_pa,exhaust_face_pressure_pa");
         foreach (var s in point.Trace)
             csv.WriteLine(FormattableString.Invariant($"{point.Rpm},{s.AngleDeg:R},{s.CylinderPressurePa:R},{s.CylinderTemperatureK:R},{s.CrankcasePressurePa:R},{s.CrankcaseTemperatureK:R},{s.ReedKgPerS:R},{s.TransferKgPerS:R},{s.ExhaustOutKgPerS:R},{s.CylinderVolumeM3:R},{s.CrankcaseVolumeM3:R},{s.FreshCylinderKg:R},{s.CylinderMassKg:R},{s.IntakeValvePressurePa:R},{s.ExhaustPortPressurePa:R}"));
+        CsvProvenance(csv, provenance, "provenance");
+    }
+
+    private static void CsvProvenance(TextWriter writer, ResultProvenance? provenance, string label)
+    {
+        if (provenance is not null) writer.WriteLine($"# {label}=" + JsonSerializer.Serialize(provenance, IntegrityJson));
     }
 
     public static void ExportComparison(string path, TwoStrokeSweep a, TwoStrokeSweep b)

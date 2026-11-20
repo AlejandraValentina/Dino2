@@ -7,22 +7,25 @@ namespace Dino2.Storage;
 
 public static partial class TwoStrokeFiles
 {
-    private const string StudyFormat = "dino2-two-stroke-study-v1";
-    private sealed record StudyDocument(string Format, string Model, TwoStrokeStudyRun Run);
+    private const string HistoricalStudyFormat = "dino2-two-stroke-study-v1";
+    private const string StudyFormat = "dino2-two-stroke-study-v2";
+    private sealed record StudyDocument(string Format, string Model, TwoStrokeStudyRun Run, string? Integrity = null);
 
     public static void SaveStudy(string path, TwoStrokeStudyRun run)
     {
         ValidateStudy(run);
-        WriteJson(path, new StudyDocument(StudyFormat, TwoStrokeConfiguration.ModelId, run));
+        WriteJson(path, new StudyDocument(StudyFormat, TwoStrokeConfiguration.ModelId, run, ProjectIntegrity.Digest(run, IntegrityJson)));
     }
 
     public static TwoStrokeStudyRun LoadStudy(string path)
     {
         using var stream = File.OpenRead(path);
         var document = JsonSerializer.Deserialize<StudyDocument>(stream, Json);
-        if (document?.Format != StudyFormat || document.Model != TwoStrokeConfiguration.ModelId || document.Run is null)
+        if (document is null || document.Format is not (StudyFormat or HistoricalStudyFormat) ||
+            document.Model != TwoStrokeConfiguration.ModelId || document.Run is null)
             throw new InvalidDataException("Archivo de estudio 2T incompatible.");
         ValidateStudy(document.Run);
+        ProjectIntegrity.Check(document.Run, document.Integrity, document.Format == StudyFormat, IntegrityJson);
         return document.Run;
     }
 

@@ -33,6 +33,7 @@ public sealed record Reed(double ThroatM2, double PerimeterM, double LimitM, dou
 public sealed record ExpansionChamber(double InletDiameterM, double HeaderM, double DiffuserM, double BellyDiameterM,
     double BellyM, double ConeM, double StingerDiameterM, double StingerM, int Cells)
 {
+    public DuctWall? Wall { get; init; }
     public double LengthM => HeaderM + DiffuserM + BellyM + ConeM + StingerM;
     internal double[] MeshKnots() => [0, StingerM, StingerM + ConeM, StingerM + ConeM + BellyM, LengthM - HeaderM, LengthM];
     public double DiameterFromTail(double x)
@@ -57,9 +58,16 @@ public static class TwoStrokeGeometry
 }
 
 public sealed record TwoStrokeCombustion(double AdvanceDeg, double DelayS, double DurationS,
-    double AirFuelRatio, double BurnFraction, double WiebeExponent, bool ProductEquilibrium);
+    double AirFuelRatio, double BurnFraction, double WiebeExponent, bool ProductEquilibrium)
+{
+    public double? DurationDeg { get; init; }
+    internal double CrankDuration(int rpm) => DurationDeg ?? 6 * rpm * DurationS;
+}
 public sealed record TwoStrokeNumerics(double MaximumStepDeg, double Courant, double PeriodicTolerance,
-    int MaximumCycles, DuctScheme Scheme);
+    int MaximumCycles, DuctScheme Scheme)
+{
+    public ExteriorBoundary Exterior { get; init; }
+}
 
 public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double CrankcaseMinimumM3,
     Reservoir Intake, Reservoir Tail, Reed Reed, PistonPort Transfer, PistonPort Exhaust,
@@ -69,6 +77,10 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
 {
     public const string ModelId = "two-stroke-reed-expansion-isooctane-v1";
     public const string NumericalRevision = "two-stroke-ssprk2-passive-limiter-v2";
+    public string Revision => NumericalRevision +
+        (Numerics.Exterior == ExteriorBoundary.PressureReservoir ? "-pressure-boundary" : "") +
+        (IntakeDuct.Wall is not null || Expansion.Wall is not null ? "-wall" : "") +
+        (Combustion.DurationDeg.HasValue ? "-wiebe-angle" : "");
     public double TrappedCompressionRatio =>
         SliderCrank.At(Geometry, 360 - Exhaust.Opening(Geometry)).VolumeM3 / TwoStrokeGeometry.Clearance(Geometry);
     public double PrimaryCompressionRatio => 1 + Geometry.DisplacementM3 / CrankcaseMinimumM3;
@@ -80,6 +92,15 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
         new(.035, .17, .27, .085, .13, .20, .018, .13, 32), 1,
         new(19, .00016, .0011, SpeciesThermodynamics.StoichiometricAfr, .96, 2, true),
         new(440, 1), new(42000, .004, 4500, 45), new(4000, 6000, 1000), new(.65, .44, 5e-5, 160, DuctScheme.Muscl));
+
+    public static TwoStrokeConfiguration RecoveryExample
+    {
+        get
+        {
+            var example = Example;
+            return example with { Numerics = example.Numerics with { Exterior = ExteriorBoundary.PressureReservoir } };
+        }
+    }
 
     public void Validate()
     {
@@ -120,10 +141,12 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
         Check(Expansion.StingerDiameterM, .012, Expansion.InletDiameterM, "Diámetro de salida");
         Check(Expansion.BellyDiameterM, Expansion.InletDiameterM, .18, "Diámetro central");
         if (Expansion.Cells is < 12 or > 256) throw new ArgumentException("Escape: 12–256 celdas.");
+        Expansion.Wall?.Validate(Expansion.StingerDiameterM);
         Check(FreshExtractionRatio, .2, 5, "Preferencia de extracción de mezcla fresca");
         Check(Combustion.AdvanceDeg, -10, 50, "Avance");
         Check(Combustion.DelayS, 0, .002, "Demora de encendido");
         Check(Combustion.DurationS, .0003, .004, "Duración de combustión");
+        if (Combustion.DurationDeg is double duration) Check(duration, 5, 120, "Duración de combustión [°]");
         Check(Combustion.AirFuelRatio, 11, 22, "Relación aire/combustible");
         Check(Combustion.BurnFraction, 0, 1, "Fracción quemada");
         Check(Combustion.WiebeExponent, 1, 5, "Exponente Wiebe");
@@ -136,7 +159,7 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
         Check(Numerics.MaximumStepDeg, .02, 3, "Paso angular");
         Check(Numerics.Courant, .05, .5, "CFL");
         Check(Numerics.PeriodicTolerance, 1e-8, .001, "Tolerancia periódica");
-        if (Numerics.MaximumCycles is < 3 or > 200 || !Enum.IsDefined(Numerics.Scheme))
+        if (Numerics.MaximumCycles is < 3 or > 200 || !Enum.IsDefined(Numerics.Scheme) || !Enum.IsDefined(Numerics.Exterior))
             throw new ArgumentException("Se requieren de 3 a 200 ciclos y un esquema 1D válido.");
         if (Speeds.Start < 500 || Speeds.End > 10000 || Speeds.End < Speeds.Start || Speeds.Step is < 1 or > 10000 ||
             (Speeds.End - Speeds.Start) / Speeds.Step + 1 > 100)
@@ -145,9 +168,11 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
 
     internal void ValidateOperatingPoint(int rpm)
     {
+        if (Combustion.AirFuelRatio < SpeciesThermodynamics.StoichiometricAfr * (1 - 1e-10))
+            throw new ModelDomainException($"{rpm} RPM: la oxidación parcial de mezclas ricas está fuera de dominio del modelo 2T.");
         double opening = Exhaust.Opening(Geometry);
         double start = 360 - Combustion.AdvanceDeg + 6 * rpm * Combustion.DelayS;
-        double end = start + 6 * rpm * Combustion.DurationS;
+        double end = start + Combustion.CrankDuration(rpm);
         if (start <= 360 - opening || end >= 360 + opening)
             throw new ModelDomainException(
                 $"A {rpm} RPM, la combustión prevista ({start:F2}–{end:F2}°) sale del tramo con lumbreras cerradas ({360 - opening:F2}–{360 + opening:F2}°).");
