@@ -1,5 +1,13 @@
 # Manual de Dino2 Desktop
 
+## Proyectos de etapa 12
+
+Abrí `4t-physical-stage12.json` para el escape corto de 0,25 m o `2t-physical-stage12.json` para el monocilíndrico de 125 cm³. Los archivos `multi-4t-physical-stage12.json` y `multi-2t-physical-stage12.json` se abren desde su ventana multicilíndrica. Son ejemplos sintéticos con extremos de presión y acoplamiento `ports-v1`.
+
+En **Conductos** o **Numérica**, 1 selecciona la boca de presión. 0 conserva el modelo adaptado para reproducir cálculos históricos. Si faltaba esa opción en un archivo antiguo, aparece como 2 con el aviso **LEGACY / NO PREDICTIVO**. Para actualizar un proyecto, conservá una copia, seleccioná presión y recalculá A y B. Los ejemplos 1D previos con contorno 0 o ausente son casos de regresión. Consultá el aviso antes de interpretar su curva.
+
+Las curvas iniciales se calculan en la malla elegida. Una RPM periódica todavía puede ser sensible al paso espacial. En el ejemplo 2T el cambio de ×1 a ×8 llega a casi 5 % en algunos regímenes. Para investigar diferencias pequeñas usá el contraste de malla A/B con los mismos modelos y revisiones. El [informe de etapa 12](etapa12.md) muestra las series y los límites.
+
 ## Conductos y resultados de la etapa 11
 
 Abrí `examples/4t-recovery-wall.json` desde la pantalla 4T o `examples/2t-recovery-pressure.json` desde la pantalla 2T. Calculá la curva y consultá el diagnóstico del régimen junto a los gráficos. Los ejemplos contienen geometrías sintéticas.

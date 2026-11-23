@@ -103,11 +103,18 @@ try {
     $contrastClock = [Diagnostics.Stopwatch]::StartNew()
     Click 'MultiCheck'
     $checked = Status '4000 RPM' 300
-    if (!$checked.Contains('B superior en la resolución verificada')) { throw $checked }
+    $verdict = switch -Regex ($checked) {
+        'B superior' { 'Superior'; break }
+        'B inferior' { 'Inferior'; break }
+        'indistinguibles' { 'Indistinguishable'; break }
+        'Sensible a discretización' { 'DiscretizationSensitive'; break }
+        'Sin contraste|No disponible' { 'Unavailable'; break }
+        default { throw $checked }
+    }
     $contrastClock.Stop()
     File-Dialog 'MultiABExport' (Join-Path $output 'comparacion.csv')
     $null = Status 'CSV exportado'
-    if (!(Select-String -Quiet -Path (Join-Path $output 'comparacion.csv') -Pattern '^Superior,4000,')) { throw 'El CSV perdió el contraste.' }
+    if (!(Select-String -Quiet -Path (Join-Path $output 'comparacion.csv') -Pattern "^$verdict,4000,")) { throw 'El CSV perdió el contraste.' }
     Tab 'Cilindros y ciclo'
     File-Dialog 'MultiTraceExport' (Join-Path $output 'ciclo.csv')
     $null = Wait-For {

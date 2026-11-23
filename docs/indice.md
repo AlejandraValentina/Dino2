@@ -11,6 +11,7 @@
 | Multicilíndrico 4T, integración y aceptación | [Modelo](modelo-multicilindrico-4t.md) · [Etapa 9](etapa9.md) |
 | Multicilíndrico 2T, integración y aceptación | [Modelo](modelo-multicilindrico-2t.md) · [Etapa 10](etapa10.md) |
 | Recuperación de contornos, paredes, integridad y dominio | [Etapa 11](etapa11.md) |
+| Acoplamiento de válvulas, lumbreras y colectores | [Etapa 12](etapa12.md) |
 | Datos, identificación y evaluación experimental | [4T](validacion-experimental.md) · [2T](datos-experimentales-2t.md) |
 
 ## Referencias de modelo

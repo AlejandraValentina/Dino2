@@ -38,6 +38,7 @@ try
     if (args[0] == "--multi-2t" && args.Length >= 3)
     {
         var project = TwoStrokeFiles.LoadMulti(args[1]);
+        if (project.Current.Cylinder.Numerics.BoundaryNotice() is { } notice) Console.Error.WriteLine(notice);
         var sweep = TwoStrokeSimulator.Sweep(project.Current);
         TwoStrokeFiles.ExportMulti(args[2], sweep);
         if (args.Length == 4 && sweep.Runs.FirstOrDefault(r => r.Point is not null) is { } solved)
@@ -61,6 +62,7 @@ try
     if (args[0] == "--multi" && args.Length >= 3)
     {
         var project = MultiFiles.Load(args[1]);
+        if (project.Current.Cylinder.Ducts?.BoundaryNotice() is { } notice) Console.Error.WriteLine(notice);
         var multicylinder = MultiSimulator.Run(project.Current);
         MultiFiles.Export(args[2], multicylinder);
         if (args.Length == 4 && multicylinder.Points.FirstOrDefault(p => p.Status == MultiStatus.Converged) is { } cycle)
@@ -86,6 +88,7 @@ try
     if (args[0] == "--2t" && args.Length >= 3)
     {
         var project = TwoStrokeFiles.Load(args[1]);
+        if (project.Current.Numerics.BoundaryNotice() is { } notice) Console.Error.WriteLine(notice);
         var timer = System.Diagnostics.Stopwatch.StartNew();
         var current = TwoStrokeSimulator.Sweep(project.Current, args.Length == 4);
         TwoStrokeFiles.Export(args[2], current);
@@ -121,6 +124,7 @@ try
     if (args[0] == "--4t" && args.Length >= 3)
     {
         var project = FourStrokeFiles.Load(args[1]);
+        if (project.Current.Ducts?.BoundaryNotice() is { } notice) Console.Error.WriteLine(notice);
         var simulation = EngineSimulation.Run(project.Current);
         FourStrokeFiles.Export(args[2], simulation);
         if (args.Length == 4 && simulation.Points.FirstOrDefault() is { } firstPoint)

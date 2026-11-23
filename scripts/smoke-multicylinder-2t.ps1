@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory)][string]$Application,
     [Parameter(Mandatory)][string]$Destination,
-    [switch]$SkipResolution
+    [switch]$SkipResolution,
+    [switch]$Physical
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -92,6 +93,7 @@ $case.project.current.cylinder.speeds.step = 1
 $case.project.current.cylinder.intakeDuct.cells = 8
 $case.project.current.cylinder.expansion.cells = 16
 $case.project.current.sharedExhaust.primary.cells = 8
+if ($Physical) { $case.project.current.cylinder.numerics | Add-Member -NotePropertyName exterior -NotePropertyValue 1 -Force }
 $fixture = Join-Path $output 'caso.json'
 $case | ConvertTo-Json -Depth 35 | Set-Content -LiteralPath $fixture -Encoding utf8
 try {

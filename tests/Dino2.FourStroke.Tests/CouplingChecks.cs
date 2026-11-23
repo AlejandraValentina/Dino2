@@ -208,12 +208,15 @@ internal static class CouplingChecks
     {
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         if (selection == "checks") { Run(); return; }
-        if (selection is "mesh" or "fine")
+        if (selection is "mesh" or "fine" or "temporal")
         {
             var c = TwoStrokeConfiguration.Example;
             c = c with { Numerics = c.Numerics with { Exterior = ExteriorBoundary.PressureReservoir } };
-            var jobs = from rpm in new[] { 4000, 5000, 6000, 7000, 8000, 9000, 9500, 10000 }
-                       from scale in (selection == "fine" ? new[] { 8 } : new[] { 1, 2, 4 })
+            var rpms = selection == "temporal" ? new[] { 8000, 9500 } :
+                new[] { 4000, 5000, 6000, 7000, 8000, 9000, 9500, 10000 };
+            var scales = selection switch { "fine" => new[] { 8 }, "temporal" => new[] { 2 }, _ => new[] { 1, 2, 4 } };
+            var jobs = from rpm in rpms
+                       from scale in scales
                        select (rpm, scale);
             Parallel.ForEach(jobs, new ParallelOptions { MaxDegreeOfParallelism = 3 }, job =>
             {
@@ -222,13 +225,16 @@ internal static class CouplingChecks
                     Expansion = c.Expansion with { Cells = c.Expansion.Cells * job.scale },
                     Numerics = c.Numerics with { MaximumStepDeg = .65 / job.scale,
                         PeriodicTolerance = 5e-5 / job.scale, MaximumCycles = 200 } };
+                if (selection == "temporal")
+                    settings = settings with { Numerics = settings.Numerics with
+                    { Courant = .20, MaximumStepDeg = .1, PeriodicTolerance = 1e-6 } };
                 var clock = Stopwatch.StartNew();
                 var result = TwoStrokeSimulator.Sweep(settings, false).Runs.Single();
                 var p = result.Point;
                 Console.WriteLine($"2T {job.rpm} x{job.scale} {result.Status} torque={p?.ShaftTorqueNm:F6} W={p?.ShaftPowerW:F4} TE={p?.TrappingEfficiency:F6} trap={p?.FreshTrappedKg:E5} P={p?.PeakPressurePa:F3} T={p?.PeakTemperatureK:F4} Wc={p?.CylinderWorkJ:F5} Wk={p?.CrankcaseWorkJ:F5} cycles={p?.Cycles} periodic={p?.PeriodicError:E4} U={p?.Balance.EnergyJ:E4} mass={p?.Balance.MassKg:E4} ms={clock.ElapsedMilliseconds} {result.Failure}");
             });
         }
-        else if (selection == "four")
+        else if (selection is "four" or "four-strict")
         {
             var baseConfiguration = ThermochemicalOptions.EquilibriumExample;
             var jobs = from length in new[] { .25, .4, .65, .85 }
@@ -239,9 +245,16 @@ internal static class CouplingChecks
                 var gas = GasPath.RecoveryExample;
                 var path = gas with { Intake = gas.Intake with { Cells = 24 * job.scale },
                     Exhaust = gas.Exhaust with { LengthM = job.length,
-                        Cells = (int)Math.Round(job.length * 32 / .65) * job.scale } };
+                        Cells = (int)Math.Round(job.length * gas.Exhaust.Cells / gas.Exhaust.LengthM) * job.scale } };
                 var c = baseConfiguration with { Ducts = path, Speeds = new(3000, 6000, 1500),
-                    Thermochemistry = baseConfiguration.Thermochemistry! with { BurnLaw = BurnLaw.PrescribedWiebe } };
+                    Thermochemistry = baseConfiguration.Thermochemistry! with { BurnLaw = BurnLaw.PrescribedWiebe },
+                    Combustion = baseConfiguration.Combustion with { DurationDeg = 40 },
+                    Solver = baseConfiguration.Solver with
+                    {
+                        MaximumCycles = selection == "four" ? 125 : 200,
+                        PeriodicTolerance = (selection == "four" ? .0001 : 1e-6) / job.scale,
+                        MaximumStepDeg = baseConfiguration.Solver.MaximumStepDeg / job.scale
+                    } };
                 var result = EngineSimulation.Run(c);
                 foreach (var p in result.Points)
                     Console.WriteLine($"4T L={job.length} x{job.scale} {p.Rpm} torque={p.BrakeTorqueNm:F6} W={p.BrakePowerW:F4} VE={p.VolumetricEfficiency:F6} P={p.PeakPressurePa:F3} T={p.PeakTemperatureK:F4} cycles={p.Cycles} periodic={p.PeriodicError:E4} U={p.GasDynamics?.EnergyResidualJ:E4} ms={p.ElapsedMilliseconds:F0}");
@@ -249,7 +262,7 @@ internal static class CouplingChecks
             });
         }
         else if (selection == "networks") Networks();
-        else throw new ArgumentException("Campaña de etapa 12: checks, mesh, fine, four o networks.");
+        else throw new ArgumentException("Campaña de etapa 12: checks, mesh, fine, temporal, four, four-strict o networks.");
     }
 
     private static void Networks()
