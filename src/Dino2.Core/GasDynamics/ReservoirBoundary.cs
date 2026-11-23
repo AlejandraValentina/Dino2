@@ -94,7 +94,7 @@ internal static class ReservoirBoundary
         return pipe.Velocity + pipe.SoundSpeed * Math.Sqrt(1 + strength) > 0;
     }
 
-    private static double PipeVelocity(GasState pipe, double pressure)
+    internal static double PipeVelocity(GasState pipe, double pressure)
     {
         double ratio = pressure / pipe.Pressure, gamma = pipe.Gamma;
         if (ratio <= 1)

@@ -18,6 +18,17 @@ if (args is ["--stage12", var mode12])
     CouplingChecks.RunCampaign(mode12);
     return 0;
 }
+if (args is ["--stage13", var mode13, var path13])
+{
+    switch (mode13)
+    {
+        case "bench": Stage13Bench.Run(path13, false); break;
+        case "thermal": Stage13Bench.Run(path13, true); break;
+        case "micro": Stage13Bench.Micro(path13); break;
+        default: throw new ArgumentException("Usá bench, thermal o micro.");
+    }
+    return 0;
+}
 
 var tests = new List<(string, Action)>();
 void Test(string name, Action action) => tests.Add((name, action));

@@ -59,8 +59,10 @@ internal static class CouplingChecks
         foreach (double downstream in new[] { 5000.0, 10000.0 })
         {
             var pipe = Air.Encode(edge, Pure, downstream, Temperature, 0, .1);
-            double p = PortBoundary.Flux(Air, total, open, reservoir, tank, edge, pipe, flux);
-            Near(p / critical, 1, 1e-5);
+            double p = PortBoundary.Flux(Air, total, open, reservoir, tank, edge, pipe, flux, out var trace);
+            if (trace is not { } choked || !(p < critical)) throw new Exception("Garganta y sección mezclada no se distinguen.");
+            Near(choked.ThroatPressurePa / critical, 1, 1e-5);
+            Near(choked.ThroatMach, 1, 1e-12);
             Near(-flux[0] / expected, 1, 1e-5);
             Near(flux[Air.Energy] / flux[0], Gamma * R * Temperature / (Gamma - 1), .01);
             Near(flux[Air.Tag] / flux[0], .7, 1e-12);
@@ -75,8 +77,35 @@ internal static class CouplingChecks
         double ts = Temperature / factor, ps = Pressure / Math.Pow(factor, Gamma / (Gamma - 1));
         double speed = mach * Math.Sqrt(Gamma * R * ts);
         var subsonic = Air.Encode(edge, Pure, ps, ts, -speed, .7);
-        Near(PortBoundary.Flux(Air, total, open, reservoir, tank, edge, subsonic, flux) / ps, 1, 1e-5);
-        Near(flux[0] / (-open * speed * ps / (R * ts)), 1, 1e-5);
+        Near(PortBoundary.Flux(Air, total, total, reservoir, tank, edge, subsonic, flux) / ps, 1, 1e-5);
+        Near(flux[0] / (-total * speed * ps / (R * ts)), 1, 1e-5);
+
+        // A uniform mixed section from independent subsonic momentum and energy balances.
+        double j = open / total * speed * ps / (R * ts);
+        double momentum = ps + j * speed;
+        double k = (Gamma + 1) / (2 * Gamma);
+        double mixedSpeed = (momentum - Math.Sqrt(momentum * momentum - 4 * k * j * j * R * Temperature)) / (2 * k * j);
+        double mixedPressure = momentum - j * mixedSpeed;
+        double mixedT = Temperature - mixedSpeed * mixedSpeed / (2 * Gamma * R / (Gamma - 1));
+        var mixed = Air.Encode(edge, Pure, mixedPressure, mixedT, -mixedSpeed, .1);
+        Near(PortBoundary.Flux(Air, total, open, reservoir, tank, edge, mixed, flux, out var partial) / mixedPressure, 1, 1e-6);
+        Near(flux[0] / (-total * j), 1, 1e-6);
+        Near(partial!.Value.ThroatMach, mach, 1e-6);
+
+        var still = Air.Encode(edge, Pure, Pressure, Temperature, 0, .1);
+        foreach (double difference in new[] { -500.0, 0, 500.0 })
+        {
+            var supply = Air.Encode(reservoir, Pure, Pressure + difference, Temperature, 0, .7);
+            double last = 0;
+            foreach (double fraction in new[] { 0, .001, .01, .1, .3, .6, .99, 1 })
+            {
+                double pressure = PortBoundary.Flux(Air, total, total * fraction, reservoir, supply, edge, still, flux);
+                if (!(pressure > 0) || Math.Sign(flux[0]) != (fraction == 0 ? 0 : -Math.Sign(difference)))
+                    throw new Exception("Sentido de flujo incorrecto al abrir la válvula.");
+                if (Math.Abs(flux[0]) < last) throw new Exception("Caudal decreciente durante la apertura.");
+                last = Math.Abs(flux[0]);
+            }
+        }
 
         // M=2 normal shock. For p_back below the stationary shock pressure the trace
         // remains supersonic. Above it, an upstream-moving shock reaches the pipe.
@@ -95,6 +124,11 @@ internal static class CouplingChecks
         double shockSpeed = 2 * a - a * Math.Sqrt(1 + (ratio - 1) * (Gamma + 1) / (2 * Gamma));
         double expectedVelocity = shockSpeed + (2 * a - shockSpeed) / jump;
         Near(flux[0] / (total * Pressure / (R * Temperature) * jump * expectedVelocity), 1, 1e-12);
+        PortBoundary.Flux(Air, total, open, reservoir, lowBack, edge, inflow, flux, out var restricted);
+        if (restricted is not { } shocked || shocked.MixedPressurePa < Pressure * shockPressureRatio)
+            throw new Exception("La restricción debe enviar un choque aguas arriba.");
+        PortBoundary.Flux(Air, total, .99 * total, reservoir, lowBack, edge, inflow, flux, out var loose);
+        Near(loose!.Value.MixedPressurePa / Pressure, 1, 1e-12);
         var lowMass = Air.Encode(edge, Pure, Pressure, 199, 1, 0);
         Near(lowMass.Temperature, 199, 1e-10);
         try { Air.ValidateMixture(edge); }
