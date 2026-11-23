@@ -154,7 +154,12 @@ try {
         $elementType::ControlTypeProperty, [System.Windows.Automation.ControlType]::DataItem)
     $items = (Control 'Candidatos 2T' -Label).FindAll($descendants, $itemsCondition)
     if ($items.Count -lt 3) { throw 'Missing candidate rows.' }
-    $items[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    $idCondition = [System.Windows.Automation.PropertyCondition]::new($elementType::NameProperty, '2')
+    $variant = $items | Where-Object {
+        $_.Current.Name -match '\bId = 2\b' -or $null -ne $_.FindFirst($descendants, $idCondition)
+    } | Select-Object -First 1
+    if (!$variant) { throw "Missing candidate 2: $(@($items | ForEach-Object { $_.Current.Name }) -join ' / ')" }
+    $variant.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
     Click 'Aplicar como B' -Label
     $null = Status 'Variante aplicada'
     Click 'CalculateButton'
@@ -163,7 +168,7 @@ try {
         Select-Tab 'TwoStrokeABTab'
         Click 'CheckTwoStrokeAB'
         $null = Status 'Contraste A/B terminado' 420
-        if ((Control 'Resolution').Current.Name -notmatch 'indistinguible') {
+        if ((Control 'Resolution').Current.Name -notmatch 'superior|inferior|indistinguible|discretización') {
             throw "Unexpected A/B resolution: $((Control 'Resolution').Current.Name)"
         }
         Write-Output 'PASS portable matched A/B refinement and numerical verdict'

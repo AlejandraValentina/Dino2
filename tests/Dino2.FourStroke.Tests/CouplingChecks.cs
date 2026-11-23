@@ -92,6 +92,10 @@ internal static class CouplingChecks
         Near(PortBoundary.Flux(Air, total, open, reservoir, tank, edge, mixed, flux, out var partial) / mixedPressure, 1, 1e-6);
         Near(flux[0] / (-total * j), 1, 1e-6);
         Near(partial!.Value.ThroatMach, mach, 1e-6);
+        double shoulderForce = (total - open) * ps;
+        Near(flux[Air.Momentum] / (open * ps + total * j * speed + shoulderForce), 1, 1e-6);
+        double mixedStagnation = mixedPressure * Math.Pow(Temperature / mixedT, Gamma / (Gamma - 1));
+        if (!(mixedStagnation < Pressure)) throw new Exception("La expansión brusca debe perder presión total.");
 
         var still = Air.Encode(edge, Pure, Pressure, Temperature, 0, .1);
         foreach (double difference in new[] { -500.0, 0, 500.0 })
