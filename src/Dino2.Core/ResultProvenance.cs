@@ -11,7 +11,12 @@ public sealed record ResultProvenance(string Build, string SourceTree, string Ph
         .SingleOrDefault(a => a.Key == "Dino2TreeStatus")?.Value ?? "unknown";
 
     public static ResultProvenance Capture(string model, string revision) => new(Version, Tree, model, revision, DateTimeOffset.UtcNow, 1);
-    public static string Describe(ResultProvenance? stamp) => stamp is null
-        ? "Procedencia incompleta. Resultado histórico sin identificación de build."
-        : $"Compilación {stamp.Build} · árbol {stamp.SourceTree} · {stamp.NumericalRevision} · {stamp.CalculatedUtc:u}.";
+    public static string Describe(ResultProvenance? stamp)
+    {
+        if (stamp is null) return "Procedencia incompleta. Resultado histórico sin identificación de build.";
+        string note = stamp.SourceTree != "clean" || !stamp.Build.Contains('+')
+            ? " La revisión de fuentes del resultado no se puede reproducir a partir de este sello."
+            : stamp.Build != Version ? " Calculado con otra compilación." : "";
+        return $"Compilación {stamp.Build} · árbol {stamp.SourceTree} · {stamp.NumericalRevision} · {stamp.CalculatedUtc:u}." + note;
+    }
 }

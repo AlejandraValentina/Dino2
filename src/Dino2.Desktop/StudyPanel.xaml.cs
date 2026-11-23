@@ -423,6 +423,8 @@ public partial class StudyPanel : UserControl
         RestoreRun(lastRun);
         Pages.SelectedIndex = 1;
         StudyMessage.Text = lastRun.Cancelled ? "Estudio parcial recuperado." : "Estudio recuperado.";
+        StudyMessage.Text += " " + Dino2.Core.ResultProvenance.Describe(lastRun.Provenance);
+        if (lastRun.Definition.Base.Ducts?.BoundaryNotice() is { } notice) StudyMessage.Text += " " + notice;
         EndWork();
     }
 

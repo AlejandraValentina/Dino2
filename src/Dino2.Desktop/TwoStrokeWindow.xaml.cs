@@ -192,6 +192,7 @@ public partial class TwoStrokeWindow : Window
                 dirty = true;
                 Render();
                 ShowStatus($"Curva 2T: {result.Runs.Count(r => r.Point is not null)}/{result.Runs.Count} regímenes periódicos · {clock.Elapsed.TotalSeconds:F2} s.");
+                if (config.Numerics.BoundaryNotice() is { } notice) Status.Text += " " + notice;
             }
             catch (OperationCanceledException)
             {
@@ -302,6 +303,9 @@ public partial class TwoStrokeWindow : Window
         RenderResolution();
         dirty = false;
         ShowStatus("Proyecto 2T recuperado." + (curve is null ? "" : " " + Dino2.Core.ResultProvenance.Describe(curve.Provenance)));
+        if (project.Current.Numerics.BoundaryNotice() is { } notice) Status.Text += " " + notice;
+        if (curve is not null && curve.NumericalRevision != project.Current.Revision)
+            Status.Text += " Resultado de otra revisión. Recalculá antes de interpretarlo.";
     }
 
     private void Save_Click(object sender, RoutedEventArgs e) => Guard(() =>
@@ -358,9 +362,8 @@ public partial class TwoStrokeWindow : Window
             baseline.NumericalRevision != curve.NumericalRevision
             ? "A y B se calcularon con revisiones numéricas distintas. Verificar malla recalcula ambos casos con la revisión actual."
             : "Diferencias B − A en regímenes comunes. Resolución de par y potencia al mismo régimen.";
-        if (baseline?.Configuration.Numerics.Exterior == Core.GasDynamics.ExteriorBoundary.HistoricalRiemann ||
-            curve?.Configuration.Numerics.Exterior == Core.GasDynamics.ExteriorBoundary.HistoricalRiemann)
-            ComparisonNotice.Text += " Borde adaptado histórico. Sintonía restringida.";
+        if ((baseline?.Configuration.Numerics.BoundaryNotice() ?? curve?.Configuration.Numerics.BoundaryNotice()) is { } notice)
+            ComparisonNotice.Text += " " + notice;
         ComparisonGrid.ItemsSource = pairs;
         FillRpm(ComparisonRpm, pairs.Select(p => p.RPM));
         FillRpm(TraceRpm, Points(curve).Where(p => p.Trace.Count > 0).Select(p => p.Rpm));

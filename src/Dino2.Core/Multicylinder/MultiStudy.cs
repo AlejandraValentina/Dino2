@@ -30,7 +30,11 @@ public sealed class MultiStudy
 
     public StudyRun Run(int workers = 1, CancellationToken cancellation = default, IProgress<StudyProgress>? progress = null) =>
         StudyRunner.Run(Grid, (variant, token, started) => Evaluate(Variant(variant.Id), variant.Id, token, started),
-            workers, cancellation, progress);
+            workers, cancellation, progress) with
+        {
+            Provenance = ResultProvenance.Capture(MultiConfiguration.ModelId,
+                Definition.Base.Cylinder.ModelIdentifier + "-network-recovery-v1")
+        };
 
     internal static StudyEvaluation Evaluate(MultiConfiguration configuration, int id, CancellationToken token, Action? started = null)
     {

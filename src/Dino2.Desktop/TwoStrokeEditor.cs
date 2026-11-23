@@ -115,7 +115,7 @@ public partial class TwoStrokeWindow
         Add(numerics, "Celdas escape", c => c.Expansion.Cells, (c,v) => c with { Expansion = c.Expansion with { Cells = Integer(v) } });
         Add(numerics, "Paso máximo [°]", c => c.Numerics.MaximumStepDeg, (c,v) => c with { Numerics = c.Numerics with { MaximumStepDeg = v } });
         Add(numerics, "CFL", c => c.Numerics.Courant, (c,v) => c with { Numerics = c.Numerics with { Courant = v } });
-        Add(numerics, "Boca exterior · 1 presión física · 0 adaptada histórica", c => (int)c.Numerics.Exterior,
+        Add(numerics, "Boca exterior · 1 presión · 0 legacy · 2 ausente", c => (int)c.Numerics.Exterior,
             (c,v) => c with { Numerics = c.Numerics with { Exterior = (ExteriorBoundary)Integer(v) } });
         static DuctWall? WallRoughness(DuctWall? wall, double value) => value == -1 ? null : new(value / 1e6, wall?.TemperatureK);
         static DuctWall? WallTemperature(DuctWall? wall, double value) => value == 0 && wall is null ? null :

@@ -56,11 +56,12 @@ public static partial class TwoStrokeFiles
             !sweep.Runs.Select(r => r.Rpm).SequenceEqual(configuration!.Speeds.Values().Take(sweep.Runs.Count)) ||
             sweep.Runs.Any(run => !Enum.IsDefined(run.Status) || (run.Point is { } point
                 ? point.Rpm != run.Rpm || point.Trace is null || point.Balance is null || run.Status != TwoStrokeRunStatus.Periodic ||
-                  run.Failure is not null || !Consistent(point, configuration.Geometry.DisplacementM3)
+                  run.Failure is not null || !Consistent(point, configuration)
                 : run.Status == TwoStrokeRunStatus.Periodic || string.IsNullOrWhiteSpace(run.Failure))))
             throw new InvalidDataException("La curva 2T y su configuración deben corresponder.");
         if (sweep.Provenance is { } provenance &&
-            !ValidProvenance(provenance, TwoStrokeConfiguration.ModelId, configuration.Revision))
+            !ValidProvenance(provenance, TwoStrokeConfiguration.ModelId, configuration.Revision) &&
+            !ValidProvenance(provenance, TwoStrokeConfiguration.ModelId, configuration.Stage11Revision))
             throw new InvalidDataException("La revisión declarada de la curva 2T no corresponde a su configuración.");
     }
 
@@ -71,14 +72,30 @@ public static partial class TwoStrokeFiles
     private static bool Agree(double expected, double actual) => double.IsFinite(actual) && double.IsFinite(expected) &&
         Math.Abs(expected - actual) <= 1e-8 * Math.Max(1, Math.Max(Math.Abs(expected), Math.Abs(actual)));
 
-    private static bool Consistent(TwoStrokePoint p, double displacement)
+    private static bool Consistent(TwoStrokePoint p, TwoStrokeConfiguration configuration)
     {
+        double displacement = configuration.Geometry.DisplacementM3;
         double indicatedWork = p.CylinderWorkJ + p.CrankcaseWorkJ;
         double shaftWork = p.ShaftTorqueNm * 2 * Math.PI;
-        return Agree(indicatedWork * p.Rpm / 60, p.IndicatedPowerW) && Agree(shaftWork * p.Rpm / 60, p.ShaftPowerW) &&
+        double massScale = p.FreshDeliveredKg + p.FreshExhaustReturnKg + p.FreshTrappedKg + p.ResidualMassKg;
+        double energyScale = 1 + Math.Abs(indicatedWork) + Math.Abs(p.WallHeatJ) + p.FuelMassKg * 45e6;
+        return p.Balance is not null && Agree(indicatedWork * p.Rpm / 60, p.IndicatedPowerW) && Agree(shaftWork * p.Rpm / 60, p.ShaftPowerW) &&
             Agree(indicatedWork / displacement, p.ImepPa) && Agree(shaftWork / displacement, p.BmepPa) &&
             (p.ShaftPowerW <= p.IndicatedPowerW || Agree(p.ShaftPowerW, p.IndicatedPowerW)) &&
-            p.FreshTrappedKg >= -1e-12 && p.ResidualMassKg >= -1e-12 && Agree(p.TrappedCompositionKg.Sum, p.FreshTrappedKg + p.ResidualMassKg) &&
+            p.PeakPressurePa > 0 && p.PeakTemperatureK is >= 200 and <= 6000 &&
+            p.Cycles >= 1 && p.Cycles <= configuration.Numerics.MaximumCycles &&
+            p.PeriodicError >= 0 && p.PeriodicError <= configuration.Numerics.PeriodicTolerance &&
+            p.FuelMassKg >= 0 && p.FuelBurnedKg >= 0 &&
+            p.DeliveryRatio >= 0 && p.ChargingEfficiency >= 0 && p.ScavengingEfficiency is >= 0 and <= 1.000001 &&
+            (p.TrappingEfficiency is null or >= 0 and <= 1.000001) &&
+            p.FreshDeliveredKg >= -1e-12 && p.FreshTransferReturnKg >= -1e-12 &&
+            p.FreshExhaustOutKg >= -1e-12 && p.FreshExhaustReturnKg >= -1e-12 &&
+            p.FreshTrappedKg >= -1e-12 && p.ResidualMassKg >= -1e-12 &&
+            Math.Abs(p.Balance.MassKg) <= 1e-12 + massScale * 1e-6 &&
+            Math.Abs(p.Balance.EnergyJ) <= 1e-6 * energyScale &&
+            p.TrappedCompositionKg.ToArray(true).All(m => m >= -1e-12) &&
+            p.ResidualCompositionKg.ToArray(true).All(m => m >= -1e-12) &&
+            Agree(p.TrappedCompositionKg.Sum, p.FreshTrappedKg + p.ResidualMassKg) &&
             Agree(p.ResidualCompositionKg.Sum, p.ResidualMassKg);
     }
 
@@ -136,6 +153,8 @@ public static partial class TwoStrokeFiles
             if (left is null || right is null) continue;
             csv.WriteLine(FormattableString.Invariant($"{left.Rpm},{left.ShaftPowerW:R},{right.ShaftPowerW:R},{right.ShaftPowerW - left.ShaftPowerW:R},{left.ShaftTorqueNm:R},{right.ShaftTorqueNm:R},{right.ShaftTorqueNm - left.ShaftTorqueNm:R},{left.FreshTrappedKg:R},{right.FreshTrappedKg:R},{Quote(a.NumericalRevision ?? "stage6")},{Quote(b.NumericalRevision ?? "stage6")}"));
         }
+        CsvProvenance(csv, a.Provenance, "A_provenance");
+        CsvProvenance(csv, b.Provenance, "B_provenance");
     }
     public static void ExportComparisonResolution(string path, TwoStrokeComparisonEvidence evidence)
     {

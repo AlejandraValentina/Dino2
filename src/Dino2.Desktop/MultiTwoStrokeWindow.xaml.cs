@@ -14,7 +14,7 @@ namespace Dino2.Desktop;
 
 public partial class MultiTwoStrokeWindow : Window
 {
-    private MultiTwoStrokeConfiguration template = MultiTwoStrokeConfiguration.Example();
+    private MultiTwoStrokeConfiguration template = MultiTwoStrokeConfiguration.Example(exterior: ExteriorBoundary.PressureReservoir);
     private MultiTwoStrokeConfiguration? original;
     private MultiTwoStrokeSweep? curve, baseline;
     private TwoStrokeComparisonEvidence? contrast;
@@ -290,6 +290,7 @@ public partial class MultiTwoStrokeWindow : Window
             contrast = null;
             dirty = true;
             M2Status.Text = $"Cálculo terminado · {curve.Runs.Count(r => r.Point is not null)}/{curve.Runs.Count} RPM periódicas.";
+            if (curve.Configuration.Cylinder.Numerics.BoundaryNotice() is { } notice) M2Status.Text += " " + notice;
         });
     }
 
@@ -319,6 +320,9 @@ public partial class MultiTwoStrokeWindow : Window
         Render();
         M2Status.Text = "Proyecto 2T multicilíndrico abierto." +
             (curve is null ? "" : " " + Dino2.Core.ResultProvenance.Describe(curve.Provenance));
+        if (project.Current.Cylinder.Numerics.BoundaryNotice() is { } notice) M2Status.Text += " " + notice;
+        if (curve is not null && curve.Provenance?.NumericalRevision != project.Current.Cylinder.Revision + "-network-recovery-v1")
+            M2Status.Text += " Recalculá antes de interpretar la curva histórica.";
     }
 
     private async void Open_Click(object sender, RoutedEventArgs e)

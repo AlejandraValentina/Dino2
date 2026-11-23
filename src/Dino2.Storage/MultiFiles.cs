@@ -14,7 +14,7 @@ public sealed record MultiProject(MultiConfiguration Current, MultiConfiguration
 
 public static class MultiFiles
 {
-    private sealed record Document(int SchemaVersion, string Model, MultiProject Project);
+    private sealed record Document(int SchemaVersion, string Model, MultiProject Project, string? Integrity = null);
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -32,7 +32,8 @@ public static class MultiFiles
         {
             using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write))
             {
-                JsonSerializer.Serialize(stream, new Document(1, MultiConfiguration.ModelId, project), Options);
+                JsonSerializer.Serialize(stream,
+                    new Document(2, MultiConfiguration.ModelId, project, ProjectIntegrity.Digest(project, Options)), Options);
                 stream.Flush(true);
             }
             File.Move(temporary, destination, true);
@@ -47,8 +48,9 @@ public static class MultiFiles
     {
         using var stream = File.OpenRead(path);
         var document = JsonSerializer.Deserialize<Document>(stream, Options);
-        if (document is not { SchemaVersion: 1, Model: MultiConfiguration.ModelId, Project: { } project })
+        if (document is not { SchemaVersion: 1 or 2, Model: MultiConfiguration.ModelId, Project: { } project })
             throw new InvalidDataException("Archivo multicilíndrico o versión incompatible.");
+        ProjectIntegrity.Check(project, document.Integrity, document.SchemaVersion == 2, Options);
         Validate(project);
         return project;
     }
@@ -117,8 +119,26 @@ public static class MultiFiles
                           c.Trace is not null && c.Trace.Count == p.Cycle.Count).Any(valid => !valid)
                     : p.Metrics is not null || p.Balance is not null || p.Cylinders.Count != 0 || p.Cycle.Count != 0))
                 throw new InvalidDataException("Un punto guardado contiene diagnósticos o trazas incompatibles.");
+            if (p.Metrics is not { } metrics || p.Balance is not { } balance) continue;
+            double omega = p.Rpm * Math.PI / 30, frequency = p.Rpm / 120.0, displacement = configuration.DisplacementM3;
+            if (!Close(metrics.IndicatedPowerW, metrics.NetWorkJ * frequency) ||
+                !Close(metrics.BrakePowerW, (metrics.NetWorkJ - metrics.FrictionWorkJ) * frequency) ||
+                !Close(metrics.IndicatedPowerW, metrics.IndicatedTorqueNm * omega) ||
+                !Close(metrics.BrakePowerW, metrics.BrakeTorqueNm * omega) ||
+                !Close(metrics.ImepPa, metrics.NetWorkJ / displacement) ||
+                !Close(metrics.BmepPa, (metrics.NetWorkJ - metrics.FrictionWorkJ) / displacement) ||
+                !Close(metrics.IndicatedPowerW, p.Cylinders.Sum(c => c.IndicatedPowerW)) ||
+                !Close(metrics.BrakePowerW, p.Cylinders.Sum(c => c.BrakePowerW)) ||
+                metrics.VolumetricEfficiency < 0 || metrics.FuelKgPerCycle < 0 || metrics.FrictionWorkJ < 0 ||
+                !(p.PeriodicError >= 0 && p.PeriodicError <= configuration.Cylinder.Solver.PeriodicTolerance) ||
+                Math.Abs(balance.TotalEnergyJ) > 1e-6 * (1 + Math.Abs(metrics.NetWorkJ) + metrics.FuelKgPerCycle * 45e6) ||
+                Math.Abs(balance.MassKg) > 1e-8 || p.Cylinders.Any(c => c.PeakPressurePa <= 0 || c.PeakTemperatureK is < 200 or > 6000))
+                throw new InvalidDataException("La curva 4T contiene magnitudes incompatibles con el trabajo, la periodicidad o el estado del motor.");
         }
     }
+
+    private static bool Close(double a, double b) => double.IsFinite(a) && double.IsFinite(b) &&
+        Math.Abs(a - b) <= 1e-8 * Math.Max(1, Math.Max(Math.Abs(a), Math.Abs(b)));
 
     private static void Metadata(TextWriter writer, MultiConfiguration configuration, string name = "configuration_SI")
     {

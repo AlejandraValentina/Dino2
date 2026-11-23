@@ -92,10 +92,10 @@ internal sealed record EngineParameter(string Key, string Group, string Label,
                 d => d.Wall?.TemperatureK ?? 0, (d, v) => d with
                 { Wall = v == 0 && d.Wall is null ? null : new(d.Wall?.RoughnessM ?? 0, v == 0 ? null : v) }, 1);
         }
-        yield return new("IntakeBoundary", "Conductos", "Boca de admisión · 1 presión física · 0 adaptada histórica",
+        yield return new("IntakeBoundary", "Conductos", "Boca de admisión · 1 presión · 0 legacy · 2 ausente",
             c => (int)(c.Ducts ?? GasPath.Example).IntakeBoundary,
             (c, v) => c.Ducts is null ? c : c with { Ducts = c.Ducts with { IntakeExterior = (ExteriorBoundary)(int)v } }, Integer: true);
-        yield return new("ExhaustBoundary", "Conductos", "Boca de escape · 1 presión física · 0 adaptada histórica",
+        yield return new("ExhaustBoundary", "Conductos", "Boca de escape · 1 presión · 0 legacy · 2 ausente",
             c => (int)(c.Ducts ?? GasPath.Example).ExhaustBoundary,
             (c, v) => c.Ducts is null ? c : c with { Ducts = c.Ducts with { ExhaustExterior = (ExteriorBoundary)(int)v } }, Integer: true);
         yield return new("Courant", "Conductos", "CFL", c => (c.Ducts ?? GasPath.Example).Courant,

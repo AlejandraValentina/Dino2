@@ -215,6 +215,7 @@ public partial class FourStrokeWindow : Window
             CurrentResult = await Task.Run(() => EngineSimulation.Run(config, token, progress), token);
             RenderResults();
             Status.Text = $"{CurrentResult.Points.Count}/{config.Speeds.Values().Count()} RPM · {CurrentResult.ElapsedMilliseconds:F0} ms · {CurrentResult.Model}. Ver diagnósticos.";
+            if (config.Ducts?.BoundaryNotice() is { } notice) Status.Text += " " + notice;
         }
         catch (OperationCanceledException) { Status.Text = "Simulación cancelada. A se conserva; no se publican resultados parciales."; }
         catch (Exception ex) when (Expected(ex)) { Status.Text = "No se completó la simulación: " + ex.Message; }
@@ -336,8 +337,7 @@ public partial class FourStrokeWindow : Window
         ComparisonNotice.Text = comparison is null ? "Conserve A, modifique un parámetro y vuelva a simular. El original no cambia al editar." :
             $"B − A: {comparison.Count} RPM comunes exactas; sin interpolación. Se comparan estimaciones al cigüeñal. " +
             (comparison is not null && OriginalResult!.Model!=r!.Model?"A/B usan modelos diferentes: no atribuya la diferencia a una modificación mecánica.":"Positivo = aumenta, negativo = disminuye en el modelo; no demuestra una ganancia experimental.");
-        static bool Historical(GasPath? path) => path is not null && (path.IntakeBoundary == ExteriorBoundary.HistoricalRiemann ||
-            path.ExhaustBoundary == ExteriorBoundary.HistoricalRiemann);
+        static bool Historical(GasPath? path) => path?.UsesLegacyExterior() == true;
         if (comparison is not null && (Historical(OriginalResult?.Configuration.Ducts) || Historical(r?.Configuration.Ducts)))
             ComparisonNotice.Text += " Referencia histórica con borde adaptado. Comparación de sintonía restringida.";
         bool ducts = OriginalResult?.Configuration.Ducts is not null && r?.Configuration.Ducts is not null;
@@ -500,6 +500,7 @@ public partial class FourStrokeWindow : Window
         var project = FourStrokeFiles.Load(path);
         original = project.Original; OriginalResult = null; Populate(project.Current); dirty = false;
         Title = "Dino2 · " + Path.GetFileName(path); Status.Text = "Proyecto recuperado. Pulse Simular para reconstruir las curvas A y actual.";
+        if (project.Current.Ducts?.BoundaryNotice() is { } notice) Status.Text += " " + notice;
     }
     private bool ConfirmDiscard() => !dirty || (confirmDiscard?.Invoke() ?? (MessageBox.Show(this, "Hay cambios del proyecto sin guardar. ¿Desea descartarlos?",
         "Dino2", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes));

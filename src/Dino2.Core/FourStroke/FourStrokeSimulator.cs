@@ -18,6 +18,8 @@ public static class FourStrokeSimulator
         c.Validate(false);
         if(c.Thermochemistry is not null) throw new ArgumentException("El solver de referencia no admite opciones termoquímicas.");
         if (!c.Speeds.Values().Contains(rpm)) throw new ArgumentException("RPM fuera de la malla configurada.");
+        if (c.Combustion.HeatReleaseEfficiency > 0 && c.Combustion.AirFuelRatio < 14.7)
+            throw new ModelDomainException($"{rpm} RPM: la referencia de pseudoaire no representa combustión rica para gasolina.");
         if (c.OperatingPointError(rpm) is { } errorMessage) throw new ModelDomainException(errorMessage);
         var clock = Stopwatch.StartNew();
         var equations = new CylinderEquations(c, rpm);

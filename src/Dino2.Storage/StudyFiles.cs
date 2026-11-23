@@ -10,7 +10,7 @@ public sealed record StudyDocument(StudyRun Run, IReadOnlyList<StudyCheck> Check
 
 public static class StudyFiles
 {
-    private sealed record Envelope(int SchemaVersion, string SolverModel, StudyDocument Study);
+    private sealed record Envelope(int SchemaVersion, string SolverModel, StudyDocument Study, string? Integrity = null);
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -27,7 +27,8 @@ public static class StudyFiles
         {
             using (var stream = new FileStream(temporary, FileMode.CreateNew))
             {
-                JsonSerializer.Serialize(stream, new Envelope(1, plan.Definition.Base.ModelIdentifier, study), Options);
+                JsonSerializer.Serialize(stream, new Envelope(2, plan.Definition.Base.ModelIdentifier, study,
+                    ProjectIntegrity.Digest(study, Flat)), Options);
                 stream.Flush(true);
             }
             File.Move(temporary, destination, true);
@@ -40,9 +41,11 @@ public static class StudyFiles
         using var stream = File.OpenRead(path);
         if (stream.Length > 8 * 1024 * 1024) throw new InvalidDataException("El estudio supera el tamaño admitido.");
         var envelope = JsonSerializer.Deserialize<Envelope>(stream, Options) ?? throw new InvalidDataException("Estudio vacío.");
-        if (envelope.SchemaVersion != 1) throw new InvalidDataException("Versión de estudio incompatible.");
+        if (envelope.SchemaVersion is not (1 or 2)) throw new InvalidDataException("Versión de estudio incompatible.");
+        ProjectIntegrity.Check(envelope.Study, envelope.Integrity, envelope.SchemaVersion == 2, Flat);
         var plan = Validate(envelope.Study);
-        if (envelope.SolverModel != plan.Definition.Base.ModelIdentifier)
+        if (envelope.SolverModel != plan.Definition.Base.ModelIdentifier &&
+            envelope.SolverModel != plan.Definition.Base.Ducts?.Stage11Identifier)
             throw new InvalidDataException("La identidad del solver no coincide con la base del estudio.");
         var document = envelope.Study;
         return document with
@@ -68,6 +71,7 @@ public static class StudyFiles
         var baseline = data.GetValueOrDefault(0)?.Points;
         var output = new StringBuilder();
         output.AppendLine("# solver_model=" + plan.Definition.Base.ModelIdentifier);
+        output.AppendLine("# provenance=" + JsonSerializer.Serialize(study.Run.Provenance, Flat));
         output.AppendLine("# study_definition=" + JsonSerializer.Serialize(plan.Definition, Flat));
         output.AppendLine("# cancellation=" + study.Run.Cancelled + "; objective_unit=" + objective.Unit + "; sampled RPM only");
         foreach (var check in study.Checks) output.AppendLine("# resolution=" + JsonSerializer.Serialize(check, Flat));
@@ -107,24 +111,34 @@ public static class StudyFiles
             run.Evaluations.Any(p => p is null) || run.Evaluations.Select(p => p.Id).Distinct().Count() != run.Evaluations.Count)
             throw new InvalidDataException("Lista de evaluaciones incompatible con la grilla.");
         var rpms = plan.Definition.Speeds.Values().ToArray();
+        if (run.Provenance is { } stamp && (stamp.PhysicsModel != stamp.NumericalRevision ||
+            (stamp.PhysicsModel != plan.Definition.Base.ModelIdentifier && stamp.PhysicsModel != plan.Definition.Base.Ducts?.Stage11Identifier) ||
+            stamp.ResultSchema != 1 || string.IsNullOrWhiteSpace(stamp.Build) || stamp.SourceTree is not ("clean" or "dirty" or "unknown")))
+            throw new InvalidDataException("La procedencia declarada no coincide con el modelo del estudio.");
         foreach (var row in run.Evaluations)
         {
             if ((uint)row.Id >= plan.Variants.Count || !Enum.IsDefined(row.Status) || row.Points is null ||
                 !double.IsFinite(row.Milliseconds) || row.Milliseconds < 0)
                 throw new InvalidDataException("Evaluación inválida.");
-            if (row.Status == StudyStatus.Completed)
+            if (row.Points.Any(p => p is null) ||
+                !row.Points.Select(p => p.Rpm).SequenceEqual(rpms.Intersect(row.Points.Select(p => p.Rpm))))
+                throw new InvalidDataException("Curva incompatible con los regímenes solicitados.");
+            if (row.Status == StudyStatus.Completed ? row.Error is not null || row.Points.Count != rpms.Length
+                : string.IsNullOrWhiteSpace(row.Error))
+                throw new InvalidDataException("La evaluación no corresponde a su estado declarado.");
+            if (row.Points.Count > 0)
             {
-                if (row.Points.Any(p => p is null) || !row.Points.Select(p => p.Rpm).SequenceEqual(rpms) || row.Error is not null)
-                    throw new InvalidDataException("Curva incompatible con los regímenes solicitados.");
                 var configuration = plan.Variants[row.Id].Configuration;
-                configuration.Validate();
+                configuration.Validate(false);
                 if (row.Points.Any(p => p.Cycles < 3 || p.Cycles > configuration.Solver.MaximumCycles ||
                     p.PeriodicError < 0 || p.PeriodicError >= configuration.Solver.PeriodicTolerance ||
-                    p.PeakPressurePa <= 0 || p.PeakTemperatureK <= 0))
+                    p.PeakPressurePa <= 0 || p.PeakTemperatureK is < 200 or > 6000 ||
+                    Math.Abs(p.IndicatedPowerW - p.NetWorkJ * p.Rpm / 120) > 1e-8 * (1 + Math.Abs(p.IndicatedPowerW)) ||
+                    Math.Abs(p.BrakePowerW - p.BrakeTorqueNm * p.Rpm * Math.PI / 30) > 1e-8 * (1 + Math.Abs(p.BrakePowerW)) ||
+                    p.BrakePowerW > p.IndicatedPowerW + 1e-8 || p.VolumetricEfficiency < 0 || p.FuelMassKgPerCycle < 0 ||
+                    Math.Abs(p.MassResidualKg) > 1e-8))
                     throw new InvalidDataException("La curva guardada no cumple las condiciones de periodicidad o estado.");
             }
-            else if (row.Points.Count > 0 || string.IsNullOrWhiteSpace(row.Error))
-                throw new InvalidDataException("Un caso fallido debe tener diagnóstico y carecer de curva.");
         }
         var ids = run.Evaluations.Where(e => e.Status == StudyStatus.Completed).Select(e => e.Id).ToHashSet();
         var comparisons = new HashSet<(int, int)>();

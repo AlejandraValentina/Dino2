@@ -32,7 +32,7 @@ try
     }
     if (args[0] == "--example-multi-2t" && args.Length == 3 && int.TryParse(args[2], out int count2T))
     {
-        TwoStrokeFiles.SaveMulti(args[1], new(MultiTwoStrokeConfiguration.Example(count2T)));
+        TwoStrokeFiles.SaveMulti(args[1], new(MultiTwoStrokeConfiguration.Example(count2T, ExteriorBoundary.PressureReservoir)));
         return 0;
     }
     if (args[0] == "--multi-2t" && args.Length >= 3)
@@ -55,7 +55,7 @@ try
     }
     if (args[0] == "--example-multi" && args.Length == 3 && int.TryParse(args[2], out int count))
     {
-        MultiFiles.Save(args[1], new(MultiConfiguration.Example(count)));
+        MultiFiles.Save(args[1], new(MultiConfiguration.Example(count, ExteriorBoundary.PressureReservoir)));
         return 0;
     }
     if (args[0] == "--multi" && args.Length >= 3)
@@ -80,7 +80,7 @@ try
     }
     if (args[0] == "--example-2t" && args.Length == 2)
     {
-        TwoStrokeFiles.Save(args[1], new(TwoStrokeConfiguration.Example, null));
+        TwoStrokeFiles.Save(args[1], new(TwoStrokeConfiguration.RecoveryExample, null));
         return 0;
     }
     if (args[0] == "--2t" && args.Length >= 3)
@@ -110,7 +110,7 @@ try
             "--example-ducts" => ThermochemicalOptions.EquilibriumExample with
             {
                 Thermochemistry = ThermochemicalOptions.Default with { Products = ProductChemistry.ClosedCycleEquilibrium, BurnLaw = BurnLaw.PrescribedWiebe },
-                Ducts = GasPath.Example, Speeds = new(2000, 6000, 1000)
+                Ducts = GasPath.RecoveryExample, Speeds = new(2000, 6000, 1000)
             },
             "--example-equilibrium" => ThermochemicalOptions.EquilibriumExample,
             "--example-reactive" => ThermochemicalOptions.Example,

@@ -27,7 +27,7 @@ public partial class MulticylinderWindow : Window
     private readonly TextBox[] phases = [new(), new(), new()];
     private readonly TextBlock topology = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Func<bool>? confirmDiscard;
-    private MultiConfiguration template = MultiConfiguration.Example();
+    private MultiConfiguration template = MultiConfiguration.Example(exterior: ExteriorBoundary.PressureReservoir);
     private MultiConfiguration? original;
     private MultiResult? currentResult, originalResult;
     private IReadOnlyList<MultiDifference>? differences;
@@ -316,6 +316,7 @@ public partial class MulticylinderWindow : Window
             differences = null;
             dirty = true;
             MultiStatusText.Text = $"Cálculo completado · {result.b.Points.Count(p => p.Status == MultiStatus.Converged)}/{result.b.Points.Count} RPM periódicas · {result.b.ElapsedMilliseconds / 1000:F2} s";
+            if (config.Cylinder.Ducts?.BoundaryNotice() is { } notice) MultiStatusText.Text += " · " + notice;
         });
     }
 
@@ -354,6 +355,13 @@ public partial class MulticylinderWindow : Window
         dirty = false;
         Render();
         MultiStatusText.Text = "Proyecto multicilíndrico abierto.";
+        if (project.Current.Cylinder.Ducts?.BoundaryNotice() is { } notice) MultiStatusText.Text += " " + notice;
+        if (currentResult is { } loaded)
+        {
+            MultiStatusText.Text += " " + Dino2.Core.ResultProvenance.Describe(loaded.Provenance);
+            if (loaded.Provenance?.NumericalRevision != project.Current.Cylinder.ModelIdentifier + "-network-recovery-v1")
+                MultiStatusText.Text += " Recalculá antes de interpretar la curva histórica.";
+        }
     }
 
     private async void Open_Click(object sender, RoutedEventArgs e)

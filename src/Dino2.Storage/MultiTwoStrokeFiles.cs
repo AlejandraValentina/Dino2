@@ -73,7 +73,8 @@ public static partial class TwoStrokeFiles
             !c.Cylinder.Speeds.Values().SequenceEqual(sweep.Runs.Select(r => r.Rpm)))
             throw new InvalidDataException("Curva multicilíndrica incompatible con su configuración.");
         if (sweep.Provenance is { } provenance &&
-            !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Revision + "-network-recovery-v1"))
+            !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Revision + "-network-recovery-v1") &&
+            !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Stage11Revision + "-network-recovery-v1"))
             throw new InvalidDataException("La revisión declarada de la curva multicilíndrica no corresponde a su configuración.");
         foreach (var run in sweep.Runs)
         {
@@ -84,7 +85,7 @@ public static partial class TwoStrokeFiles
                 p.Cylinders is null || p.Cylinders.Count != c.Phases.Count ||
                 p.Cylinders.Where((v, index) => v is null || v.Number != index + 1 || v.PhaseDeg != c.Phases.Values()[index] ||
                     v.Point is null || v.Point.Rpm != p.Rpm || v.Point.Trace is null || v.Point.Trace.Count != p.Cycle.Count ||
-                    !Consistent(v.Point, c.Cylinder.Geometry.DisplacementM3)).Any() ||
+                    !Consistent(v.Point, c.Cylinder)).Any() ||
                 (!(allowSummary && p.Cycle.Count == 0) && (p.Cycle.Count is < 2 or > 362 || p.Cycle[0].AngleDeg != 0 || p.Cycle[^1].AngleDeg != 360)))
                 throw new InvalidDataException("Diagnósticos de cilindros o ciclo incompatibles.");
             double omega = p.Rpm * Math.PI / 30, volume = c.DisplacementM3;

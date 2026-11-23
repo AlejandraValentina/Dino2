@@ -20,7 +20,10 @@ public sealed record StudyPoint(int Rpm, double IndicatedPowerW, double BrakePow
 public sealed record StudyEvaluation(int Id, StudyStatus Status, IReadOnlyList<StudyPoint> Points, string? Error, double Milliseconds);
 public sealed record StudyProgress(StudyEvaluation Evaluation, int Evaluated, int Total);
 public sealed record StudyRun(StudyDefinition Definition, IReadOnlyList<StudyEvaluation> Evaluations, bool Cancelled,
-    int Workers, int ExecutedCurves, double Milliseconds);
+    int Workers, int ExecutedCurves, double Milliseconds)
+{
+    public ResultProvenance? Provenance { get; init; }
+}
 public sealed record RankEntry(int Id, ObjectiveValue Objective);
 
 public static class StudyRunner
@@ -66,8 +69,9 @@ public static class StudyRunner
             }
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { cancelled = true; }
+        string model = plan.Definition.Base.ModelIdentifier;
         return new(plan.Definition, Array.AsReadOnly(items.OfType<StudyEvaluation>().ToArray()), cancelled,
-            workers, executed, clock.Elapsed.TotalMilliseconds);
+            workers, executed, clock.Elapsed.TotalMilliseconds) { Provenance = ResultProvenance.Capture(model, model) };
     }
 
     internal static StudyEvaluation Solve(StudyVariant variant, CancellationToken cancellation, Action? onExecute = null)
