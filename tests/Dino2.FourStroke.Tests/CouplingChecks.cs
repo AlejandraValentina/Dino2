@@ -102,7 +102,10 @@ internal static class CouplingChecks
                 double pressure = PortBoundary.Flux(Air, total, total * fraction, reservoir, supply, edge, still, flux);
                 if (!(pressure > 0) || Math.Sign(flux[0]) != (fraction == 0 ? 0 : -Math.Sign(difference)))
                     throw new Exception("Sentido de flujo incorrecto al abrir la válvula.");
-                if (Math.Abs(flux[0]) < last) throw new Exception("Caudal decreciente durante la apertura.");
+                // The preserved full-open solve brackets velocity separately. Its
+                // last bit can differ when the incremental area loss is negligible.
+                if (Math.Abs(flux[0]) + 1e-9 < last)
+                    throw new Exception($"Caudal decreciente durante la apertura: Δp={difference}, α={fraction}, último={last:R}, nuevo={Math.Abs(flux[0]):R}.");
                 last = Math.Abs(flux[0]);
             }
         }
