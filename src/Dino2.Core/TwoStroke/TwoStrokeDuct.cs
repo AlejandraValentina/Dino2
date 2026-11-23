@@ -9,6 +9,11 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
     internal int Size => mesh.Size;
     internal int Cells => mesh.Cells;
     internal double Volume(int cell) => mesh.Volume(cell);
+    internal void Validate(ReadOnlySpan<double> tube)
+    {
+        for (int i = 0; i < tube.Length; i += gas.Size)
+            gas.ValidateMixture(tube.Slice(i, gas.Size));
+    }
 
     internal void Initialize(Span<double> values)
     {
@@ -65,14 +70,22 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
         if (exterior is null)
             ReservoirBoundary.Flux(gas, boundaryMode, ghost, reservoir, face, left, outer);
         else
-            gas.Flux(exterior.Values, exterior.State, face, left, outer);
+            exterior.ToRunner(gas, face, left, outer);
         for (int i = 0; i < outer.Length; i++) outer[i] *= mesh.ReservoirArea;
 
         var right = mesh.BoundaryState(tube, true, face);
-        double wall = Math.Max(1, gas.WallPressure(right, true));
+        double wall = gas.WallPressure(right, true);
+        if (boundaryMode != ExteriorBoundary.PressureReservoir) wall = Math.Max(1, wall);
         double limit = plenum.Pressure + (reed?.OpeningPressurePa ?? 0);
         inner.Clear();
-        if (reed is not null ? wall <= limit : portArea <= 0)
+        if (boundaryMode == ExteriorBoundary.PressureReservoir)
+        {
+            double aperture = Math.Min(mesh.ValveArea, reed?.EffectiveArea(wall - plenum.Pressure) ?? portArea);
+            facePressure = PortBoundary.Flux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner);
+            if (reed is not null && SpeciesThermodynamics.TotalMass(inner[..gas.SpeciesCount]) < 0)
+                facePressure = PortBoundary.Flux(gas, mesh.ValveArea, 0, donor, plenum, face, right, inner);
+        }
+        else if (reed is not null ? wall <= limit : portArea <= 0)
         {
             facePressure = wall;
             inner[gas.Momentum] = wall * mesh.ValveArea;

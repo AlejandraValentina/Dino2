@@ -34,7 +34,7 @@ internal sealed class ManifoldVolume
         flowArea = trunk.ValveArea + cylinders * runnerArea;
         exterior = new(new double[gas.Size]);
         exterior.State = gas.Encode(exterior.Values, mixture, reservoir.PressurePa, reservoir.TemperatureK, 0, tag);
-        Junction = new(new double[gas.Size]);
+        Junction = new(new double[gas.Size], boundaryMode);
     }
 
     internal void Initialize(Span<double> state)
@@ -55,7 +55,10 @@ internal sealed class ManifoldVolume
         var outside = trunk.BoundaryState(tube, false, edge);
         ReservoirBoundary.Flux(gas, boundaryMode, exterior.Values, exterior.State, edge, outside, outer);
         var inside = trunk.BoundaryState(tube, true, edge);
-        gas.Flux(edge, inside, Junction.Values, Junction.State, inner);
+        if (boundaryMode == ExteriorBoundary.PressureReservoir)
+            ReservoirBoundary.RightFlux(gas, Junction.Values, Junction.State, edge, inside, inner);
+        else
+            gas.Flux(edge, inside, Junction.Values, Junction.State, inner);
         for (int i = 0; i < gas.Size; i++)
         {
             outer[i] *= trunk.ReservoirArea;

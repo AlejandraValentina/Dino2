@@ -3,10 +3,13 @@ using Dino2.Core.Thermochemistry;
 
 namespace Dino2.Core.GasDynamics;
 
-internal sealed class DuctBoundary(double[] values)
+internal sealed class DuctBoundary(double[] values, ExteriorBoundary coupling = ExteriorBoundary.HistoricalRiemann)
 {
     internal double[] Values { get; } = values;
     internal GasState State { get; set; }
+
+    internal void ToRunner(GasEquation gas, ReadOnlySpan<double> edge, GasState inside, Span<double> flux) =>
+        ReservoirBoundary.Flux(gas, coupling, Values, State, edge, inside, flux, allowUpstreamShock: true);
 }
 
 internal sealed class DuctCoupling
@@ -75,7 +78,7 @@ internal sealed class DuctCoupling
         if (exterior is null)
             ReservoirBoundary.Flux(gas, end.Mode, end.Reservoir, end.Ambient, boundary, ambientEnd, outer);
         else
-            gas.Flux(exterior.Values, exterior.State, boundary, ambientEnd, outer);
+            exterior.ToRunner(gas, boundary, ambientEnd, outer);
         for (int k = 0; k < gas.Size; k++) outer[k] *= end.Mesh.ReservoirArea;
         var valveEnd = end.Mesh.BoundaryState(tube, true, boundary);
         ValveFlux(end, angle, boundary, valveEnd, cylinder, chamber, valveFlow);
@@ -89,14 +92,16 @@ internal sealed class DuctCoupling
         return time;
     }
 
-    private void ValveFlux(End end, double angle, ReadOnlySpan<double> last, GasState inside,
+    private double ValveFlux(End end, double angle, ReadOnlySpan<double> last, GasState inside,
         ReadOnlySpan<double> cylinder, GasState chamber, Span<double> result)
     {
         double area = end.Mesh.ValveArea;
         double opening = Math.Min(area, ValveFlow.EffectiveArea(end.Valve, angle));
+        if (end.Mode == ExteriorBoundary.PressureReservoir)
+            return PortBoundary.Flux(gas, area, opening, cylinder, chamber, last, inside, result);
         double wallPressure = gas.WallPressure(inside, true);
         result.Clear();
-        if (opening == 0) { result[gas.Momentum] = wallPressure * area; return; }
+        if (opening == 0) { result[gas.Momentum] = wallPressure * area; return inside.Pressure; }
 
         // Intersect the valve capacity with an outgoing pressure/mass-flow characteristic at the pipe end.
         // The wall state anchors the characteristic at zero flow; its slope uses the local impedance.
@@ -121,6 +126,7 @@ internal sealed class DuctCoupling
         result[gas.Momentum] = pressure * area + mdot * mdot / (inside.Density * area);
         result[gas.Energy] = mdot * (donor.Energy + donor.Pressure) / donor.Density;
         result[gas.Tag] = mdot * values[gas.Tag] / donor.Density;
+        return inside.Pressure;
     }
 
     internal (double Intake, double Exhaust, double IntakePressure, double ExhaustPressure) Sample(double angle,
@@ -134,8 +140,8 @@ internal sealed class DuctCoupling
             var tube = state.Slice(end.Offset, end.Mesh.Size);
             end.Mesh.PrepareValve(tube);
             var edgeState = end.Mesh.BoundaryState(tube, true, edge);
-            ValveFlux(end, angle, edge, edgeState, cylinder, chamber, flux);
-            return (MassFlux(flux), edgeState.Pressure);
+            double p = ValveFlux(end, angle, edge, edgeState, cylinder, chamber, flux);
+            return (MassFlux(flux), p);
         }
 
         var i = AtEnd(inlet, state, cylinder, edge, flux);

@@ -13,6 +13,7 @@ public sealed partial class TwoStrokeSimulator
         var k1 = new double[dimension];
         var k2 = new double[dimension];
         var predictor = new double[dimension];
+        var candidate = new double[dimension];
         Span<double> inventory = stackalloc double[N], finalInventory = stackalloc double[N];
         Span<double> composition = stackalloc double[N], chemistry = stackalloc double[N], errors = stackalloc double[N];
         var physical = new double[N];
@@ -59,14 +60,19 @@ public sealed partial class TwoStrokeSimulator
                         try
                         {
                             double stageLimit = Evaluate(angle + h, predictor, k2, out last);
-                            if (h <= stageLimit) break;
+                            if (h <= stageLimit)
+                            {
+                                for (int i = 0; i < dimension; i++) candidate[i] = state[i] + h * .5 * (k1[i] + k2[i]);
+                                ValidateAccepted(angle + h, candidate);
+                                break;
+                            }
                             h = Math.Min(h / 2, .98 * stageLimit);
                             rejected++;
                         }
                         catch (NumericalStateException ex) { cause = ex.Message; h /= 2; rejected++; }
                     }
 
-                    for (int i = 0; i < dimension; i++) state[i] += h * .5 * (k1[i] + k2[i]);
+                    (state, candidate) = (candidate, state);
                     peakP = Math.Max(peakP, Math.Max(first.CylinderPressurePa, last.CylinderPressurePa));
                     peakT = Math.Max(peakT, Math.Max(first.CylinderTemperatureK, last.CylinderTemperatureK));
                     angle += h;
@@ -158,6 +164,16 @@ public sealed partial class TwoStrokeSimulator
             }
         }
         throw new CycleConvergenceException($"2T a {rpm} RPM: cambio {periodic:E3} tras {c.Numerics.MaximumCycles} ciclos. Componente dominante: {diagnostic?.Dominant}.");
+    }
+
+    private void ValidateAccepted(double angle, ReadOnlySpan<double> state)
+    {
+        Span<double> masses = stackalloc double[N];
+        CylinderComposition(angle, state, SliderCrank.At(c.Geometry, angle).VolumeM3, masses, out _);
+        var crankcase = state.Slice(Case, N);
+        SpeciesThermodynamics.Temperature(crankcase, state[Uk], c.Intake.TemperatureK);
+        inlet.Validate(state.Slice(IntakeOffset, inlet.Size));
+        outlet.Validate(state.Slice(outletOffset, outlet.Size));
     }
 
     private double Inventory(ReadOnlySpan<double> state, Span<double> species, out double marker)

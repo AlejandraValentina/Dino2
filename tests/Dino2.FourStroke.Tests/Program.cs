@@ -13,10 +13,16 @@ if (args is ["--campaign", var mode])
     Stage11Campaign.Run(mode);
     return 0;
 }
+if (args is ["--stage12", var mode12])
+{
+    CouplingChecks.RunCampaign(mode12);
+    return 0;
+}
 
 var tests = new List<(string, Action)>();
 void Test(string name, Action action) => tests.Add((name, action));
 Test("Physical reservoir boundaries, quarter-wave and distributed wall sources", ReservoirChecks.Run);
+Test("Compact aperture choking, shock and dynamic plenum acoustics", CouplingChecks.Run);
 void Assert(bool value, string message) { if (!value) throw new Exception(message); }
 void Near(double value, double expected, double tolerance = 1e-8) =>
     Assert(double.IsFinite(value) && Math.Abs(value - expected) <= tolerance, $"Expected {expected:R}, got {value:R}");

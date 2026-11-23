@@ -1,5 +1,6 @@
 using Dino2.Core.FourStroke;
 using Dino2.Core.Thermochemistry;
+using System.Text.Json.Serialization;
 
 namespace Dino2.Core.GasDynamics;
 
@@ -18,18 +19,28 @@ public sealed record DuctGeometry(double LengthM, double ReservoirDiameterM, dou
 }
 
 public enum DuctScheme { FirstOrder, Muscl }
-public enum ExteriorBoundary { HistoricalRiemann, PressureReservoir }
+public enum ExteriorBoundary { HistoricalRiemann = 0, PressureReservoir = 1, UnspecifiedLegacy = 2 }
 
 public sealed record GasPath(DuctGeometry Intake, DuctGeometry Exhaust, double Courant = .45, DuctScheme Scheme = DuctScheme.FirstOrder)
+    : IJsonOnDeserializing
 {
-    public ExteriorBoundary Exterior { get; init; }
+    private ExteriorBoundary exterior = ExteriorBoundary.PressureReservoir;
+    public ExteriorBoundary Exterior { get => exterior; init => exterior = value; }
+    void IJsonOnDeserializing.OnDeserializing() => exterior = ExteriorBoundary.UnspecifiedLegacy;
     public ExteriorBoundary? IntakeExterior { get; init; }
     public ExteriorBoundary? ExhaustExterior { get; init; }
     public ExteriorBoundary IntakeBoundary => IntakeExterior ?? Exterior;
     public ExteriorBoundary ExhaustBoundary => ExhaustExterior ?? Exterior;
     public const string ModelId = "four-stroke-isooctane-ducts-v4";
     public const string MusclModelId = "four-stroke-isooctane-ducts-v4-muscl";
-    public string Identifier => (Scheme == DuctScheme.Muscl ? MusclModelId : ModelId) +
+    public string Identifier => Stage11Identifier + (PhysicalCoupling ? "-ports-v1" : "");
+    internal bool PhysicalCoupling => IntakeBoundary == ExteriorBoundary.PressureReservoir || ExhaustBoundary == ExteriorBoundary.PressureReservoir;
+    public bool UsesLegacyExterior() => IntakeBoundary != ExteriorBoundary.PressureReservoir || ExhaustBoundary != ExteriorBoundary.PressureReservoir;
+    public string? BoundaryNotice() => IntakeBoundary == ExteriorBoundary.UnspecifiedLegacy || ExhaustBoundary == ExteriorBoundary.UnspecifiedLegacy
+        ? "LEGACY / NO PREDICTIVO · contorno ausente en el archivo histórico."
+        : UsesLegacyExterior() ? "LEGACY / NO PREDICTIVO · extremo adaptado." : null;
+    [JsonIgnore]
+    public string Stage11Identifier => (Scheme == DuctScheme.Muscl ? MusclModelId : ModelId) +
         ((IntakeBoundary, ExhaustBoundary) switch
         {
             (ExteriorBoundary.PressureReservoir, ExteriorBoundary.PressureReservoir) => "-pressure-boundary",
@@ -38,7 +49,8 @@ public sealed record GasPath(DuctGeometry Intake, DuctGeometry Exhaust, double C
             _ => ""
         }) +
         (Intake.Wall is not null || Exhaust.Wall is not null ? "-wall" : "");
-    public static GasPath Example => new(new(.35, .042, .036, 24), new(.65, .036, .032, 32));
+    public static GasPath Example => new(new(.35, .042, .036, 24), new(.65, .036, .032, 32))
+        { Exterior = ExteriorBoundary.HistoricalRiemann };
     public static GasPath RecoveryExample => new(new DuctGeometry(.35, .042, .036, 24) { Wall = new(.00002, 320) },
         new DuctGeometry(.85, .036, .032, 42) { Wall = new(.00004, 500) }, Scheme: DuctScheme.Muscl)
         { Exterior = ExteriorBoundary.PressureReservoir };
@@ -63,8 +75,12 @@ internal sealed class GasEquation(int speciesCount)
     internal int Momentum => speciesCount;
     internal int Energy => speciesCount + 1;
     internal int Tag => speciesCount + 2;
-    private readonly double[] energyAtMinimum = Enumerable.Range(0, speciesCount).Select(i => SpeciesThermodynamics.U(i, 200)).ToArray();
-    private readonly double[] energyAtMaximum = Enumerable.Range(0, speciesCount).Select(i => SpeciesThermodynamics.U(i, 6000)).ToArray();
+    private readonly double[] energyAtMinimum = ThermalBounds(speciesCount, 200);
+    private readonly double[] energyAtMaximum = ThermalBounds(speciesCount, 6000);
+
+    private static double[] ThermalBounds(int speciesCount, double temperature) => speciesCount == 1
+        ? [287 * temperature / .4]
+        : Enumerable.Range(0, speciesCount).Select(i => SpeciesThermodynamics.U(i, temperature)).ToArray();
 
     internal void ValidateMixture(ReadOnlySpan<double> cell)
     {

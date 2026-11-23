@@ -68,7 +68,8 @@ public sealed partial class TwoStrokeSimulator
         private readonly ManifoldVolume? intake, exhaust;
         private readonly GasEquation gas = new(N);
         private readonly SortedDictionary<double, List<(Member Member, double Local)>> events = new() { [360] = [] };
-        private readonly double[] y, before, k1, k2, stage;
+        private double[] y, candidate;
+        private readonly double[] before, k1, k2, stage;
         private readonly TwoStrokeSample[] first, second;
         private readonly List<MultiTwoStrokeSample> trace = [];
         private int accepted, rejected, steps, cycle;
@@ -114,7 +115,7 @@ public sealed partial class TwoStrokeSimulator
                     Area(e.Primary.ReservoirDiameterM), members.Length, 6.0 * rpm, c.Numerics.Exterior);
                 size += exhaust.Dimension;
             }
-            y = new double[size]; before = new double[size]; k1 = new double[size];
+            y = new double[size]; candidate = new double[size]; before = new double[size]; k1 = new double[size];
             k2 = new double[size]; stage = new double[size];
             first = new TwoStrokeSample[members.Length]; second = new TwoStrokeSample[members.Length];
             foreach (var member in members) member.Cylinder.Initialize(member.State(y), member.Local(0));
@@ -192,13 +193,21 @@ public sealed partial class TwoStrokeSimulator
                         try
                         {
                             double limit = Rates(angle + step - start, stage, k2, second);
-                            if (step <= limit) break;
+                            if (step <= limit)
+                            {
+                                for (int i = 0; i < y.Length; i++) candidate[i] = y[i] + step * .5 * (k1[i] + k2[i]);
+                                foreach (var member in members)
+                                    member.Cylinder.ValidateAccepted(member.SegmentStart + angle + step - start, member.State(candidate));
+                                intake?.Validate(Intake(candidate));
+                                exhaust?.Validate(Exhaust(candidate));
+                                break;
+                            }
                             step = Math.Min(step / 2, .98 * limit);
                         }
                         catch (NumericalStateException ex) { lastError = ex.Message; step *= .5; }
                         rejected++;
                     }
-                    for (int i = 0; i < y.Length; i++) y[i] += step * .5 * (k1[i] + k2[i]);
+                    (y, candidate) = (candidate, y);
                     for (int i = 0; i < members.Length; i++)
                     {
                         members[i].PeakP = Math.Max(members[i].PeakP, Math.Max(first[i].CylinderPressurePa, second[i].CylinderPressurePa));

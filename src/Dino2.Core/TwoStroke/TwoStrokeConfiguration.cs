@@ -1,6 +1,7 @@
 using Dino2.Core.FourStroke;
 using Dino2.Core.GasDynamics;
 using Dino2.Core.Thermochemistry;
+using System.Text.Json.Serialization;
 
 namespace Dino2.Core.TwoStroke;
 
@@ -64,9 +65,17 @@ public sealed record TwoStrokeCombustion(double AdvanceDeg, double DelayS, doubl
     internal double CrankDuration(int rpm) => DurationDeg ?? 6 * rpm * DurationS;
 }
 public sealed record TwoStrokeNumerics(double MaximumStepDeg, double Courant, double PeriodicTolerance,
-    int MaximumCycles, DuctScheme Scheme)
+    int MaximumCycles, DuctScheme Scheme) : IJsonOnDeserializing
 {
-    public ExteriorBoundary Exterior { get; init; }
+    private ExteriorBoundary exterior = ExteriorBoundary.PressureReservoir;
+    public ExteriorBoundary Exterior { get => exterior; init => exterior = value; }
+    void IJsonOnDeserializing.OnDeserializing() => exterior = ExteriorBoundary.UnspecifiedLegacy;
+    public string? BoundaryNotice() => Exterior switch
+    {
+        ExteriorBoundary.PressureReservoir => null,
+        ExteriorBoundary.UnspecifiedLegacy => "LEGACY / NO PREDICTIVO · contorno ausente en el archivo histórico.",
+        _ => "LEGACY / NO PREDICTIVO · extremo adaptado."
+    };
 }
 
 public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double CrankcaseMinimumM3,
@@ -77,7 +86,9 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
 {
     public const string ModelId = "two-stroke-reed-expansion-isooctane-v1";
     public const string NumericalRevision = "two-stroke-ssprk2-passive-limiter-v2";
-    public string Revision => NumericalRevision +
+    public string Revision => Stage11Revision + (Numerics.Exterior == ExteriorBoundary.PressureReservoir ? "-ports-v1" : "");
+    [JsonIgnore]
+    public string Stage11Revision => NumericalRevision +
         (Numerics.Exterior == ExteriorBoundary.PressureReservoir ? "-pressure-boundary" : "") +
         (IntakeDuct.Wall is not null || Expansion.Wall is not null ? "-wall" : "") +
         (Combustion.DurationDeg.HasValue ? "-wiebe-angle" : "");
@@ -91,7 +102,8 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
         new(.031, .022, .036, .0008, .74), new(.14, .031, .031, 12),
         new(.035, .17, .27, .085, .13, .20, .018, .13, 32), 1,
         new(19, .00016, .0011, SpeciesThermodynamics.StoichiometricAfr, .96, 2, true),
-        new(440, 1), new(42000, .004, 4500, 45), new(4000, 6000, 1000), new(.65, .44, 5e-5, 160, DuctScheme.Muscl));
+        new(440, 1), new(42000, .004, 4500, 45), new(4000, 6000, 1000),
+        new(.65, .44, 5e-5, 160, DuctScheme.Muscl) { Exterior = ExteriorBoundary.HistoricalRiemann });
 
     public static TwoStrokeConfiguration RecoveryExample
     {

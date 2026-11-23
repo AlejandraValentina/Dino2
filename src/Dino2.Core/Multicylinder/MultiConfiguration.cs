@@ -66,12 +66,12 @@ public sealed record MultiConfiguration(FourStrokeConfiguration Cylinder, Firing
     public const string ModelId = "four-stroke-inline-isooctane-manifolds-v1";
     public double DisplacementM3 => Phases.Count * Cylinder.Geometry.DisplacementM3;
 
-    public static MultiConfiguration Example(int count = 2) => new(
+    public static MultiConfiguration Example(int count = 2, ExteriorBoundary exterior = ExteriorBoundary.HistoricalRiemann) => new(
         Thermochemistry.ThermochemicalOptions.EquilibriumExample with
         {
             Thermochemistry = Thermochemistry.ThermochemicalOptions.EquilibriumExample.Thermochemistry!
                 with { BurnLaw = Thermochemistry.BurnLaw.PrescribedWiebe },
-            Ducts = new(new(.38, .040, .036, 8), new(.52, .038, .034, 8), .45, DuctScheme.Muscl),
+            Ducts = new(new(.38, .040, .036, 8), new(.52, .038, .034, 8), .45, DuctScheme.Muscl) { Exterior = exterior },
             Speeds = new(3000, 5000, 1000),
             Solver = new(.5, 2e-7, .0004, 40)
         }, FiringPhases.Inline(count),

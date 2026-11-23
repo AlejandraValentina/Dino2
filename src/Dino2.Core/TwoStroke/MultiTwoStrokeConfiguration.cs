@@ -12,7 +12,7 @@ public sealed record MultiTwoStrokeConfiguration(TwoStrokeConfiguration Cylinder
     public const string ModelId = "two-stroke-inline-reed-expansion-isooctane-v1";
     public double DisplacementM3 => Cylinder.Geometry.DisplacementM3 * Phases.Count;
 
-    public static MultiTwoStrokeConfiguration Example(int cylinders = 2)
+    public static MultiTwoStrokeConfiguration Example(int cylinders = 2, ExteriorBoundary exterior = ExteriorBoundary.HistoricalRiemann)
     {
         var c = TwoStrokeConfiguration.Example;
         return new(c with
@@ -22,7 +22,7 @@ public sealed record MultiTwoStrokeConfiguration(TwoStrokeConfiguration Cylinder
                 InletDiameterM = .057, BellyDiameterM = .105, StingerDiameterM = .035
             },
             Speeds = new(4000, 5000, 1000),
-            Numerics = c.Numerics with { PeriodicTolerance = .0002 }
+            Numerics = c.Numerics with { PeriodicTolerance = .0002, Exterior = exterior }
         }, FiringPhases.Even(cylinders, 360),
             new(new(.26, .058, .058, 8), .0012),
             new(new(.24, .036, .035, 12), .00055));
