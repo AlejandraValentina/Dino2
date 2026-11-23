@@ -20,7 +20,12 @@ $desc = [System.Windows.Automation.TreeScope]::Descendants
 function Wait-For($test, [string]$description, [int]$seconds = 30) {
     $deadline = [DateTime]::UtcNow.AddSeconds($seconds)
     do {
-        $value = & $test
+        $value = $null
+        try { $value = & $test }
+        catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+            # The native dialog can return while a newly exported file is still locked.
+            $value = $null
+        }
         if ($value) { return $value }
         if ($process.HasExited) { throw 'Dino2 se cerró durante el recorrido.' }
         Start-Sleep -Milliseconds 100
@@ -114,7 +119,10 @@ try {
     $contrastClock.Stop()
     File-Dialog 'MultiABExport' (Join-Path $output 'comparacion.csv')
     $null = Status 'CSV exportado'
-    if (!(Select-String -Quiet -Path (Join-Path $output 'comparacion.csv') -Pattern "^$verdict,4000,")) { throw 'El CSV perdió el contraste.' }
+    $null = Wait-For {
+        (Test-Path -LiteralPath (Join-Path $output 'comparacion.csv')) -and
+            (Select-String -Quiet -Path (Join-Path $output 'comparacion.csv') -Pattern "^$verdict,4000,")
+    } 'clasificación en CSV'
     Tab 'Cilindros y ciclo'
     File-Dialog 'MultiTraceExport' (Join-Path $output 'ciclo.csv')
     $null = Wait-For {
