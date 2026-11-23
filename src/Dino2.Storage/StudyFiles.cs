@@ -27,7 +27,7 @@ public static class StudyFiles
         {
             using (var stream = new FileStream(temporary, FileMode.CreateNew))
             {
-                JsonSerializer.Serialize(stream, new Envelope(2, plan.Definition.Base.ModelIdentifier, study,
+                JsonSerializer.Serialize(stream, new Envelope(2, study.Run.Provenance?.PhysicsModel ?? plan.Definition.Base.ModelIdentifier, study,
                     ProjectIntegrity.Digest(study, Flat)), Options);
                 stream.Flush(true);
             }
@@ -45,7 +45,8 @@ public static class StudyFiles
         ProjectIntegrity.Check(envelope.Study, envelope.Integrity, envelope.SchemaVersion == 2, Flat);
         var plan = Validate(envelope.Study);
         if (envelope.SolverModel != plan.Definition.Base.ModelIdentifier &&
-            envelope.SolverModel != plan.Definition.Base.Ducts?.Stage11Identifier)
+            envelope.SolverModel != plan.Definition.Base.Ducts?.Stage11Identifier &&
+            envelope.SolverModel != plan.Definition.Base.Ducts?.Stage12Identifier)
             throw new InvalidDataException("La identidad del solver no coincide con la base del estudio.");
         var document = envelope.Study;
         return document with
@@ -70,7 +71,7 @@ public static class StudyFiles
             .Select((row, i) => (row.Id, Position: i + 1)).ToDictionary(p => p.Id, p => p.Position);
         var baseline = data.GetValueOrDefault(0)?.Points;
         var output = new StringBuilder();
-        output.AppendLine("# solver_model=" + plan.Definition.Base.ModelIdentifier);
+        output.AppendLine("# solver_model=" + (study.Run.Provenance?.PhysicsModel ?? "unrecorded"));
         output.AppendLine("# provenance=" + JsonSerializer.Serialize(study.Run.Provenance, Flat));
         output.AppendLine("# study_definition=" + JsonSerializer.Serialize(plan.Definition, Flat));
         output.AppendLine("# cancellation=" + study.Run.Cancelled + "; objective_unit=" + objective.Unit + "; sampled RPM only");
@@ -112,7 +113,8 @@ public static class StudyFiles
             throw new InvalidDataException("Lista de evaluaciones incompatible con la grilla.");
         var rpms = plan.Definition.Speeds.Values().ToArray();
         if (run.Provenance is { } stamp && (stamp.PhysicsModel != stamp.NumericalRevision ||
-            (stamp.PhysicsModel != plan.Definition.Base.ModelIdentifier && stamp.PhysicsModel != plan.Definition.Base.Ducts?.Stage11Identifier) ||
+            (stamp.PhysicsModel != plan.Definition.Base.ModelIdentifier && stamp.PhysicsModel != plan.Definition.Base.Ducts?.Stage11Identifier &&
+                stamp.PhysicsModel != plan.Definition.Base.Ducts?.Stage12Identifier) ||
             stamp.ResultSchema != 1 || string.IsNullOrWhiteSpace(stamp.Build) || stamp.SourceTree is not ("clean" or "dirty" or "unknown")))
             throw new InvalidDataException("La procedencia declarada no coincide con el modelo del estudio.");
         foreach (var row in run.Evaluations)

@@ -227,6 +227,11 @@ public partial class StudyPanel : UserControl
     internal async Task VerifyAsync(int candidate, int reference)
     {
         if (IsBusy || lastRun is null || resultPlan is null) return;
+        if (HistoricalRun)
+        {
+            StudyMessage.Text = "Estudio histórico. Ejecutá de nuevo el estudio para contrastar con el solver actual.";
+            return;
+        }
         if (checks.Any(c => c.CandidateId == candidate && c.ReferenceId == reference && c.Verdict != StudyVerdict.Unavailable))
         {
             StudyMessage.Text = "Contraste ya disponible para este par.";
@@ -333,7 +338,7 @@ public partial class StudyPanel : UserControl
         int alternate = ReferenceBox.SelectedValue is int number ? number : 0;
         bool ready = selection is { Status: StudyStatus.Completed, Id: > 0 };
         StudyApply.IsEnabled = ready && !IsBusy && lastRun is not null;
-        StudyCheckButton.IsEnabled = StudyApply.IsEnabled && row!.Id != alternate &&
+        StudyCheckButton.IsEnabled = !HistoricalRun && StudyApply.IsEnabled && row!.Id != alternate &&
             results.GetValueOrDefault(alternate)?.Status == StudyStatus.Completed;
         CheckText.Text = selection?.Error ?? "";
         if (ready)
@@ -390,8 +395,11 @@ public partial class StudyPanel : UserControl
         };
         string values = string.Join(" / ", check.Levels.Select(l => Format(l.Advantage)));
         var error = check.Levels.LastOrDefault(l => l.Error is not null)?.Error;
-        return $"{state}. Ventaja base / ×2 / ×4 [{unit}] {values}. Banda empírica {Format(check.ObservedBand)}. {error}";
+        string history = HistoricalRun ? "Histórico · " : "";
+        return $"{history}{state}. Ventaja base / ×2 / ×4 [{unit}] {values}. Banda empírica {Format(check.ObservedBand)}. {error}";
     }
+
+    private bool HistoricalRun => lastRun is not null && lastRun.Provenance?.NumericalRevision != lastRun.Definition.Base.ModelIdentifier;
 
     private void Apply_Click(object sender, RoutedEventArgs e)
     {
@@ -424,6 +432,7 @@ public partial class StudyPanel : UserControl
         Pages.SelectedIndex = 1;
         StudyMessage.Text = lastRun.Cancelled ? "Estudio parcial recuperado." : "Estudio recuperado.";
         StudyMessage.Text += " " + Dino2.Core.ResultProvenance.Describe(lastRun.Provenance);
+        if (HistoricalRun) StudyMessage.Text += " Estudio histórico. Ejecutalo de nuevo para verificar con el solver actual.";
         if (lastRun.Definition.Base.Ducts?.BoundaryNotice() is { } notice) StudyMessage.Text += " " + notice;
         EndWork();
     }

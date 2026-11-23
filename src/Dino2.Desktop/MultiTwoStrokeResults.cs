@@ -64,7 +64,8 @@ public partial class MultiTwoStrokeWindow
             Energía_J = r.Point?.Balance.EnergyJ, Dominante = r.Convergence?.Dominant, Diagnóstico = r.Failure
         }).ToArray();
         int? previous = (DiffRows.SelectedItem as DiffRow)?.RPM;
-        var differences = baseline is not null && curve is not null ? MultiTwoStrokeComparison.Compare(baseline, curve) : [];
+        var differences = baseline is not null && curve is not null && CurrentRevision(baseline) && CurrentRevision(curve)
+            ? MultiTwoStrokeComparison.Compare(baseline, curve) : [];
         var rows = differences.Select(r => new DiffRow(r.Rpm, r.DeltaPowerW, r.DeltaTorqueNm, r.DeltaFreshTrappedKg * 1e6,
             r.Rpm == contrast?.Rpm ? TwoStrokeWindow.StudyLabel(contrast.Check.Verdict) : "Sin contraste",
             r.Rpm == contrast?.Rpm ? contrast.Check.ObservedBand : null)).ToArray();
@@ -135,7 +136,8 @@ public partial class MultiTwoStrokeWindow
 
     private async void Compare_Click(object sender, RoutedEventArgs e)
     {
-        if (baseline is not { } a || curve is not { } b || DiffRows.SelectedItem is not DiffRow row) return;
+        if (baseline is not { } a || curve is not { } b || DiffRows.SelectedItem is not DiffRow row ||
+            !CurrentRevision(a) || !CurrentRevision(b)) return;
         await Execute((token, progress) => MultiTwoStrokeComparison.Verify(a.Configuration, b.Configuration, row.RPM, token, progress), check =>
         {
             contrast = new(row.RPM, check);
@@ -143,6 +145,9 @@ public partial class MultiTwoStrokeWindow
             M2Status.Text = $"{row.RPM} RPM · {TwoStrokeWindow.StudyLabel(check.Verdict)}.";
         });
     }
+
+    private static bool CurrentRevision(MultiTwoStrokeSweep? result) => result is not null &&
+        result.Provenance?.NumericalRevision == result.Configuration.Cylinder.Revision + "-network-recovery-v1";
 
     private void Buttons()
     {

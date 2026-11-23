@@ -74,7 +74,8 @@ public static partial class TwoStrokeFiles
             throw new InvalidDataException("Curva multicilíndrica incompatible con su configuración.");
         if (sweep.Provenance is { } provenance &&
             !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Revision + "-network-recovery-v1") &&
-            !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Stage11Revision + "-network-recovery-v1"))
+            !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Stage11Revision + "-network-recovery-v1") &&
+            !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Stage12Revision + "-network-recovery-v1"))
             throw new InvalidDataException("La revisión declarada de la curva multicilíndrica no corresponde a su configuración.");
         foreach (var run in sweep.Runs)
         {

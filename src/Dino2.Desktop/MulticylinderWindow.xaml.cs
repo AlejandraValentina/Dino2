@@ -303,7 +303,7 @@ public partial class MulticylinderWindow : Window
         try { config = ReadEditor(); }
         catch (ArgumentException ex) { Message(ex); return; }
         var a = original;
-        var old = originalResult;
+        var old = CurrentRevision(originalResult) ? originalResult : null;
         await ExecuteAsync((token, progress) =>
         {
             var b = MultiSimulator.Run(config, token, progress);
@@ -429,7 +429,7 @@ public partial class MulticylinderWindow : Window
 
     private void ExportComparison_Click(object sender, RoutedEventArgs e)
     {
-        if (originalResult is not null && currentResult is not null)
+        if (originalResult is not null && currentResult is not null && CurrentRevision(originalResult) && CurrentRevision(currentResult))
             DoExport("4t-multicilindrico-ab", path => MultiFiles.ExportComparison(path, originalResult, currentResult, ComparisonRows()));
     }
 

@@ -178,7 +178,7 @@ public partial class TwoStrokeWindow : Window
             {
                 ClearResolution();
                 var saved = original;
-                if (baseline is null && saved is not null && saved != config)
+                if (saved is not null && saved != config && !CurrentRevision(baseline))
                 {
                     ShowStatus("Calculando la curva original A…");
                     baseline = await Task.Run(() => TwoStrokeSimulator.Sweep(saved, cancellation: token));
@@ -186,7 +186,7 @@ public partial class TwoStrokeWindow : Window
                     Render();
                 }
                 var result = await Task.Run(() => TwoStrokeSimulator.Sweep(config, progress: progress, cancellation: token));
-                if (baseline is null && saved == config) baseline = result;
+                if (saved == config) baseline = result;
                 curve = result;
                 template = config;
                 dirty = true;
@@ -205,17 +205,16 @@ public partial class TwoStrokeWindow : Window
 
     private async void VerifyAB_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
-        if (ComparisonRpm.SelectedItem is not int rpm || original is null || curve is null) return;
+        if (ComparisonRpm.SelectedItem is not int rpm || original is null || curve is null ||
+            !CurrentRevision(baseline) || !CurrentRevision(curve)) return;
         var a = original;
         var b = curve.Configuration;
-        bool refreshBaseline = baseline?.NumericalRevision != a.Revision || curve.NumericalRevision != b.Revision ||
-            baseline?.Provenance is null || curve.Provenance is null;
         var pa = baseline!.Runs.Single(r => r.Rpm == rpm).Point!;
         var pb = curve.Runs.Single(r => r.Rpm == rpm).Point!;
         await Execute("Verificando malla A/B…", async token =>
         {
             var progress = new Progress<string>(ShowStatus);
-            var result = await Task.Run(() => TwoStrokeComparison.Verify(a, b, pa, pb, token, progress, refreshBaseline));
+            var result = await Task.Run(() => TwoStrokeComparison.Verify(a, b, pa, pb, token, progress));
             comparisonEvidence = new(rpm, result);
             dirty = true;
             RenderResolution();
@@ -324,8 +323,11 @@ public partial class TwoStrokeWindow : Window
         string? path = Choose(true, "CSV (*.csv)|*.csv", "curva-2t.csv");
         if (path is null) return;
         TwoStrokeFiles.Export(path, curve);
-        if (baseline is not null) TwoStrokeFiles.ExportComparison(Path.ChangeExtension(path, ".ab.csv"), baseline, curve);
-        if (comparisonEvidence is not null) TwoStrokeFiles.ExportComparisonResolution(Path.ChangeExtension(path, ".ab-resolution.csv"), comparisonEvidence);
+        if (baseline is not null && CurrentRevision(baseline) && CurrentRevision(curve))
+        {
+            TwoStrokeFiles.ExportComparison(Path.ChangeExtension(path, ".ab.csv"), baseline, curve);
+            if (comparisonEvidence is not null) TwoStrokeFiles.ExportComparisonResolution(Path.ChangeExtension(path, ".ab-resolution.csv"), comparisonEvidence);
+        }
         ShowStatus("CSV 2T exportado.");
     });
 
@@ -352,15 +354,15 @@ public partial class TwoStrokeWindow : Window
         RemoveOriginalButton.IsEnabled = original is not null;
         RenderCurves(PowerPlot, TorquePlot, baseline, curve);
         ResultGrid.ItemsSource = curve?.Runs.Select(r => Describe(r)).ToArray();
-        var pairs = Points(baseline).Join(Points(curve), a => a.Rpm, b => b.Rpm, (a, b) => new
+        bool historical = baseline is not null && curve is not null && (!CurrentRevision(baseline) || !CurrentRevision(curve));
+        var pairs = Points(historical ? null : baseline).Join(Points(curve), a => a.Rpm, b => b.Rpm, (a, b) => new
         {
             RPM = a.Rpm, A_W = a.ShaftPowerW, B_W = b.ShaftPowerW, Delta_W = b.ShaftPowerW - a.ShaftPowerW,
             A_Nm = a.ShaftTorqueNm, B_Nm = b.ShaftTorqueNm, Delta_Nm = b.ShaftTorqueNm - a.ShaftTorqueNm,
             Delta_atrapada_mg = (b.FreshTrappedKg - a.FreshTrappedKg) * 1e6
         }).ToArray();
-        ComparisonNotice.Text = baseline is not null && curve is not null &&
-            baseline.NumericalRevision != curve.NumericalRevision
-            ? "A y B se calcularon con revisiones numéricas distintas. Verificar malla recalcula ambos casos con la revisión actual."
+        ComparisonNotice.Text = historical
+            ? "Curvas históricas. Calculá A y B con la revisión actual para comparar y verificar la malla."
             : "Diferencias B − A en regímenes comunes. Resolución de par y potencia al mismo régimen.";
         if ((baseline?.Configuration.Numerics.BoundaryNotice() ?? curve?.Configuration.Numerics.BoundaryNotice()) is { } notice)
             ComparisonNotice.Text += " " + notice;
@@ -381,6 +383,9 @@ public partial class TwoStrokeWindow : Window
                 Dino2.Core.ResultProvenance.Describe(curve.Provenance);
         RenderTrace();
     }
+
+    internal static bool CurrentRevision(TwoStrokeSweep? result) => result is not null &&
+        result.NumericalRevision == result.Configuration.Revision && result.Provenance?.NumericalRevision == result.Configuration.Revision;
 
     internal static object Describe(TwoStrokeRun run)
     {

@@ -33,7 +33,9 @@ public sealed record GasPath(DuctGeometry Intake, DuctGeometry Exhaust, double C
     public ExteriorBoundary ExhaustBoundary => ExhaustExterior ?? Exterior;
     public const string ModelId = "four-stroke-isooctane-ducts-v4";
     public const string MusclModelId = "four-stroke-isooctane-ducts-v4-muscl";
-    public string Identifier => Stage11Identifier + (PhysicalCoupling ? "-ports-v1" : "");
+    public string Identifier => Stage11Identifier + (PhysicalCoupling ? "-ports-v2" : "");
+    [JsonIgnore]
+    public string Stage12Identifier => Stage11Identifier + (PhysicalCoupling ? "-ports-v1" : "");
     internal bool PhysicalCoupling => IntakeBoundary == ExteriorBoundary.PressureReservoir || ExhaustBoundary == ExteriorBoundary.PressureReservoir;
     public bool UsesLegacyExterior() => IntakeBoundary != ExteriorBoundary.PressureReservoir || ExhaustBoundary != ExteriorBoundary.PressureReservoir;
     public string? BoundaryNotice() => IntakeBoundary == ExteriorBoundary.UnspecifiedLegacy || ExhaustBoundary == ExteriorBoundary.UnspecifiedLegacy

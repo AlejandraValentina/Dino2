@@ -224,7 +224,7 @@ public sealed class TwoStrokeStudy
         {
             token.ThrowIfCancellationRequested();
             Dictionary<int, TwoStrokeEvaluation> rows = coarse;
-            if (scale == 1 && coarse.Values.Any(row => row.Sweep?.NumericalRevision != TwoStrokeConfiguration.NumericalRevision))
+            if (scale == 1 && coarse.Any(pair => pair.Value.Sweep?.Provenance?.NumericalRevision != Variants[pair.Key].Configuration.Revision))
             {
                 progress?.Report("Recalculando la base con el operador numérico actual");
                 rows = ids.ToDictionary(id => id, id => Solve(Variants[id], token));
@@ -256,7 +256,7 @@ public sealed class TwoStrokeStudy
         }
         var (verdict, band) = StudyVerification.Classify(levels);
         return new(candidateId, referenceId, verdict, band, levels.AsReadOnly(), clock.Elapsed.TotalMilliseconds,
-            NumericalRevision: TwoStrokeConfiguration.NumericalRevision);
+            NumericalRevision: Definition.Base.Revision);
     }
 
     public static TwoStrokeConfiguration Refine(TwoStrokeConfiguration configuration, int scale)

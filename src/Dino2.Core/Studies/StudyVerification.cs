@@ -34,7 +34,9 @@ public static class StudyVerification
         var clock = System.Diagnostics.Stopwatch.StartNew();
         var levels = new List<StudyLevel>(3);
         var cache = new Dictionary<FourStrokeConfiguration, StudyEvaluation>();
-        foreach (var (id, evaluation) in coarse) cache.TryAdd(plan.Variants[id].Configuration, evaluation);
+        string revision = plan.Definition.Base.ModelIdentifier;
+        if (run.Provenance?.NumericalRevision == revision)
+            foreach (var (id, evaluation) in coarse) cache.TryAdd(plan.Variants[id].Configuration, evaluation);
         double requestedWork = ids.Select(id => plan.Variants[id].Configuration).Distinct().Sum(StudyPlan.DuctWork) * 20;
         if (requestedWork > StudyPlan.MaximumVerificationWork)
             throw new ArgumentException("El costo 1D de los refinamientos supera el límite. Acotá regímenes o usá una malla base menor.");
@@ -83,12 +85,12 @@ public static class StudyVerification
         }
 
         var (verdict, band) = Classify(levels);
-        return new(candidate, reference, verdict, band, levels.AsReadOnly(), clock.Elapsed.TotalMilliseconds, concurrency);
+        return new(candidate, reference, verdict, band, levels.AsReadOnly(), clock.Elapsed.TotalMilliseconds, concurrency, revision);
 
         StudyCheck Unavailable(int scale, string error)
         {
             levels.Add(new(scale, null, null, null, null, null, error));
-            return new(candidate, reference, StudyVerdict.Unavailable, null, levels.AsReadOnly(), clock.Elapsed.TotalMilliseconds, concurrency);
+            return new(candidate, reference, StudyVerdict.Unavailable, null, levels.AsReadOnly(), clock.Elapsed.TotalMilliseconds, concurrency, revision);
         }
     }
 

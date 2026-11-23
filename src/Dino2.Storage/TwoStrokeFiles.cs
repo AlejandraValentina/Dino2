@@ -61,7 +61,8 @@ public static partial class TwoStrokeFiles
             throw new InvalidDataException("La curva 2T y su configuración deben corresponder.");
         if (sweep.Provenance is { } provenance &&
             !ValidProvenance(provenance, TwoStrokeConfiguration.ModelId, configuration.Revision) &&
-            !ValidProvenance(provenance, TwoStrokeConfiguration.ModelId, configuration.Stage11Revision))
+            !ValidProvenance(provenance, TwoStrokeConfiguration.ModelId, configuration.Stage11Revision) &&
+            !ValidProvenance(provenance, TwoStrokeConfiguration.ModelId, configuration.Stage12Revision))
             throw new InvalidDataException("La revisión declarada de la curva 2T no corresponde a su configuración.");
     }
 

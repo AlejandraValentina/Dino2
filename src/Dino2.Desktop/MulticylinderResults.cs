@@ -26,7 +26,10 @@ public partial class MulticylinderWindow
     };
 
     private MultiResult? SelectedCurve => CycleSource.SelectedIndex == 1 ? originalResult : currentResult;
-    private IReadOnlyList<MultiDifference> ComparisonRows() => originalResult is null || currentResult is null ? [] :
+    private static bool CurrentRevision(MultiResult? result) => result is not null &&
+        result.Provenance?.NumericalRevision == result.Configuration.Cylinder.ModelIdentifier + "-network-recovery-v1";
+    private IReadOnlyList<MultiDifference> ComparisonRows() => originalResult is null || currentResult is null ||
+        !CurrentRevision(originalResult) || !CurrentRevision(currentResult) ? [] :
         differences ?? MultiComparison.Compare(originalResult, currentResult);
 
     private sealed record DifferenceDisplay(int RPM, double? Delta_potencia_W, double? Delta_par_Nm,
@@ -156,7 +159,7 @@ public partial class MulticylinderWindow
     private async void Compare_Click(object sender, RoutedEventArgs e)
     {
         if (originalResult is not { } a || currentResult is not { } b ||
-            DifferenceRows.SelectedItem is not DifferenceDisplay row) return;
+            DifferenceRows.SelectedItem is not DifferenceDisplay row || !CurrentRevision(a) || !CurrentRevision(b)) return;
         var before = ComparisonRows();
         await ExecuteAsync((token, progress) => MultiComparison.Verify(a, b, row.RPM, token, progress), result =>
         {
@@ -174,7 +177,7 @@ public partial class MulticylinderWindow
         MultiKeep.IsEnabled = ready && currentResult is not null;
         MultiExport.IsEnabled = ready && (originalResult is not null || currentResult is not null);
         MultiCheck.IsEnabled = ready && DifferenceRows.SelectedItem is DifferenceDisplay { Delta_potencia_W: not null };
-        MultiABExport.IsEnabled = ready && originalResult is not null && currentResult is not null;
+        MultiABExport.IsEnabled = ready && CurrentRevision(originalResult) && CurrentRevision(currentResult);
         MultiTraceExport.IsEnabled = ready && MultiRpm.SelectedItem is int;
         MultiCylinderExport.IsEnabled = ready && SelectedCurve?.Points.Any(p => p.Metrics is not null) == true;
         RefreshStudyButtons();

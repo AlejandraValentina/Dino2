@@ -169,6 +169,7 @@ public partial class MultiTwoStrokeWindow
         StudyNote.Text = $"Clasificación de la grilla · objetivo [{data.Definition.Objective.Unit}]." +
             (data.Check is { } check ? $" Caso {check.CandidateId} · {TwoStrokeWindow.StudyLabel(check.Verdict)} · banda {TwoStrokeWindow.F(check.ObservedBand)}. " +
                 (check.Levels.LastOrDefault()?.Error ?? "") : "");
+        if (HistoricalStudy(data)) StudyNote.Text += " Estudio histórico. Ejecutalo de nuevo antes de contrastar.";
         RenderSelection();
     }
 
@@ -205,12 +206,16 @@ public partial class MultiTwoStrokeWindow
         M2StudyRun.IsEnabled = ready && plan is not null;
         M2StudyExport.IsEnabled = ready && study is not null;
         M2Apply.IsEnabled = ready && id > 0 && study?.Rows.Any(r => r.Id == id && r.Status == StudyStatus.Completed) == true;
-        M2StudyCheck.IsEnabled = M2Apply.IsEnabled && study?.Rows.Any(r => r.Id == 0 && r.Status == StudyStatus.Completed) == true;
+        M2StudyCheck.IsEnabled = M2Apply.IsEnabled && study is { } data && !HistoricalStudy(data) &&
+            data.Rows.Any(r => r.Id == 0 && r.Status == StudyStatus.Completed);
     }
+
+    private static bool HistoricalStudy(MultiTwoStrokeStudyRun run) =>
+        run.Rows.Any(row => row.Curve is not null && !CurrentRevision(row.Curve));
 
     private void Apply_Click(object sender, RoutedEventArgs e)
     {
-        if (study is not { } data || StudyRows.SelectedItem is not StudyRow row) return;
+        if (study is not { } data || StudyRows.SelectedItem is not StudyRow row || HistoricalStudy(data)) return;
         var grid = new MultiTwoStrokeStudy(data.Definition);
         original ??= grid.Variant(0);
         Populate(grid.Variant(row.Caso));

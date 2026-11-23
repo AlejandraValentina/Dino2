@@ -276,7 +276,7 @@ public partial class MultiTwoStrokeWindow : Window
         try { c = ReadEditor(); }
         catch (ArgumentException ex) { Message(ex); return; }
         var a = original;
-        var old = baseline;
+        var old = CurrentRevision(baseline) ? baseline : null;
         await Execute((token, progress) =>
         {
             var update = new Relay<MultiTwoStrokeRun>(r => progress.Report($"{r.Rpm} RPM · {State(r.Status)}"));
@@ -391,7 +391,8 @@ public partial class MultiTwoStrokeWindow : Window
     private void ExportAB_Click(object sender, RoutedEventArgs e)
     {
         if (baseline is { } a && curve is { } b)
-            Export("2t-multicilindrico-ab", path => TwoStrokeFiles.ExportMultiComparison(path, a, b, contrast));
+            if (CurrentRevision(a) && CurrentRevision(b))
+                Export("2t-multicilindrico-ab", path => TwoStrokeFiles.ExportMultiComparison(path, a, b, contrast));
     }
 
     private static bool Expected(Exception ex) => ex is ArgumentException or ArithmeticException or IOException or InvalidDataException or UnauthorizedAccessException or JsonException;

@@ -186,7 +186,7 @@ public static class MultiTwoStrokeComparison
         }
         var (verdict, band) = StudyVerification.Classify(levels);
         return new(1, 0, verdict, band, levels.AsReadOnly(), timer.Elapsed.TotalMilliseconds,
-            NumericalRevision: MultiTwoStrokeConfiguration.ModelId);
+            NumericalRevision: a.Cylinder.Revision + "-network-recovery-v1");
     }
 
     internal static MultiTwoStrokeConfiguration Refine(MultiTwoStrokeConfiguration a, MultiTwoStrokeConfiguration b,

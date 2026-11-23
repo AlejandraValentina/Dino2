@@ -22,11 +22,11 @@ public static class FourStrokeFiles
     };
     private static readonly JsonSerializerOptions FlatOptions = new(Options) { WriteIndented = false };
     private static readonly JsonSerializerOptions DiagnosticOptions = new(FlatOptions) { IgnoreReadOnlyProperties = false };
-    private static string ProjectModel(FourStrokeProject project, bool historical = false) =>
+    private static string ProjectModel(FourStrokeProject project, Func<GasPath, string>? identity = null) =>
         new[] { project.Current, project.Original }.FirstOrDefault(c =>
             c?.Ducts is { } d && (d.IntakeBoundary == ExteriorBoundary.PressureReservoir ||
                 d.ExhaustBoundary == ExteriorBoundary.PressureReservoir || d.Intake.Wall is not null || d.Exhaust.Wall is not null))?.Ducts is { } path
-        ? (historical ? path.Stage11Identifier : path.Identifier) :
+        ? (identity?.Invoke(path) ?? path.Identifier) :
         (project.Current.Ducts?.Scheme == DuctScheme.Muscl || project.Original?.Ducts?.Scheme == DuctScheme.Muscl ? GasPath.MusclModelId :
         project.Current.Ducts is not null || project.Original?.Ducts is not null ? GasPath.ModelId :
         project.Current.Thermochemistry?.UsesEquilibrium == true || project.Original?.Thermochemistry?.UsesEquilibrium == true
@@ -57,7 +57,9 @@ public static class FourStrokeFiles
         if (document.SchemaVersion != 1 || document.Project?.Current is null)
             throw new InvalidDataException("Modelo, versión o proyecto 4T incompatible.");
         document.Project.Current.Validate(false); document.Project.Original?.Validate(false);
-        if (document.Model != ProjectModel(document.Project) && document.Model != ProjectModel(document.Project, historical: true))
+        if (document.Model != ProjectModel(document.Project) &&
+            document.Model != ProjectModel(document.Project, path => path.Stage12Identifier) &&
+            document.Model != ProjectModel(document.Project, path => path.Stage11Identifier))
             throw new InvalidDataException("El modelo declarado no coincide con las opciones termoquímicas.");
         return document.Project;
     }

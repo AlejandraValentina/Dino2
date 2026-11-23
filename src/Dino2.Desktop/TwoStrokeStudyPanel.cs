@@ -256,6 +256,8 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
             throw new ArgumentException("Seleccioná una variante convergida para contrastar con la base del estudio.");
         var active = plan;
         var snapshot = run;
+        if (HistoricalRun(snapshot))
+            throw new ArgumentException("Estudio histórico. Ejecutalo de nuevo antes de verificar los candidatos.");
         await host.Execute("Verificando candidato 2T…", async token =>
         {
             var progress = new Progress<string>(host.ShowStatus);
@@ -289,7 +291,7 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
             return (Candidate: new Candidate(row.Id, row.Id == 0 ? "Base del estudio" : string.Join(" / ", values.Select(x => TwoStrokeWindow.F(x))),
                 row.Status.ToString(), score.Score, score.LowMarginNm,
                 check is null ? "Pendiente de refinamiento" : TwoStrokeWindow.StudyLabel(check.Verdict) +
-                    (check.NumericalRevision == TwoStrokeConfiguration.NumericalRevision ? "" : " · evidencia histórica"),
+                    (check.NumericalRevision == plan.Definition.Base.Revision && !HistoricalRun(run) ? "" : " · evidencia histórica"),
                 row.Error ?? score.Exclusion ?? ""),
                 Eligible: score.Eligible);
         }).OrderByDescending(x => x.Eligible)
@@ -299,7 +301,11 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
         rows.SelectedItem = table.FirstOrDefault(row => row.Id == previous) ?? table.FirstOrDefault();
         summary.Text = $"{run.Evaluations.Count}/{plan.Variants.Count} evaluadas · {plan.Definition.Objective.Unit} · " +
             string.Join(" / ", plan.Definition.Axes.Select(a => TwoStrokeParameters.Get(a.Parameter))) + " · orden preliminar en malla base.";
+        if (HistoricalRun(run)) summary.Text += " Estudio histórico. Ejecutalo de nuevo para verificar con el solver actual.";
     }
+
+    private static bool HistoricalRun(TwoStrokeStudyRun run) =>
+        run.Evaluations.Any(row => row.Sweep is not null && !TwoStrokeWindow.CurrentRevision(row.Sweep));
 
     private void ShowCandidate()
     {

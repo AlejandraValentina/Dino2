@@ -198,6 +198,7 @@ public partial class MulticylinderWindow
             (study.Check is { } check ? $" Caso {check.CandidateId} · {VerdictLabel(check.Verdict)}" +
                 (check.ObservedBand is double band ? $" · banda {band:G6} {study.Definition.Objective.Unit}." : ".") +
                 (check.Levels.LastOrDefault()?.Error is { } error ? " " + error : "") : "");
+        if (HistoricalStudy(study)) StudyNote.Text += " Estudio histórico. Ejecutalo de nuevo antes de contrastar.";
         StudySelection_Changed(this, null!);
     }
 
@@ -237,13 +238,16 @@ public partial class MulticylinderWindow
         int selected = (StudyRows.SelectedItem as StudyDisplay)?.Caso ?? 0;
         bool periodic = savedStudy?.Run.Evaluations.Any(r => r.Id == selected && r.Status == StudyStatus.Completed) == true;
         MultiStudyApply.IsEnabled = ready && selected > 0 && periodic;
-        MultiStudyCheck.IsEnabled = MultiStudyApply.IsEnabled &&
-            savedStudy?.Run.Evaluations.Any(r => r.Id == 0 && r.Status == StudyStatus.Completed) == true;
+        MultiStudyCheck.IsEnabled = MultiStudyApply.IsEnabled && savedStudy is { } study && !HistoricalStudy(study) &&
+            study.Run.Evaluations.Any(r => r.Id == 0 && r.Status == StudyStatus.Completed);
     }
+
+    private static bool HistoricalStudy(Dino2.Storage.MultiStudyProject study) =>
+        study.Run.Provenance?.NumericalRevision != study.Definition.Base.Cylinder.ModelIdentifier + "-network-recovery-v1";
 
     private void StudyApply_Click(object sender, RoutedEventArgs e)
     {
-        if (savedStudy is not { } study || StudyRows.SelectedItem is not StudyDisplay row) return;
+        if (savedStudy is not { } study || StudyRows.SelectedItem is not StudyDisplay row || HistoricalStudy(study)) return;
         var plan = new MultiStudy(study.Definition);
         original ??= plan.Variant(0);
         Populate(plan.Variant(row.Caso));
@@ -261,7 +265,7 @@ public partial class MulticylinderWindow
         {
             var (verdict, band) = StudyVerification.Classify(levels);
             savedStudy = study with { Check = new(row.Caso, 0, verdict, band, levels, clock.Elapsed.TotalMilliseconds,
-                NumericalRevision: MultiConfiguration.ModelId) };
+                NumericalRevision: study.Run.Provenance!.NumericalRevision) };
             dirty = true;
             RenderStudy();
             MultiStatusText.Text = $"Caso {row.Caso} · {VerdictLabel(verdict)}.";
