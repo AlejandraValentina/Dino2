@@ -14,6 +14,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args is ["--historical-stage13", var fixtures]) return HistoricalStage13.Run(fixtures);
         string output = Path.GetFullPath(args.Length > 0 ? args[0] : "artifacts/verification");
         Directory.CreateDirectory(output);
         int exit = 1;

@@ -17,6 +17,7 @@ internal static class CouplingChecks
     internal static void Run()
     {
         Aperture();
+        AperturePulse();
         foreach (double volume in new[] { .0001, .0005, .0024, .01, .03 })
             Acoustic(volume, .036, .060, 1);
         Acoustic(.0005, .051, .040, .8);
@@ -132,11 +133,65 @@ internal static class CouplingChecks
             throw new Exception("La restricción debe enviar un choque aguas arriba.");
         PortBoundary.Flux(Air, total, .99 * total, reservoir, lowBack, edge, inflow, flux, out var loose);
         Near(loose!.Value.MixedPressurePa / Pressure, 1, 1e-12);
+        double AreaRatio(double m) => Math.Pow(2 / (Gamma + 1) * (1 + (Gamma - 1) * m * m / 2),
+            (Gamma + 1) / (2 * (Gamma - 1))) / m;
+        if (!(loose.Value.ThroatMach > 1)) throw new Exception("Garganta supersónica mal identificada.");
+        Near(AreaRatio(loose.Value.ThroatMach) / AreaRatio(2), .99, 1e-6);
         var lowMass = Air.Encode(edge, Pure, Pressure, 199, 1, 0);
         Near(lowMass.Temperature, 199, 1e-10);
         try { Air.ValidateMixture(edge); }
         catch (ArithmeticException) { return; }
         throw new Exception("Térmica inadmisible aceptada.");
+    }
+
+    private static void AperturePulse()
+    {
+        const double length = .4, center = .125, probe = .25, sigma = .025;
+        const int cells = 320;
+        double c = Math.Sqrt(Gamma * R * Temperature), rho = Pressure / (R * Temperature);
+        double arrival = (2 * length - probe - center) / c;
+        var mesh = new DuctMesh(new(length, .04, .04, cells), Air, DuctScheme.Muscl);
+        var tank = new double[Air.Size];
+        var tankState = Air.Encode(tank, Pure, Pressure, Temperature, 0, 0);
+        foreach (double amplitude in new[] { -25.0, 25.0 })
+        foreach (double aperture in new[] { 0.0, .3, 1.0 })
+        {
+            var y = new double[mesh.Size]; var stage = new double[y.Length];
+            var k1 = new double[y.Length]; var k2 = new double[y.Length];
+            var left = new double[Air.Size]; var right = new double[Air.Size]; var edge = new double[Air.Size];
+            for (int i = 0; i < cells; i++)
+            {
+                double x = (i + .5) * mesh.Dx;
+                double p = amplitude * Math.Exp(-Math.Pow((x - center) / sigma, 2));
+                Air.Encode(y.AsSpan(i * Air.Size, Air.Size), Pure, Pressure + p,
+                    Temperature * Math.Pow(1 + p / Pressure, (Gamma - 1) / Gamma), p / (rho * c), 0);
+            }
+            double Rate(double[] input, double[] derivative)
+            {
+                mesh.Prepare(input);
+                var far = mesh.BoundaryState(input, false, edge);
+                ReservoirBoundary.Flux(Air, ExteriorBoundary.PressureReservoir, tank, tankState, edge, far, left);
+                for (int k = 0; k < Air.Size; k++) left[k] *= mesh.ReservoirArea;
+                var near = mesh.BoundaryState(input, true, edge);
+                PortBoundary.Flux(Air, mesh.ValveArea, aperture * mesh.ValveArea, tank, tankState, edge, near, right);
+                return mesh.Rates(input, derivative, left, right);
+            }
+            double time = 0, reflected = 0;
+            while (time < arrival + 3 * sigma / c)
+            {
+                double dt = .35 * Rate(y, k1);
+                for (int i = 0; i < y.Length; i++) stage[i] = y[i] + dt * k1[i];
+                Rate(stage, k2);
+                for (int i = 0; i < y.Length; i++) y[i] += .5 * dt * (k1[i] + k2[i]);
+                time += dt;
+                if (time < arrival - 3 * sigma / c) continue;
+                double pressure = Air.Decode(y.AsSpan((int)(probe / mesh.Dx) * Air.Size, Air.Size)).Pressure - Pressure;
+                if (Math.Abs(pressure) > Math.Abs(reflected)) reflected = pressure;
+            }
+            double reflection = reflected / amplitude;
+            Near(reflection, aperture == 0 ? 1 : -1, .10);
+            Console.WriteLine(FormattableString.Invariant($"APERTURE PULSE Δp={amplitude} Pa α={aperture} R={reflection:F5}"));
+        }
     }
 
     private static void Acoustic(double volume, double runnerD, double trunkD, double length)

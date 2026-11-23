@@ -148,9 +148,23 @@ internal static class PortBoundary
         if (mach >= 1 && Balance(AlongWave(pMin)) <= 0)
         {
             // A stationary normal shock at the entrance would leave more capacity than
-            // the incoming supersonic stream needs. The trace then remains upstream.
+            // the incoming supersonic stream needs. Keep the upstream duct trace and find
+            // the supersonic throat carrying that same mass using the unshocked stagnation state.
             var free = new Flow(pipe.Pressure, pipe.Temperature, pipe.Velocity);
-            return (free, Contracted(free), 0);
+            double t0 = free.Temperature + free.Speed * free.Speed / (2 * cp);
+            double slow = Math.Sqrt(2 * gamma * r * t0 / (gamma + 1)), fast = -pipe.Velocity;
+            double target = -free.MassPerArea(r) / alpha;
+            Flow AtSpeed(double u)
+            {
+                double t = t0 - u * u / (2 * cp);
+                return new(free.Pressure * Math.Pow(t / free.Temperature, 1 / g), t, -u);
+            }
+            for (int i = 0; i < Iterations; i++)
+            {
+                double u = (slow + fast) * .5;
+                if (-AtSpeed(u).MassPerArea(r) > target) slow = u; else fast = u;
+            }
+            return (free, AtSpeed((slow + fast) * .5), Iterations);
         }
         double lo = pMin, hi = wall;
         for (int i = 0; i < Iterations; i++)

@@ -81,8 +81,10 @@ function File-Dialog([string]$control, [string]$path, [switch]$Label) {
         }
     } "file picker $control"
     $edit = [DialogWindows]::Child($dialog, 'Edit', 1001)
-    [DialogWindows]::SetFilename($edit, $path)
-    if ([DialogWindows]::Text($edit) -ne $path) { throw 'File name entry failed.' }
+    $null = Wait-For {
+        [DialogWindows]::SetFilename($edit, $path)
+        if ([DialogWindows]::Text($edit) -eq $path) { $true }
+    } "file name entry $control"
     $confirm = [DialogWindows]::Child($dialog, 'Button', 1)
     if ($confirm -eq [IntPtr]::Zero) { throw 'Dialog has no acceptance button.' }
     [DialogWindows]::Confirm($dialog, $confirm)
@@ -135,8 +137,11 @@ try {
     }
     $study = Join-Path $output 'engine-study.json'
     File-Dialog 'Guardar estudio 2T…' $study -Label
-    $null = Wait-For { Test-Path -LiteralPath $study } 'study saved'
-    $model = Get-Content -LiteralPath $study -Raw | ConvertFrom-Json
+    $model = Wait-For {
+        if (Test-Path -LiteralPath $study) {
+            Get-Content -LiteralPath $study -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json
+        }
+    } 'study saved'
     if ($model.run.evaluations.Count -ne 3 -or $model.run.definition.base.speeds.start -ne 5000) { throw 'Study has wrong samples.' }
     File-Dialog 'Abrir estudio 2T…' $study -Label
     $null = Status 'Estudio 2T recuperado'
