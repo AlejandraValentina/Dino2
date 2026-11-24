@@ -20,7 +20,7 @@ foreach ($mode in 'checks','mesh','fine','temporal','four','four-strict','networ
 }
 
 pwsh -File evidence/stage13/reproduce.ps1 -Destination "$out/campaign" -Build -Mode mono
-foreach ($mode in 'network','network-fine','network-time','four-seconds','two','two-pairs') {
+foreach ($mode in 'network','network-fine','network-time','four-seconds','two','two-pairs','two-small') {
     pwsh -File evidence/stage13/reproduce.ps1 -Destination "$out/campaign" -Mode $mode
     if ($LASTEXITCODE -ne 0) { throw "Falló $mode" }
 }
@@ -35,8 +35,18 @@ La campaña instrumentada guarda estados angulares, configuración, balances y d
 `check_cantera.py` recibe el CSV `edge.csv` de los ensayos independientes y escribe el contraste del choque caliente. El programa reproduce el estado poschoque a contrapresión prescrita con propiedades de GRI-Mech. Usa una tolerancia relativa de 0,1 % entre tablas y compara el límite de área dentro de Dino2 en unidades absolutas. Las pruebas del núcleo miden balances de Rankine–Hugoniot dentro de un único conjunto de propiedades.
 
 ```powershell
+# $evidence es la raíz del paquete de evidencia extraído.
+$core = (Resolve-Path 'src/Dino2.Core/Dino2.Core.csproj').Path
+dotnet build "$evidence/source/Probe.csproj" -c Release -p:Dino2CoreProject=$core -o "$out/probe"
+$probe = "$out/probe/Dino2.FourStroke.Tests.dll"
+foreach ($mode in 'edge','shock','transient','b8','acoustic-balanced') {
+    dotnet $probe $mode > "$out/$mode.csv" 2> "$out/$mode.err"
+    if ($LASTEXITCODE -ne 0) { throw "Falló $mode" }
+}
 python -m pip install cantera==3.2.0
 python evidence/stage14b/check_cantera.py "$out/edge.csv" "$out/cantera-hot-shock.csv"
+python evidence/stage14b/compare_plenum.py "$out/campaign" "$out/plenum-ab.csv"
+dotnet $probe paired-time "$out/campaign/two-pairs/pair-5000-1E-07.json" "$out/campaign/two-pairs/pair-9000-0.04.json"
 ```
 
 Las campañas tienen niveles de concurrencia distintos. Usar el piloto de perfil en el paquete de evidencia para comparar CPU y pared en dos revisiones con la misma carga y el mismo arnés. No comparar tiempos de campañas ejecutadas con diferente concurrencia.

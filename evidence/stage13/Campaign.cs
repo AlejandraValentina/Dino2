@@ -122,7 +122,11 @@ switch (group)
             jobs.Add(() => Two($"mesh-{rpm}-{i}-{e}", T2(rpm, i, e)));
         break;
     case "two-pairs":
-        foreach (var (rpm, trim) in new[] { (5000, .0000001), (5000, .00001), (9000, .040), (9500, .00001) })
+    case "two-small":
+        var variants = group == "two-small"
+            ? new[] { (4000, .00001), (7000, .00001), (8000, .00001) }
+            : new[] { (5000, .0000001), (5000, .00001), (9000, .040), (9500, .00001) };
+        foreach (var (rpm, trim) in variants)
             jobs.Add(() =>
             {
                 var a = TwoStrokeConfiguration.RecoveryExample with { Speeds = new(rpm, rpm, 1) };

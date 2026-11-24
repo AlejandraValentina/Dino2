@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)][string]$Destination,
-    [ValidateSet('mono','network','network-fine','two','two-fine','four-seconds','network-time','two-pairs')][string]$Mode = 'mono',
+    [ValidateSet('mono','network','network-fine','two','two-fine','four-seconds','network-time','two-pairs','two-small')][string]$Mode = 'mono',
     [switch]$Build
 )
 $ErrorActionPreference = 'Stop'

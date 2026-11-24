@@ -17,6 +17,7 @@ Extraé todo el ZIP Windows x64 y abrí **Dino2.Desktop.exe**. El portable inclu
 - [Recuperación científica de etapa 11 y dominio verificado](docs/etapa11.md)
 - [Acoplamiento 0D–1D, resultados y dominio de etapa 12](docs/etapa12.md)
 - [Descarga por aberturas parciales y dominio de etapa 13](docs/etapa13.md)
+- [Coherencia termoquímica y resolución numérica de etapa 14B](docs/etapa14b.md)
 
 ## Compilar y comprobar
 
