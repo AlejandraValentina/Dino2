@@ -64,16 +64,17 @@ function File-Dialog([string]$id, [string]$path) {
     $dialog = Wait-For {
         foreach ($thread in $process.Threads) {
             foreach ($handle in [DialogWindows]::Find([uint32]$thread.Id)) {
-                if ([DialogWindows]::Child($handle, 'Edit', 1001) -ne [IntPtr]::Zero) { return $handle }
+                $edit = [DialogWindows]::Child($handle, 'Edit', 1001)
+                if ($edit -eq [IntPtr]::Zero) { continue }
+                [DialogWindows]::SetFilename($edit, $path)
+                if ([DialogWindows]::Text($edit) -ceq $path) { return $handle }
             }
         }
-    } "archivo de $id"
-    $edit = [DialogWindows]::Child($dialog, 'Edit', 1001)
-    [DialogWindows]::SetFilename($edit, $path)
-    if ([DialogWindows]::Text($edit) -ne $path) { throw 'No quedó el nombre solicitado.' }
+    } "nombre de archivo listo para $id"
     $button = [DialogWindows]::Child($dialog, 'Button', 1)
     if ($button -eq [IntPtr]::Zero) { throw 'Falta la confirmación del diálogo.' }
     [DialogWindows]::Confirm($dialog, $button)
+    $null = Wait-For { [DialogWindows]::Child($dialog, 'Edit', 1001) -eq [IntPtr]::Zero } "cierre del diálogo de $id"
 }
 function Select-EditorGroup([string]$name) {
     $box = Control 'EditorGroups'
