@@ -42,4 +42,5 @@ Las instrucciones de empaquetado, capturas, cifras de rendimiento y estados de i
 | 5 | [Estudios paramétricos 4T](etapa5.md) |
 | 6 | [Primera entrega 2T](etapa6.md) |
 | 7 | [Consolidación 2T, barrido RPM y validación posible](etapa7.md) |
+| 14C | [Contrato de interfaces y verificación adversarial](etapa14c.md) |
 | Evolución | [Decisiones anteriores y transición de modelos](evolucion.md) |
