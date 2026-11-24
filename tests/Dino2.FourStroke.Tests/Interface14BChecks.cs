@@ -10,9 +10,35 @@ internal static class Interface14BChecks
     internal static void Run()
     {
         foreach (double t in new[] { 300, 900, 1800, 3300 })
+        {
             HotShock(t);
+            StationaryShock(t, Air);
+            StationaryShock(t, Products);
+        }
         NearReversal();
         Domain();
+    }
+
+    private static void StationaryShock(double temperature, double[] composition)
+    {
+        const double p1 = 100000;
+        var gas = new GasEquation(composition.Length);
+        var conserved = new double[gas.Size];
+        var initial = gas.Encode(conserved, composition, p1, temperature, 0, 0);
+        var incident = gas.Encode(conserved, composition, p1, temperature, -2 * initial.SoundSpeed, 0);
+        var thermo = new PortThermodynamics(incident, conserved, gas.SpeciesCount);
+        var wave = new PortWave(incident, thermo);
+        double mass = incident.Density * incident.Velocity;
+        double h0 = SpeciesThermodynamics.Enthalpy(composition, temperature) + .5 * incident.Velocity * incident.Velocity;
+        double axial = p1 + mass * incident.Velocity;
+        var after = wave.StationaryShock(wave.Wall(gas.WallPressure(incident, false)).Pressure);
+        double downstreamMass = after.Pressure * after.Speed / (incident.GasConstant * after.Temperature);
+        Near(downstreamMass / mass, 1, 3e-11, "masa en choque estacionario");
+        Near(after.Pressure + downstreamMass * after.Speed, axial, .0001, "momento en choque estacionario");
+        Near(SpeciesThermodynamics.Enthalpy(composition, after.Temperature) + .5 * after.Speed * after.Speed,
+            h0, .001, "entalpía total en choque estacionario");
+        Check(after.Pressure > p1 && Math.Abs(after.Speed) < Math.Sqrt(thermo.SoundSquared(after.Temperature)),
+            "El choque estacionario debe comprimir y dejar una traza subsónica.");
     }
 
     private static void HotShock(double temperature)

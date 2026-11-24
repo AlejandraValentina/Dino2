@@ -50,8 +50,9 @@ void Network(string key, int mask, bool outer, double volume, int scale = 1, boo
         Cylinder = cylinder with
         {
             Speeds = new(4000, 4000, 1),
-            Solver = cylinder.Solver with { MaximumStepDeg = .5 / scale, PeriodicTolerance = tight ? 1e-6 : .0004 / (scale * scale), MaximumCycles = tight ? 140 : 65 },
-            Ducts = ducts with { Intake = Grid(ducts.Intake), Exhaust = Grid(ducts.Exhaust), ExhaustExterior = exteriorExhaust < 0 ? null : Boca(exteriorExhaust == 1) }
+            Solver = cylinder.Solver with { MaximumStepDeg = (tight ? .25 : .5) / scale, PeriodicTolerance = tight ? 1e-6 : .0004 / (scale * scale), MaximumCycles = tight ? 140 : 65 },
+            Ducts = ducts with { Intake = Grid(ducts.Intake), Exhaust = Grid(ducts.Exhaust),
+                Courant = tight ? .20 : ducts.Courant, ExhaustExterior = exteriorExhaust < 0 ? null : Boca(exteriorExhaust == 1) }
         },
         Phases = new(phase),
         Manifolds = new(manifold.Intake with { VolumeM3 = volume,
@@ -87,12 +88,28 @@ switch (group)
         foreach (int mask in Enumerable.Range(0, 4))
             jobs.Add(() => Mono($"mono-{mask}", Audit(), mask));
         break;
+    case "four-seconds":
+        foreach (double length in new[] { .25, .40, .65, .85 })
+        foreach (int rpm in new[] { 3000, 4500, 6000 })
+            jobs.Add(() =>
+            {
+                var a = Audit();
+                Mono($"seconds-{length}-{rpm}", a with
+                {
+                    Speeds = new(rpm, rpm, 1),
+                    Combustion = a.Combustion with { DurationDeg = null, DurationS = 40.0 / (6 * 4500) },
+                    Ducts = a.Ducts! with { Courant = .20, Exhaust = a.Ducts.Exhaust with { LengthM = length } },
+                    Solver = a.Solver with { MaximumStepDeg = .15, PeriodicTolerance = 1e-6 }
+                }, 3);
+            });
+        break;
     case "network":
     case "network-fine":
+    case "network-time":
         foreach (double length in new[] { .38, .55 })
         foreach (int scale in group == "network" ? new[] { 1, 2 } : new[] { 4 })
         foreach (double volume in new[] { .0024, .0036 })
-            jobs.Add(() => Network($"net-{length}-{scale}-{volume}", 3, true, volume, scale, trunkLength: length));
+            jobs.Add(() => Network($"net-{length}-{scale}-{volume}", 3, true, volume, scale, tight: group == "network-time", trunkLength: length));
         break;
     case "two":
     case "two-fine":
@@ -103,6 +120,21 @@ switch (group)
         foreach (int rpm in new[] {4000, 9000})
         foreach (var (i, e) in new[] {(1,2), (2,1)})
             jobs.Add(() => Two($"mesh-{rpm}-{i}-{e}", T2(rpm, i, e)));
+        break;
+    case "two-pairs":
+        foreach (var (rpm, trim) in new[] { (5000, .0000001), (5000, .00001), (9000, .040), (9500, .00001) })
+            jobs.Add(() =>
+            {
+                var a = TwoStrokeConfiguration.RecoveryExample with { Speeds = new(rpm, rpm, 1) };
+                var expansion = a.Expansion with { DiffuserM = a.Expansion.DiffuserM + trim };
+                expansion = expansion with { Cells = (int)Math.Round(a.Expansion.Cells * expansion.LengthM / a.Expansion.LengthM) };
+                var b = a with { Expansion = expansion };
+                var pa = TwoStrokeSimulator.Simulate(a, rpm, false);
+                var pb = TwoStrokeSimulator.Simulate(b, rpm, false);
+                var check = TwoStrokeComparison.Verify(a, b, pa, pb);
+                Save($"pair-{rpm}-{trim}", new { a, b, pa, pb, check });
+                Console.WriteLine($"RPM {rpm}, difusor +{trim:G} m, {check.Verdict}");
+            });
         break;
     default: throw new ArgumentException(group);
 }
