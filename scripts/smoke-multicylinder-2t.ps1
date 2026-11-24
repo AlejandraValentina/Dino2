@@ -124,13 +124,38 @@ try {
     if (!$SkipResolution) {
         $contrastClock = [Diagnostics.Stopwatch]::StartNew()
         Click 'M2Compare'
-        $checked = Status '5000 RPM · Sensible a discretización' 300
+        $checked = Status '5000 RPM · ' 300
         $contrastClock.Stop()
     }
-    File-Dialog 'M2ExportAB' (Join-Path $output 'comparacion.csv')
+    $comparison = Join-Path $output 'comparacion.csv'
+    File-Dialog 'M2ExportAB' $comparison
     $null = Status 'CSV exportado'
-    if (!$SkipResolution -and !(Select-String -Quiet -Path (Join-Path $output 'comparacion.csv') -Pattern 'DiscretizationSensitive')) {
-        throw 'Falta la clasificación numérica en el CSV.'
+    if (!$SkipResolution) {
+        $lines = Wait-For {
+            if (Test-Path -LiteralPath $comparison) {
+                $text = Get-Content -LiteralPath $comparison -ErrorAction SilentlyContinue
+                if ($text -match '^5000,') { $text }
+            }
+        } 'CSV de contraste legible'
+        $header = $lines -match '^# contrast='
+        $details = ($header -replace '^# contrast=', '') | ConvertFrom-Json
+        $rows = @($lines -notmatch '^#' | ConvertFrom-Csv)
+        if ($rows.Count -ne 1 -or $details.rpm -ne 5000 -or ($details.check.levels.scale -join ',') -ne '1,2,4' -or
+            @($details.check.levels | Where-Object { $null -eq $_.advantage -or $_.error }).Count -ne 0) {
+            throw 'Falta un contraste periódico de los tres refinamientos a 5000 RPM.'
+        }
+        $a, $b, $c = $details.check.levels.advantage
+        $firstChange = [Math]::Abs($b - $a)
+        $lastChange = [Math]::Abs($c - $b)
+        $band = 2 * [Math]::Max($firstChange, $lastChange)
+        $verdict = if ([Math]::Sign($a) -ne [Math]::Sign($b) -or [Math]::Sign($b) -ne [Math]::Sign($c) -or
+            $lastChange -gt $firstChange) { 'DiscretizationSensitive' }
+        elseif ([Math]::Abs($c) -le $band) { 'Indistinguishable' }
+        elseif ($c -gt 0) { 'Superior' }
+        else { 'Inferior' }
+        if ($rows[0].verdict -ne $verdict -or [Math]::Abs([double]$rows[0].observed_band_Nm - $band) -gt 1e-12) {
+            throw 'El veredicto y la banda exportados discrepan de los niveles calculados.'
+        }
     }
     Tab 'Ciclo y barrido'
     File-Dialog 'M2Trace' (Join-Path $output 'ciclo.csv')

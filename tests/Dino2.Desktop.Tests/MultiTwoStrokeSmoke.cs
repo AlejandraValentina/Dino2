@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using Dino2.Core.Studies;
 using Dino2.Core.TwoStroke;
 using Dino2.Desktop;
 using Dino2.Storage;
@@ -34,10 +35,31 @@ internal static class MultiTwoStrokeSmoke
             Check(app.Snapshot() is { Curve: null, Baseline: not null }, "edición de escape preserva A");
             await app.RunEditor();
             Check(app.Snapshot().Curve?.Complete == true && Item<DataGrid>("DiffRows").Items.Count == 1, "comparación A/B");
+            var project = app.Snapshot();
+            var a = project.Baseline!;
+            var b = project.Curve!;
+            double reference = a.Runs.Single().Point!.ShaftTorqueNm, candidate = b.Runs.Single().Point!.ShaftTorqueNm;
+            var levels = new[] { 1, 2, 4 }.Select(scale =>
+                new StudyLevel(scale, candidate, reference, candidate - reference, null, null, null)).ToArray();
+            var (verdict, band) = StudyVerification.Classify(levels);
+            var evidence = new StudyCheck(1, 0, verdict, band, levels, 0,
+                NumericalRevision: b.Provenance!.NumericalRevision);
+            project = project with { Contrast = new(5000, evidence) };
             string file = Path.Combine(output, "multi2t-ui.json");
-            TwoStrokeFiles.SaveMulti(file, app.Snapshot());
+            TwoStrokeFiles.SaveMulti(file, project);
             await app.LoadProjectAsync(file);
-            Check(app.Snapshot().Original == config && app.Snapshot().Curve?.Complete == true, "guardado y reapertura");
+            Check(app.Snapshot().Original == config && app.Snapshot().Curve?.Complete == true &&
+                app.Snapshot().Contrast?.Check.NumericalRevision == evidence.NumericalRevision, "guardado y reapertura con contraste");
+            bool rejected = false;
+            try
+            {
+                TwoStrokeFiles.SaveMulti(file, project with
+                {
+                    Contrast = new(5000, evidence with { NumericalRevision = "otra-revisión" })
+                });
+            }
+            catch (InvalidDataException) { rejected = true; }
+            Check(rejected, "rechaza un contraste de revisión incompatible");
             string csv = Path.Combine(output, "multi2t-ui-cycle.csv");
             TwoStrokeFiles.ExportMultiCycle(csv, app.Snapshot().Curve!, 5000);
             Check(File.ReadLines(csv).Count() > 600, "CSV trazable de ambos cilindros");

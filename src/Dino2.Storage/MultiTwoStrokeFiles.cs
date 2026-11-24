@@ -42,7 +42,8 @@ public static partial class TwoStrokeFiles
         CheckMulti(p.Current, p.Curve);
         CheckMulti(p.Original, p.Baseline);
         if (p.Contrast is { } contrast &&
-            (!ValidCheck(contrast.Check, 1) || p.Baseline?.Runs.Any(r => r.Rpm == contrast.Rpm && r.Point is not null) != true ||
+            (!ValidCheck(contrast.Check, 1, p.Baseline, p.Curve) ||
+             p.Baseline?.Runs.Any(r => r.Rpm == contrast.Rpm && r.Point is not null) != true ||
              p.Curve?.Runs.Any(r => r.Rpm == contrast.Rpm && r.Point is not null) != true))
             throw new InvalidDataException("Hay un contraste que no corresponde a las curvas A/B.");
         if (p.Study is not { } study) return;
@@ -55,16 +56,27 @@ public static partial class TwoStrokeFiles
             study.Rows.Any(r => r.Id < 0 || r.Id >= plan.Grid.Variants.Count || !Enum.IsDefined(r.Status) ||
                 (r.Status == StudyStatus.Completed) != (r.Curve?.Complete == true)) ||
             (study.Check is { } check && (check.CandidateId <= 0 || check.CandidateId >= plan.Grid.Variants.Count ||
-                !ValidCheck(check, check.CandidateId))))
+                !ValidCheck(check, check.CandidateId, study.Rows.FirstOrDefault(r => r.Id == 0)?.Curve,
+                    study.Rows.FirstOrDefault(r => r.Id == check.CandidateId)?.Curve))))
             throw new InvalidDataException("Los resultados guardados no corresponden al estudio.");
         foreach (var row in study.Rows) CheckMulti(plan.Variant(row.Id), row.Curve, allowSummary: true);
     }
 
-    private static bool ValidCheck(StudyCheck? check, int candidate) => check is not null &&
-        check.CandidateId == candidate && check.ReferenceId == 0 && check.NumericalRevision == MultiTwoStrokeConfiguration.ModelId &&
+    private static bool ValidCheck(StudyCheck? check, int candidate, MultiTwoStrokeSweep? a, MultiTwoStrokeSweep? b) =>
+        check is not null && a is not null && b is not null &&
+        check.CandidateId == candidate && check.ReferenceId == 0 && MatchesRevision(check.NumericalRevision, a, b) &&
         check.Levels is not null && check.Levels.Count is >= 1 and <= 3 && check.Levels.All(l => l is not null) &&
         check.Levels.Select(l => l.Scale).SequenceEqual(new[] { 1, 2, 4 }.Take(check.Levels.Count)) &&
         StudyVerification.Classify(check.Levels) == (check.Verdict, check.ObservedBand);
+
+    private static bool MatchesRevision(string? revision, MultiTwoStrokeSweep a, MultiTwoStrokeSweep b)
+    {
+        string? recorded = a.Provenance?.NumericalRevision;
+        if (recorded != b.Provenance?.NumericalRevision) return false;
+        if (recorded is not null && revision == recorded) return true;
+        // Older comparisons recorded the model identifier instead of the numerical revision.
+        return revision == MultiTwoStrokeConfiguration.ModelId && recorded != a.Configuration.Cylinder.Revision + "-network-recovery-v1";
+    }
 
     private static void CheckMulti(MultiTwoStrokeConfiguration? c, MultiTwoStrokeSweep? sweep, bool allowSummary = false)
     {
