@@ -83,6 +83,56 @@ Test("Valve lift periodicity and curtain/throat geometry", () =>
     Near(ValveFlow.Lift(v, 0), ValveFlow.Lift(v, 720));
     Assert(ValveFlow.EffectiveArea(v, 100) <= v.DischargeCoefficient * v.Count * Math.PI * v.DiameterM * v.DiameterM / 4, "Throat exceeded");
 });
+Test("Measured crank-angle lift profile interpolation, periodicity and geometric area", () =>
+{
+    var v = c.IntakeValve with { OpensDeg = 0, ClosesDeg = 200, LiftProfile = new ValveLiftPoint[]
+    {
+        new(0, 0), new(80, 0), new(100, .001), new(130, .008), new(170, .004), new(200, 0), new(720, 0)
+    }, LiftProfileSource = "independent-test.csv", LiftProfileSha256 = new string('a', 64) };
+    Near(ValveFlow.Lift(v, 115), .0045);
+    Near(ValveFlow.Lift(v, 115 - 720), .0045);
+    Near(ValveFlow.Lift(v, 720), 0);
+    Near(ValveFlow.Lift(v, 250), 0);
+    Assert(ValveFlow.EffectiveArea(v, 130) <= v.DischargeCoefficient * v.Count * Math.PI * v.DiameterM * v.DiameterM / 4,
+        "Measured lift exceeded the valve throat");
+    string csv = Path.Combine(Path.GetTempPath(), "dino2-lift-" + Guid.NewGuid().ToString("N") + ".csv");
+    try
+    {
+        File.WriteAllText(csv, "crank_angle_deg,lift_mm\n0,0\n80,0\n100,1\n130,8\n170,4\n200,0\n720,0\n");
+        var imported = ValveLiftProfileFile.Load(csv, v.MaximumLiftM);
+        Assert(imported.Points.SequenceEqual(v.LiftProfile!) && imported.Sha256.Length == 64 && imported.Source.EndsWith(".csv"),
+            "CSV lift profile import or provenance failed");
+    }
+    finally { File.Delete(csv); }
+    try
+    {
+        (c with { IntakeValve = v with { LiftProfile = [new(0, 0), new(400, .009), new(720, 0)] } }).Validate(false);
+        throw new Exception("Profile above maximum valve lift was accepted");
+    }
+    catch (ArgumentException ex) when (ex.Message.Contains("perfil", StringComparison.OrdinalIgnoreCase)) { }
+});
+Test("Cam profile changes the 4T valve-flow cycle while retaining a reference baseline", () =>
+{
+    var historical = FourStrokeSimulator.Simulate(single, 3000);
+    var profile = new ValveLiftPoint[] { new(0, .001), new(80, .006), new(120, .008), new(180, .004),
+        new(220, 0), new(400, 0), new(570, 0), new(710, 0), new(720, .001) };
+    var valve = c.IntakeValve with { LiftProfile = profile, LiftProfileSource = "synthetic-test-trace.csv",
+        LiftProfileSha256 = new string('b', 64) };
+    var configuration = single with { IntakeValve = valve };
+    var measured = FourStrokeSimulator.Simulate(configuration, 3000);
+    string projectPath = Path.Combine(Path.GetTempPath(), "dino2-cam-project-" + Guid.NewGuid().ToString("N") + ".json");
+    try
+    {
+        FourStrokeFiles.Save(projectPath, new(configuration, null));
+        var restored = FourStrokeFiles.Load(projectPath).Current.IntakeValve;
+        Assert(restored.LiftProfile!.SequenceEqual(profile) && restored.LiftProfileSource == valve.LiftProfileSource &&
+            restored.LiftProfileSha256 == valve.LiftProfileSha256, "Cam profile did not survive project save/reopen");
+    }
+    finally { File.Delete(projectPath); }
+    Assert(double.IsFinite(measured.IndicatedTorqueNm) && Math.Abs(measured.IndicatedTorqueNm - historical.IndicatedTorqueNm) > 1e-5,
+        "Changing the lift trace did not alter the simulated gas exchange");
+    Console.WriteLine($"CAM 4T {measured.Rpm} RPM reference={historical.IndicatedTorqueNm:F6} N·m profile={measured.IndicatedTorqueNm:F6} N·m · synthetic verification, not experiment");
+});
 Test("Independent sonic mass flux, choking and reverse flow", () =>
 {
     const double p = 200000, t = 320, a = .0001;

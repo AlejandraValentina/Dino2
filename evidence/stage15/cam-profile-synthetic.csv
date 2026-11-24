@@ -1,0 +1,12 @@
+# SYNTHETIC SOFTWARE FIXTURE ONLY — not a measured cam profile
+# Angles are crank degrees from firing TDC; lift is mm.
+crank_angle_deg,lift_mm
+0,1
+80,6
+120,8
+180,4
+220,0
+400,0
+570,0
+710,0
+720,1

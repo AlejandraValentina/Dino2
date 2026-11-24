@@ -23,6 +23,22 @@ public static class ValveFlow
 {
     public static double Lift(PoppetValve valve, double degrees)
     {
+        if (valve.LiftProfile is { } profile)
+        {
+            double profilePhase = degrees % 720;
+            if (profilePhase < 0) profilePhase += 720;
+            int low = 0, high = profile.Count - 1;
+            while (high - low > 1)
+            {
+                int middle = (low + high) / 2;
+                if (profile[middle].CrankAngleDeg <= profilePhase) low = middle;
+                else high = middle;
+            }
+            var a = profile[low];
+            var b = profile[high];
+            double fraction = (profilePhase - a.CrankAngleDeg) / (b.CrankAngleDeg - a.CrankAngleDeg);
+            return a.LiftM + fraction * (b.LiftM - a.LiftM);
+        }
         double phase = (degrees - valve.OpensDeg) % 720;
         if (phase < 0) phase += 720;
         double duration = valve.ClosesDeg - valve.OpensDeg;

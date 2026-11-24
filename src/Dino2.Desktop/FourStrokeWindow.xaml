@@ -8,6 +8,10 @@
         <Button Content="Ejemplo" Click="Example_Click"/>
         <Button Content="Abrir…" Click="Open_Click"/>
         <Button Content="Guardar proyecto…" Click="Save_Click"/>
+        <Button Content="Importar alzada admisión CSV…" Click="ImportIntakeLift_Click"
+                ToolTip="CSV con columnas crank_angle_deg,lift_mm; ángulo de cigüeñal en 0–720°, alzada en mm, alineada a TDC de combustión. Se interpola linealmente."/>
+        <Button Content="Importar alzada escape CSV…" Click="ImportExhaustLift_Click"
+                ToolTip="CSV con columnas crank_angle_deg,lift_mm; ángulo de cigüeñal en 0–720°, alzada en mm. Se interpola linealmente."/>
         <Button x:Name="CalculateButton" Content="Simular" Click="Simulate_Click" Background="#176B8C" Foreground="White"/>
         <Button x:Name="KeepOriginalButton" Content="Conservar como A" Click="Keep_Click" IsEnabled="False"/>
         <Button Content="Quitar A" Click="RemoveOriginal_Click"/>
@@ -34,6 +38,7 @@
       <Border Background="#FFF3CF" Padding="8" Margin="0,0,0,8">
         <TextBlock x:Name="ModelNotice" TextWrapping="Wrap" Text="Predicción aproximada sin validación experimental de motor. Revise hipótesis y procedencia de los parámetros."/>
       </Border>
+      <TextBlock x:Name="ValveProfileInfo" Margin="0,0,0,8" TextWrapping="Wrap" Foreground="#334B5B"/>
     </StackPanel>
     <Grid DockPanel.Dock="Bottom" Margin="0,12,0,0" Background="#E1EAF0">
       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Dino2.Core.FourStroke;
 
 public sealed record CylinderGeometry(double BoreM, double StrokeM, double RodLengthM, double CompressionRatio)
@@ -5,8 +7,19 @@ public sealed record CylinderGeometry(double BoreM, double StrokeM, double RodLe
     public double DisplacementM3 => Math.PI / 4 * BoreM * BoreM * StrokeM;
 }
 public sealed record Reservoir(double PressurePa, double TemperatureK);
+public sealed record ValveLiftPoint(double CrankAngleDeg, double LiftM);
+
 public sealed record PoppetValve(double DiameterM, double MaximumLiftM, int Count,
-    double DischargeCoefficient, double OpensDeg, double ClosesDeg);
+    double DischargeCoefficient, double OpensDeg, double ClosesDeg)
+{
+    /// <summary>Optional measured lift trace over one 720° crank cycle; null selects the historical sinusoid.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ValveLiftPoint>? LiftProfile { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LiftProfileSource { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LiftProfileSha256 { get; init; }
+}
 public sealed record Combustion(double SparkAdvanceDeg, double IgnitionDelayS, double DurationS,
     double AirFuelRatio, double LowerHeatingValueJPerKg, double HeatReleaseEfficiency, double WiebeExponent)
 {
@@ -73,6 +86,7 @@ public sealed record FourStrokeConfiguration(CylinderGeometry Geometry,
             Range(valve.MaximumLiftM, .0001, .025, "Alzada [m]");
             Range(valve.DischargeCoefficient, .1, 1, "Coeficiente de descarga");
             if (valve.Count < 1 || valve.Count > 3) throw new ArgumentException("Entre 1 y 3 válvulas por conducto.");
+            ValidateLiftProfile(valve);
         }
         Range(IntakeValve.OpensDeg, -60, 30, "Apertura de admisión [°]");
         Range(IntakeValve.ClosesDeg, 180, 300, "Cierre de admisión [°]");
@@ -112,6 +126,30 @@ public sealed record FourStrokeConfiguration(CylinderGeometry Geometry,
         if (operatingPoints)
             foreach (int rpm in Speeds.Values())
                 if (OperatingPointError(rpm) is { } error) throw new ArgumentException(error);
+    }
+
+    private static void ValidateLiftProfile(PoppetValve valve)
+    {
+        if (valve.LiftProfile is not { } profile) return;
+        if (string.IsNullOrWhiteSpace(valve.LiftProfileSource) || valve.LiftProfileSha256 is not { Length: 64 } hash ||
+            hash.Any(ch => !Uri.IsHexDigit(ch)))
+            throw new ArgumentException("El perfil de alzada requiere nombre de fuente y SHA-256 para su trazabilidad.");
+        if (profile.Count < 3 || profile[0].CrankAngleDeg != 0 || profile[^1].CrankAngleDeg != 720 ||
+            profile[0].LiftM != profile[^1].LiftM)
+            throw new ArgumentException("El perfil de alzada debe cubrir 0–720° de cigüeñal y cerrar periódicamente.");
+        double previous = -1;
+        foreach (var point in profile)
+        {
+            if (!double.IsFinite(point.CrankAngleDeg) || !double.IsFinite(point.LiftM) ||
+                point.CrankAngleDeg <= previous || point.CrankAngleDeg < 0 || point.CrankAngleDeg > 720 ||
+                point.LiftM < 0 || point.LiftM > valve.MaximumLiftM)
+                throw new ArgumentException("El perfil debe tener ángulos estrictos y alzadas entre cero y la alzada máxima [SI].");
+            previous = point.CrankAngleDeg;
+        }
+        double tolerance = Math.Max(1e-12, valve.MaximumLiftM * 1e-8);
+        if (ValveFlow.Lift(valve, valve.OpensDeg) > tolerance || ValveFlow.Lift(valve, valve.ClosesDeg) > tolerance ||
+            profile.Max(point => point.LiftM) <= 0)
+            throw new ArgumentException("Los eventos de apertura/cierre deben coincidir con alzada cero y el perfil debe tener alzada positiva.");
     }
 
     internal string? OperatingPointError(int rpm)

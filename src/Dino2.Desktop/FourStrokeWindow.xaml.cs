@@ -49,6 +49,33 @@ public partial class FourStrokeWindow : Window
         child.Show();
     }
 
+    private void ImportIntakeLift_Click(object sender, RoutedEventArgs e) => ImportLiftProfile(true);
+    private void ImportExhaustLift_Click(object sender, RoutedEventArgs e) => ImportLiftProfile(false);
+
+    private void ImportLiftProfile(bool intake)
+    {
+        var dialog = new OpenFileDialog { Filter = "Perfil de alzada CSV (*.csv)|*.csv", Title = intake ? "Alzada de admisión" : "Alzada de escape" };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            var config = ReadConfiguration(false);
+            var valve = intake ? config.IntakeValve : config.ExhaustValve;
+            var profile = ValveLiftProfileFile.Load(dialog.FileName, valve.MaximumLiftM);
+            var updated = valve with { LiftProfile = profile.Points, LiftProfileSource = profile.Source,
+                LiftProfileSha256 = profile.Sha256 };
+            editorTemplate = intake ? config with { IntakeValve = updated } : config with { ExhaustValve = updated };
+            editorTemplate.Validate(false);
+            Populate(editorTemplate);
+            dirty = true;
+            Title = "Dino2 · perfil de válvula modificado *";
+            Status.Text = $"Perfil {(intake ? "de admisión" : "de escape")} importado: {profile.Source}, SHA-256 {profile.Sha256[..12]}… · grados de cigüeñal y alzada mm. Interpolación lineal; medición y alineación requieren procedencia del usuario.";
+        }
+        catch (Exception ex) when (Expected(ex) || ex is IOException || ex is InvalidDataException)
+        {
+            Status.Text = "No se importó el perfil: " + ex.Message;
+        }
+    }
+
     private void Multicylinder_Click(object sender, RoutedEventArgs e)
     {
         if (multicylinderWindow is not null)
@@ -169,6 +196,11 @@ public partial class FourStrokeWindow : Window
             : configuration.Thermochemistry.UsesEquilibrium
                 ? "Iso-octano vaporizado. Equilibrio reducido CO/H₂ durante combustión y expansión cerrada; composición congelada desde apertura de escape. Wiebe y pérdidas requieren identificación. Sin validación experimental de motor."
                 : "Iso-octano vaporizado y productos congelados: conserva especies y energía química, omite disociación y ondas. Wiebe prescrita o escalada; no predice propagación de llama. Evidencia/calibración declaradas por el usuario; sin validación independiente del motor.";
+        string Profile(PoppetValve valve) => valve.LiftProfile is null
+            ? "alzada histórica seno-cuadrado"
+            : $"perfil CSV {valve.LiftProfileSource} · {valve.LiftProfile.Count} puntos · SHA-256 {valve.LiftProfileSha256}";
+        ValveProfileInfo.Text = $"Admisión: {Profile(configuration.IntakeValve)}. Escape: {Profile(configuration.ExhaustValve)}. " +
+            "Cd sigue siendo constante; los perfiles importados no implican calibración experimental.";
         populating = false;
         CurrentResult = null;
         RenderResults();
