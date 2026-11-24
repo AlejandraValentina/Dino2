@@ -1,0 +1,68 @@
+  Determinando los proyectos que se van a restaurar...
+  Todos los proyectos están actualizados para la restauración.
+  Dino2.Core -> E:\dino2\src\Dino2.Core\bin\Release\net10.0\Dino2.Core.dll
+  Dino2.Multicylinder.Tests -> E:\dino2\tests\Dino2.Multicylinder.Tests\bin\Release\net10.0\Dino2.Multicylinder.Tests.dll
+  Dino2.Storage -> E:\dino2\src\Dino2.Storage\bin\Release\net10.0\Dino2.Storage.dll
+  Dino2.Tests -> E:\dino2\tests\Dino2.Tests\bin\Release\net10.0\Dino2.Tests.dll
+  Dino2.Studies.Tests -> E:\dino2\tests\Dino2.Studies.Tests\bin\Release\net10.0\Dino2.Studies.Tests.dll
+  Dino2.FourStroke.Tests -> E:\dino2\tests\Dino2.FourStroke.Tests\bin\Release\net10.0\Dino2.FourStroke.Tests.dll
+  Dino2.Reactive.Tests -> E:\dino2\tests\Dino2.Reactive.Tests\bin\Release\net10.0\Dino2.Reactive.Tests.dll
+  Dino2.TwoStroke.Tests -> E:\dino2\tests\Dino2.TwoStroke.Tests\bin\Release\net10.0\Dino2.TwoStroke.Tests.dll
+  Dino2.Cli -> E:\dino2\src\Dino2.Cli\bin\Release\net10.0\Dino2.Cli.dll
+  Dino2.Desktop -> E:\dino2\src\Dino2.Desktop\bin\Release\net10.0-windows\Dino2.Desktop.dll
+  Dino2.Desktop.Tests -> E:\dino2\tests\Dino2.Desktop.Tests\bin\Release\net10.0-windows\Dino2.Desktop.Tests.dll
+
+Compilación correcta.
+    0 Advertencia(s)
+    0 Errores
+
+Tiempo transcurrido 00:00:03.97
+2T segmented wave: 96 cells, R=-0.4544, return=1.7805E-003 s.
+2T segmented wave: 192 cells, R=-0.5293, return=1.8064E-003 s.
+2T analytical verification: perfect mixing and bounded passive reconstruction.
+2T reference 3378.3 ms, 51 cycles, 853 steps, 2067.52102 W.
+PORT CONTOUR 2T 5000 RPM reference=2067.52102 W profile=2268.35664 W · synthetic verification, not experiment
+2T: geometry, mesh, reed, conservation, scavenging, periodicity, determinism, variants, limits, storage and CSV passed.
+REFLECTION matched=0,00008, pressure=-0,95786, closed=0,95765, strong=-0,77100
+QUARTER measured=0,011520483s analytic=0,011521112s
+PASS Physical reservoir boundaries, quarter-wave and distributed wall sources (7222,1 ms)
+APERTURE PULSE Δp=-25 Pa α=0 R=0.98499
+APERTURE PULSE Δp=-25 Pa α=0.3 R=-0.98278
+APERTURE PULSE Δp=-25 Pa α=1 R=-0.98466
+APERTURE PULSE Δp=25 Pa α=0 R=0.98484
+APERTURE PULSE Δp=25 Pa α=0.3 R=-0.98134
+APERTURE PULSE Δp=25 Pa α=1 R=-0.98482
+PLENUM V=0.1 L · Rmin=-0.6327 · L∞/A ramal=0.0312, tronco=0.0045
+PLENUM V=0.5 L · Rmin=-0.8542 · L∞/A ramal=0.0352, tronco=0.0020
+PLENUM V=2.4 L · Rmin=-0.9453 · L∞/A ramal=0.0352, tronco=0.0005
+PLENUM V=10 L · Rmin=-0.9678 · L∞/A ramal=0.0351, tronco=0.0001
+PLENUM V=30 L · Rmin=-0.9726 · L∞/A ramal=0.0351, tronco=0.0000
+PLENUM V=0.5 L · Rmin=-0.7478 · L∞/A ramal=0.0212, tronco=0.0030
+PASS Compact aperture choking, shock and dynamic plenum acoustics (2169,4 ms)
+PASS Variable-property jumps, local transfer and port domain (C13-01 to C13-03) (31,9 ms)
+PORTS-v4 seed=140301 accepted=1889 outsideDomain=159 free=177 sonic=961 discharge=1053
+PASS Certified port closure, regimes, predictor and generated states (36,6 ms)
+PASS Slider-crank endpoints, analytic derivative and displacement (0,5 ms)
+PASS NASA sensible energy derivative, inversion and continuity (3,0 ms)
+PASS Valve lift periodicity and curtain/throat geometry (0,1 ms)
+PASS Measured crank-angle lift profile interpolation, periodicity and geometric area (11,3 ms)
+CAM 4T 3000 RPM reference=36,498208 N·m profile=36,368984 N·m · synthetic verification, not experiment
+PASS Cam profile changes the 4T valve-flow cycle while retaining a reference baseline (194,2 ms)
+PASS Independent sonic mass flux, choking and reverse flow (0,1 ms)
+PASS Normalized finite Wiebe heat integrates to supplied energy (13,0 ms)
+PASS RK4 independent exponential solution and fourth-order refinement (0,5 ms)
+PASS Closed adiabatic cylinder conservation and independent reversible compression (13,0 ms)
+PASS Hohenberg pressure units and friction coefficient units (0,1 ms)
+PASS Periodic firing cycle, mass/energy closure and work decomposition (64,1 ms)
+Grid W[1,.5,.25]=458,6499900011999,458,65001144748067,458,6499909316244; errors=9,304E-007,2,052E-005
+PASS Grid/time refinement and independent trace work quadrature (154,2 ms)
+Sensitivity: base=9752,096W lift4mm=8067,208W spark5deg=9505,551W torque6000=17,5660Nm
+PASS Reproducibility, RPM response, valve lift and spark sensitivity (251,5 ms)
+PASS Cancellation and explicit nonconvergence failures (32,8 ms)
+PASS Motoring, limiting RPM and valve timing regression (283,5 ms)
+PASS 4T projects retain A/B, reject missing or incompatible data, and export traceability (48,1 ms)
+BENCHMARK {"runtime":"10.0.15","logicalProcessors":12,"elapsedMs":[509.2949,528.9756,504.1492],"medianMs":509.2949,"allocatedBytes":[11770008,11770488,11766960],"rpmPoints":11,"acceptedSteps":106440,"rejectedSteps":1006,"rhsEvaluations":1289352}
+PASS Measured full sweep and reusable numerical artifacts (4626,7 ms)
+PASS Independent duct Sod, rigid reflection, variable area balance and temporal order (121,5 ms)
+PASS MUSCL wave propagation and reflection, strong shock, area and refinement (367,9 ms)
+23/23 4T test groups passed.

@@ -4,7 +4,9 @@ Esta carpeta conserva referencias de verificación para el primer bloque impleme
 
 - `../stage14c/README.md`: reproducción de la base numérica preservada.
 - `cam-profile-synthetic.csv`: fixture reproducible, explícitamente sintético.
+- `port-width-synthetic.csv`: contorno de transfer triangular sintético, explícitamente no medido.
 - `verification.log`: suite completa posterior a la implementación.
+- `final-targeted.log`: rebuild y suites 2T/4T tras verificar persistencia estructural de perfiles.
 - `reserved-seeds.log`: semillas 14C reservadas reproducidas.
 - `portable.sha256`: portable extraído, hashes de assemblies y comprobación de runtime.
 - `../../docs/etapa15.md`: modelo, ecuaciones, estado de los diferidos y decisión científica.

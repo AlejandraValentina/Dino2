@@ -1,0 +1,6 @@
+# SYNTHETIC SOFTWARE FIXTURE ONLY — triangular transfer opening, not measured geometry
+# Height above the port roof [mm], aggregate open width [mm]
+height_mm,width_mm
+0,0
+5.5,52
+11,0

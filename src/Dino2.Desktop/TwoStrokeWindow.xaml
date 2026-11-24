@@ -10,6 +10,10 @@
         <Button Content="Ejemplo 2T" Click="Example_Click"/>
         <Button x:Name="OpenTwoStroke" Content="Abrir proyecto 2T…" Click="Open_Click"/>
         <Button x:Name="SaveTwoStroke" Content="Guardar proyecto 2T…" Click="Save_Click"/>
+        <Button Content="Importar contorno transfers CSV…" Click="ImportTransferContour_Click"
+                ToolTip="CSV height_mm,width_mm: altura sobre el techo y ancho agregado de apertura, en mm. El ancho integrado determina el área geométrica."/>
+        <Button Content="Importar contorno escape CSV…" Click="ImportExhaustContour_Click"
+                ToolTip="CSV height_mm,width_mm: altura sobre el techo y ancho agregado de apertura, en mm."/>
         <Button x:Name="CalculateButton" Content="Simular 2T" Click="Calculate_Click" Background="#176B8C" Foreground="White"/>
         <Button x:Name="KeepButton" Content="Conservar como A" Click="Keep_Click"/>
         <Button x:Name="RemoveOriginalButton" Content="Quitar A" Click="RemoveOriginal_Click"/>
@@ -19,6 +23,7 @@
       <Border Background="#FFF3CF" Padding="8" Margin="0,0,0,8">
         <TextBlock Text="Ejemplo sintético. Wiebe prescrita, láminas cuasiestáticas y pérdidas estimadas. Resultados sin validación experimental." TextWrapping="Wrap"/>
       </Border>
+      <TextBlock x:Name="PortContourInfo" Margin="0,0,0,8" TextWrapping="Wrap" Foreground="#334B5B"/>
     </StackPanel>
     <Grid DockPanel.Dock="Bottom" Margin="0,10,0,0" Background="#E1EAF0">
       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>

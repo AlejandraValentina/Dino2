@@ -7,8 +7,47 @@ namespace Dino2.Core.TwoStroke;
 
 public sealed record PistonPort(double RoofM, double HeightM, double WidthM, double ThroatM2, double Cd)
 {
-    public double Area(double pistonTravelM) => Cd * Math.Min(ThroatM2,
-        WidthM * Math.Clamp(pistonTravelM - RoofM, 0, HeightM));
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<PortWidthPoint>? WidthProfile { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WidthProfileSource { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? WidthProfileSha256 { get; init; }
+
+    public bool Equals(PistonPort? other) => other is not null && RoofM == other.RoofM && HeightM == other.HeightM &&
+        WidthM == other.WidthM && ThroatM2 == other.ThroatM2 && Cd == other.Cd &&
+        (WidthProfile is null ? other.WidthProfile is null : other.WidthProfile is not null && WidthProfile.SequenceEqual(other.WidthProfile)) &&
+        WidthProfileSource == other.WidthProfileSource && WidthProfileSha256 == other.WidthProfileSha256;
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(RoofM); hash.Add(HeightM); hash.Add(WidthM); hash.Add(ThroatM2); hash.Add(Cd);
+        hash.Add(WidthProfileSource); hash.Add(WidthProfileSha256);
+        if (WidthProfile is not null) foreach (var point in WidthProfile) hash.Add(point);
+        return hash.ToHashCode();
+    }
+
+    public double GeometricOpeningArea(double pistonTravelM)
+    {
+        double exposed = Math.Clamp(pistonTravelM - RoofM, 0, HeightM);
+        if (WidthProfile is not { } profile) return WidthM * exposed;
+        double area = 0;
+        for (int i = 0; i < profile.Count - 1; i++)
+        {
+            var a = profile[i];
+            var b = profile[i + 1];
+            if (exposed <= a.HeightM) break;
+            double end = Math.Min(exposed, b.HeightM);
+            double fraction = (end - a.HeightM) / (b.HeightM - a.HeightM);
+            double widthAtEnd = a.WidthM + fraction * (b.WidthM - a.WidthM);
+            area += (end - a.HeightM) * (a.WidthM + widthAtEnd) / 2;
+            if (end == exposed) break;
+        }
+        return area;
+    }
+
+    public double Area(double pistonTravelM) => Cd * Math.Min(ThroatM2, GeometricOpeningArea(pistonTravelM));
 
     public double Opening(CylinderGeometry geometry)
     {
@@ -143,6 +182,7 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
             Check(port.WidthM, .001, Math.PI * Geometry.BoreM, "Ancho agregado de lumbrera");
             Check(port.ThroatM2, 1e-6, Geometry.DisplacementM3 / Geometry.StrokeM, "Garganta de lumbrera");
             Check(port.Cd, .1, 1, "Cd de lumbrera");
+            ValidateWidthProfile(port);
         }
         if (Exhaust.RoofM >= Transfer.RoofM)
             throw new ArgumentException("El escape debe abrir antes y cerrar después que los transfers.");
@@ -184,6 +224,24 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
             throw new ArgumentException("Rango 2T: 500–10000 RPM, fin ≥ inicio, paso positivo y hasta 100 puntos.");
     }
 
+    private static void ValidateWidthProfile(PistonPort port)
+    {
+        if (port.WidthProfile is not { } profile) return;
+        if (string.IsNullOrWhiteSpace(port.WidthProfileSource) || port.WidthProfileSha256 is not { Length: 64 } hash ||
+            hash.Any(ch => !Uri.IsHexDigit(ch)))
+            throw new ArgumentException("El perfil de ancho requiere nombre de fuente y SHA-256 para su trazabilidad.");
+        if (profile.Count < 2 || profile[0].HeightM != 0 || profile[^1].HeightM != port.HeightM)
+            throw new ArgumentException("El perfil de ancho debe cubrir exactamente 0–altura de lumbrera [m].");
+        double previous = -1;
+        foreach (var point in profile)
+        {
+            if (!double.IsFinite(point.HeightM) || !double.IsFinite(point.WidthM) || point.HeightM <= previous ||
+                point.HeightM < 0 || point.HeightM > port.HeightM || point.WidthM < 0 || point.WidthM > port.WidthM)
+                throw new ArgumentException("El contorno requiere alturas crecientes y anchos entre cero y el ancho agregado [m].");
+            previous = point.HeightM;
+        }
+    }
+
     internal void ValidateOperatingPoint(int rpm)
     {
         if (Combustion.AirFuelRatio < SpeciesThermodynamics.StoichiometricAfr * (1 - 1e-10))
@@ -202,3 +260,5 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
             throw new ArgumentException($"{label}: {min:G5}–{max:G5} en unidades SI.");
     }
 }
+
+public readonly record struct PortWidthPoint(double HeightM, double WidthM);

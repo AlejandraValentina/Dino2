@@ -103,9 +103,36 @@ public partial class TwoStrokeWindow : Window
         foreach (var (field, input) in inputs) input.Text = field.Read(configuration).ToString("R", CultureInfo.CurrentCulture);
         equilibrium.IsChecked = configuration.Combustion.ProductEquilibrium;
         scheme.SelectedItem = configuration.Numerics.Scheme;
+        string Contour(PistonPort port) => port.WidthProfile is null
+            ? "rectangular constante"
+            : $"CSV {port.WidthProfileSource} · {port.WidthProfile.Count} puntos · SHA-256 {port.WidthProfileSha256}";
+        PortContourInfo.Text = $"Transfers: {Contour(configuration.Transfer)}. Escape: {Contour(configuration.Exhaust)}. " +
+            "Cd permanece constante; anchos múltiples se representan como agregado.";
         populating = false;
         ClearResolution();
         Render();
+    }
+
+    private void ImportTransferContour_Click(object sender, RoutedEventArgs e) => ImportPortContour(true);
+    private void ImportExhaustContour_Click(object sender, RoutedEventArgs e) => ImportPortContour(false);
+
+    private void ImportPortContour(bool transfer)
+    {
+        Guard(() =>
+        {
+            var configuration = CurrentConfiguration();
+            var port = transfer ? configuration.Transfer : configuration.Exhaust;
+            string? path = Choose(false, "Contorno de lumbrera CSV (*.csv)|*.csv", "contorno-lumbrera.csv");
+            if (path is null) return;
+            var imported = PistonPortWidthProfileFile.Load(path, port.HeightM, port.WidthM);
+            var updated = port with { WidthProfile = imported.Points, WidthProfileSource = imported.Source,
+                WidthProfileSha256 = imported.Sha256 };
+            template = transfer ? configuration with { Transfer = updated } : configuration with { Exhaust = updated };
+            template.Validate();
+            Populate(template);
+            dirty = true;
+            ShowStatus($"Contorno {(transfer ? "de transfer" : "de escape")} importado: {imported.Source}, SHA-256 {imported.Sha256[..12]}… · la curva conserva CD constante.");
+        });
     }
 
     private void Edited()

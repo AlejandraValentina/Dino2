@@ -1,22 +1,22 @@
   Determinando los proyectos que se van a restaurar...
   Todos los proyectos están actualizados para la restauración.
   Dino2.Core -> E:\dino2\src\Dino2.Core\bin\Release\net10.0\Dino2.Core.dll
-  Dino2.Multicylinder.Tests -> E:\dino2\tests\Dino2.Multicylinder.Tests\bin\Release\net10.0\Dino2.Multicylinder.Tests.dll
   Dino2.Storage -> E:\dino2\src\Dino2.Storage\bin\Release\net10.0\Dino2.Storage.dll
-  Dino2.Studies.Tests -> E:\dino2\tests\Dino2.Studies.Tests\bin\Release\net10.0\Dino2.Studies.Tests.dll
-  Dino2.Tests -> E:\dino2\tests\Dino2.Tests\bin\Release\net10.0\Dino2.Tests.dll
-  Dino2.Reactive.Tests -> E:\dino2\tests\Dino2.Reactive.Tests\bin\Release\net10.0\Dino2.Reactive.Tests.dll
+  Dino2.Multicylinder.Tests -> E:\dino2\tests\Dino2.Multicylinder.Tests\bin\Release\net10.0\Dino2.Multicylinder.Tests.dll
   Dino2.TwoStroke.Tests -> E:\dino2\tests\Dino2.TwoStroke.Tests\bin\Release\net10.0\Dino2.TwoStroke.Tests.dll
   Dino2.FourStroke.Tests -> E:\dino2\tests\Dino2.FourStroke.Tests\bin\Release\net10.0\Dino2.FourStroke.Tests.dll
-  Dino2.Cli -> E:\dino2\src\Dino2.Cli\bin\Release\net10.0\Dino2.Cli.dll
+  Dino2.Tests -> E:\dino2\tests\Dino2.Tests\bin\Release\net10.0\Dino2.Tests.dll
+  Dino2.Reactive.Tests -> E:\dino2\tests\Dino2.Reactive.Tests\bin\Release\net10.0\Dino2.Reactive.Tests.dll
+  Dino2.Studies.Tests -> E:\dino2\tests\Dino2.Studies.Tests\bin\Release\net10.0\Dino2.Studies.Tests.dll
   Dino2.Desktop -> E:\dino2\src\Dino2.Desktop\bin\Release\net10.0-windows\Dino2.Desktop.dll
+  Dino2.Cli -> E:\dino2\src\Dino2.Cli\bin\Release\net10.0\Dino2.Cli.dll
   Dino2.Desktop.Tests -> E:\dino2\tests\Dino2.Desktop.Tests\bin\Release\net10.0-windows\Dino2.Desktop.Tests.dll
 
 Compilación correcta.
     0 Advertencia(s)
     0 Errores
 
-Tiempo transcurrido 00:00:03.59
+Tiempo transcurrido 00:00:01.68
 PASS Independent numerical reference (80 x 80 mm, r=10)
 PASS Energy conservation over 150 deterministic configurations
 PASS Net work equals independent numerical integral of p dV
@@ -33,7 +33,7 @@ PASS CSV round trip numbers and traceability across decimal cultures
 13/13 test groups passed.
 REFLECTION matched=0,00008, pressure=-0,95786, closed=0,95765, strong=-0,77100
 QUARTER measured=0,011520483s analytic=0,011521112s
-PASS Physical reservoir boundaries, quarter-wave and distributed wall sources (7335,5 ms)
+PASS Physical reservoir boundaries, quarter-wave and distributed wall sources (7267,7 ms)
 APERTURE PULSE Δp=-25 Pa α=0 R=0.98499
 APERTURE PULSE Δp=-25 Pa α=0.3 R=-0.98278
 APERTURE PULSE Δp=-25 Pa α=1 R=-0.98466
@@ -46,50 +46,50 @@ PLENUM V=2.4 L · Rmin=-0.9453 · L∞/A ramal=0.0352, tronco=0.0005
 PLENUM V=10 L · Rmin=-0.9678 · L∞/A ramal=0.0351, tronco=0.0001
 PLENUM V=30 L · Rmin=-0.9726 · L∞/A ramal=0.0351, tronco=0.0000
 PLENUM V=0.5 L · Rmin=-0.7478 · L∞/A ramal=0.0212, tronco=0.0030
-PASS Compact aperture choking, shock and dynamic plenum acoustics (2323,4 ms)
-PASS Variable-property jumps, local transfer and port domain (C13-01 to C13-03) (34,0 ms)
+PASS Compact aperture choking, shock and dynamic plenum acoustics (2184,7 ms)
+PASS Variable-property jumps, local transfer and port domain (C13-01 to C13-03) (36,6 ms)
 PORTS-v4 seed=140301 accepted=1889 outsideDomain=159 free=177 sonic=961 discharge=1053
-PASS Certified port closure, regimes, predictor and generated states (40,0 ms)
-PASS Slider-crank endpoints, analytic derivative and displacement (0,6 ms)
-PASS NASA sensible energy derivative, inversion and continuity (3,1 ms)
+PASS Certified port closure, regimes, predictor and generated states (35,4 ms)
+PASS Slider-crank endpoints, analytic derivative and displacement (0,4 ms)
+PASS NASA sensible energy derivative, inversion and continuity (2,8 ms)
 PASS Valve lift periodicity and curtain/throat geometry (0,1 ms)
-PASS Measured crank-angle lift profile interpolation, periodicity and geometric area (12,4 ms)
+PASS Measured crank-angle lift profile interpolation, periodicity and geometric area (10,8 ms)
 CAM 4T 3000 RPM reference=36,498208 N·m profile=36,368984 N·m · synthetic verification, not experiment
-PASS Cam profile changes the 4T valve-flow cycle while retaining a reference baseline (192,7 ms)
+PASS Cam profile changes the 4T valve-flow cycle while retaining a reference baseline (190,8 ms)
 PASS Independent sonic mass flux, choking and reverse flow (0,2 ms)
-PASS Normalized finite Wiebe heat integrates to supplied energy (13,0 ms)
-PASS RK4 independent exponential solution and fourth-order refinement (0,5 ms)
-PASS Closed adiabatic cylinder conservation and independent reversible compression (12,6 ms)
+PASS Normalized finite Wiebe heat integrates to supplied energy (14,0 ms)
+PASS RK4 independent exponential solution and fourth-order refinement (0,4 ms)
+PASS Closed adiabatic cylinder conservation and independent reversible compression (12,3 ms)
 PASS Hohenberg pressure units and friction coefficient units (0,1 ms)
-PASS Periodic firing cycle, mass/energy closure and work decomposition (61,4 ms)
+PASS Periodic firing cycle, mass/energy closure and work decomposition (61,1 ms)
 Grid W[1,.5,.25]=458,6499900011999,458,65001144748067,458,6499909316244; errors=9,304E-007,2,052E-005
-PASS Grid/time refinement and independent trace work quadrature (150,1 ms)
+PASS Grid/time refinement and independent trace work quadrature (147,5 ms)
 Sensitivity: base=9752,096W lift4mm=8067,208W spark5deg=9505,551W torque6000=17,5660Nm
-PASS Reproducibility, RPM response, valve lift and spark sensitivity (254,0 ms)
-PASS Cancellation and explicit nonconvergence failures (32,1 ms)
-PASS Motoring, limiting RPM and valve timing regression (281,1 ms)
-PASS 4T projects retain A/B, reject missing or incompatible data, and export traceability (41,2 ms)
-BENCHMARK {"runtime":"10.0.15","logicalProcessors":12,"elapsedMs":[514.2317,541.0907,507.2304],"medianMs":514.2317,"allocatedBytes":[11769552,11770408,11766960],"rpmPoints":11,"acceptedSteps":106440,"rejectedSteps":1006,"rhsEvaluations":1289352}
-PASS Measured full sweep and reusable numerical artifacts (4636,3 ms)
-PASS Independent duct Sod, rigid reflection, variable area balance and temporal order (122,8 ms)
-PASS MUSCL wave propagation and reflection, strong shock, area and refinement (368,3 ms)
+PASS Reproducibility, RPM response, valve lift and spark sensitivity (240,3 ms)
+PASS Cancellation and explicit nonconvergence failures (31,1 ms)
+PASS Motoring, limiting RPM and valve timing regression (293,3 ms)
+PASS 4T projects retain A/B, reject missing or incompatible data, and export traceability (107,0 ms)
+BENCHMARK {"runtime":"10.0.15","logicalProcessors":12,"elapsedMs":[521.7359,520.3801,506.1754],"medianMs":520.3801,"allocatedBytes":[11769552,11770488,11767120],"rpmPoints":11,"acceptedSteps":106440,"rejectedSteps":1006,"rhsEvaluations":1289352}
+PASS Measured full sweep and reusable numerical artifacts (4468,9 ms)
+PASS Independent duct Sod, rigid reflection, variable area balance and temporal order (120,8 ms)
+PASS MUSCL wave propagation and reflection, strong shock, area and refinement (362,6 ms)
 23/23 4T test groups passed.
 PASS Stoichiometric species, elemental conservation and derived chemical energy (8 ms)
-PASS Temperature-dependent mixture U, cp, R and inversion; NASA reference vectors (51 ms)
+PASS Temperature-dependent mixture U, cp, R and inversion; NASA reference vectors (48 ms)
 PASS Closed constant-volume reaction conserves total chemical energy without extra LHV (3 ms)
 PASS Laminar correlation and conditioned duration respond to temperature, pressure, dilution and RPM (5 ms)
 Reactive 3000: W=477,0793536781109J Pb=10218,97603885976W Tpeak=2880,77K duration=33,887deg
 PASS Open reactive cycle closes mass, all species, elements and total energy (263 ms)
-PASS Temporal and cycle convergence; independent p dV quadrature (939 ms)
-PASS Files preserve model and declared evidence; reject incompatible fuel/energy (257 ms)
-PASS Unreacted fuel carries chemical enthalpy; cancellation and nonconvergence stay explicit (212 ms)
-PASS Reproducible reference-v1, frozen-v2 and conditioned-v2 comparisons and sensitivities (11373 ms)
+PASS Temporal and cycle convergence; independent p dV quadrature (898 ms)
+PASS Files preserve model and declared evidence; reject incompatible fuel/energy (209 ms)
+PASS Unreacted fuel carries chemical enthalpy; cancellation and nonconvergence stay explicit (207 ms)
+PASS Reproducible reference-v1, frozen-v2 and conditioned-v2 comparisons and sensitivities (11389 ms)
 PASS Reduced UV vessels conserve energy and elements; expansion recombines products (4 ms)
-PASS Equilibrium cycle balances, frozen transport, independent work and A/B persistence (369 ms)
-PASS Equilibrium angular and periodic convergence (1331 ms)
-PASS Matched v1/v2/v3 and combustion, losses and mechanical sensitivities (16184 ms)
-PASS Coupled 1D conservation, periodicity, refinement, reproducibility and geometry A/B (69418 ms)
-PASS MUSCL integration, A/B resolution, motored pressure ratio and explicit nonconvergence (6870 ms)
+PASS Equilibrium cycle balances, frozen transport, independent work and A/B persistence (340 ms)
+PASS Equilibrium angular and periodic convergence (1303 ms)
+PASS Matched v1/v2/v3 and combustion, losses and mechanical sensitivities (16007 ms)
+PASS Coupled 1D conservation, periodicity, refinement, reproducibility and geometry A/B (68498 ms)
+PASS MUSCL integration, A/B resolution, motored pressure ratio and explicit nonconvergence (6817 ms)
 15/15 reactive test groups passed.
 PASS Finite factorial grid, engineering units, model capabilities and hard limits
 PASS Objectives with known answers, constraint and specific fuel consumption
@@ -102,26 +102,27 @@ PASS MUSCL length remeshing and verified 0D candidate
 2T segmented wave: 96 cells, R=-0.4544, return=1.7805E-003 s.
 2T segmented wave: 192 cells, R=-0.5293, return=1.8064E-003 s.
 2T analytical verification: perfect mixing and bounded passive reconstruction.
-2T reference 3369.1 ms, 51 cycles, 853 steps, 2067.52102 W.
+2T reference 3350.4 ms, 51 cycles, 853 steps, 2067.52102 W.
+PORT CONTOUR 2T 5000 RPM reference=2067.52102 W profile=2268.35664 W · synthetic verification, not experiment
 2T: geometry, mesh, reed, conservation, scavenging, periodicity, determinism, variants, limits, storage and CSV passed.
-n=1, rpm=5000, P=2067.52102, cycles=51, ms=3426
-n=2, a=False, e=False, rpm=5000, Periodic, cycles=51, error=2.9585E-05, dominant=cilindro 2 · escape · celda 13 · energía, W=4134.8372, Mass=1.3184E-018, U=9.0949E-013, marker=1.0368E-018, eval=7795128, ms=6313, bytes=549424,
-n=2, a=True, e=True, rpm=5000, Periodic, cycles=53, error=0.00012606, dominant=colector y expansión común, W=3794.68744, Mass=1.6271E-018, U=-1.4255E-012, marker=-1.1045E-018, eval=8589064, ms=6955, bytes=540320,
-n=3, a=False, e=False, rpm=5000, Periodic, cycles=52, error=3.0597E-05, dominant=cilindro 3 · escape · celda 13 · energía, W=6202.31618, Mass=1.3563E-018, U=1.1937E-012, marker=-2.7105E-020, eval=12183996, ms=10015, bytes=750528,
-n=3, a=True, e=True, rpm=5000, Periodic, cycles=47, error=0.00010961, dominant=colector y expansión común, W=4998.32701, Mass=7.2422E-019, U=6.6347E-013, marker=2.7444E-019, eval=9814896, ms=8133, bytes=724992,
-n=4, a=False, e=False, rpm=5000, Periodic, cycles=52, error=2.9867E-05, dominant=cilindro 4 · escape · celda 12 · energía, W=8269.6976, Mass=3.4647E-018, U=1.3074E-012, marker=-3.9302E-019, eval=16367120, ms=13487, bytes=962304,
-n=4, a=True, e=True, rpm=5000, Periodic, cycles=46, error=0.00010117, dominant=colector y expansión común, W=5142.71013, Mass=-1.0563E-018, U=-3.2685E-013, marker=9.4868E-020, eval=11622152, ms=9750, bytes=908648,
+n=1, rpm=5000, P=2067.52102, cycles=51, ms=3349
+n=2, a=False, e=False, rpm=5000, Periodic, cycles=51, error=2.9585E-05, dominant=cilindro 2 · escape · celda 13 · energía, W=4134.8372, Mass=1.3184E-018, U=9.0949E-013, marker=1.0368E-018, eval=7795128, ms=6326, bytes=549616,
+n=2, a=True, e=True, rpm=5000, Periodic, cycles=53, error=0.00012606, dominant=colector y expansión común, W=3794.68744, Mass=1.6271E-018, U=-1.4255E-012, marker=-1.1045E-018, eval=8589064, ms=6925, bytes=540512,
+n=3, a=False, e=False, rpm=5000, Periodic, cycles=52, error=3.0597E-05, dominant=cilindro 3 · escape · celda 13 · energía, W=6202.31618, Mass=1.3563E-018, U=1.1937E-012, marker=-2.7105E-020, eval=12183996, ms=9967, bytes=750816,
+n=3, a=True, e=True, rpm=5000, Periodic, cycles=47, error=0.00010961, dominant=colector y expansión común, W=4998.32701, Mass=7.2422E-019, U=6.6347E-013, marker=2.7444E-019, eval=9814896, ms=8119, bytes=725280,
+n=4, a=False, e=False, rpm=5000, Periodic, cycles=52, error=2.9867E-05, dominant=cilindro 4 · escape · celda 12 · energía, W=8269.6976, Mass=3.4647E-018, U=1.3074E-012, marker=-3.9302E-019, eval=16367120, ms=13572, bytes=962688,
+n=4, a=True, e=True, rpm=5000, Periodic, cycles=46, error=0.00010117, dominant=colector y expansión común, W=5142.71013, Mass=-1.0563E-018, U=-3.2685E-013, marker=9.4868E-020, eval=11622152, ms=9593, bytes=909032,
 PASS límites aislados, redes compartidas, balances, fases, periodicidad y cancelación 2T.
 UNION dx=24.265/24.965 Pa; dt=24.965/25.012 Pa; retorno=24.795 Pa; c=344.55 m/s; arribo=1.2761E-003 s; reversión=7.10330049608067E-05; balances=5.98E-019 kg/7.46E-013 J
 N=1,ms=311,P=9510.61966,W=357.496353
-N=2,shared=False,rpm=4000,status=Converged,cycles=6,periodic=1.2814E-05,W=714.992728,P=19021.2401,fill=0.7512668,mass=1.681E-018,elements=8.826E-019,U=4.320E-012,cells=554432,steps=8663,rejected=0,ms=533,bytes=1269840,detail=
-N=2,shared=True,rpm=4000,status=Converged,cycles=27,periodic=0.000246675,W=640.082574,P=16586.3725,fill=0.6829105,mass=7.003E-018,elements=5.204E-018,U=-4.775E-012,cells=3742752,steps=38987,rejected=0,ms=3427,bytes=1394648,detail=
-N=3,shared=True,rpm=4000,status=Converged,cycles=15,periodic=0.000271382,W=935.011285,P=24062.2053,fill=0.669229,mass=1.735E-018,elements=1.301E-018,U=2.728E-012,cells=2793600,steps=21825,rejected=0,ms=2664,bytes=1940336,detail=
-N=4,shared=True,rpm=4000,status=Converged,cycles=18,periodic=0.000181217,W=1204.17294,P=30698.1293,fill=0.6522822,mass=-5.736E-018,elements=6.722E-018,U=3.865E-012,cells=4170080,steps=26063,rejected=0,ms=3920,bytes=2537640,detail=
-N=3,shared=False,rpm=4000,status=Converged,cycles=6,periodic=9.50748E-06,W=1072.48927,P=28531.9016,fill=0.7512669,mass=3.803E-018,elements=3.638E-018,U=1.023E-012,cells=838080,steps=8730,rejected=0,ms=706,bytes=112552,detail=
-N=4,shared=False,rpm=4000,status=Converged,cycles=6,periodic=1.28077E-05,W=1429.98546,P=38042.4805,fill=0.7512667,mass=7.871E-018,elements=6.489E-018,U=-4.547E-013,cells=1111936,steps=8687,rejected=0,ms=958,bytes=134752,detail=
-N=2,shared=True,rpm=4000,status=Converged,cycles=20,periodic=0.000270916,W=640.235457,P=16591.3748,fill=0.6830406,mass=-3.161E-018,elements=3.209E-018,U=6.821E-013,cells=2772384,steps=28879,rejected=0,ms=2503,bytes=1370704,detail=
-ESTUDIO casos=5; ms1=12809; ms2=9668
+N=2,shared=False,rpm=4000,status=Converged,cycles=6,periodic=1.2814E-05,W=714.992728,P=19021.2401,fill=0.7512668,mass=1.681E-018,elements=8.826E-019,U=4.320E-012,cells=554432,steps=8663,rejected=0,ms=537,bytes=1269840,detail=
+N=2,shared=True,rpm=4000,status=Converged,cycles=27,periodic=0.000246675,W=640.082574,P=16586.3725,fill=0.6829105,mass=7.003E-018,elements=5.204E-018,U=-4.775E-012,cells=3742752,steps=38987,rejected=0,ms=3374,bytes=1394648,detail=
+N=3,shared=True,rpm=4000,status=Converged,cycles=15,periodic=0.000271382,W=935.011285,P=24062.2053,fill=0.669229,mass=1.735E-018,elements=1.301E-018,U=2.728E-012,cells=2793600,steps=21825,rejected=0,ms=2569,bytes=1940336,detail=
+N=4,shared=True,rpm=4000,status=Converged,cycles=18,periodic=0.000181217,W=1204.17294,P=30698.1293,fill=0.6522822,mass=-5.736E-018,elements=6.722E-018,U=3.865E-012,cells=4170080,steps=26063,rejected=0,ms=3901,bytes=2531448,detail=
+N=3,shared=False,rpm=4000,status=Converged,cycles=6,periodic=9.50748E-06,W=1072.48927,P=28531.9016,fill=0.7512669,mass=3.803E-018,elements=3.638E-018,U=1.023E-012,cells=838080,steps=8730,rejected=0,ms=709,bytes=112552,detail=
+N=4,shared=False,rpm=4000,status=Converged,cycles=6,periodic=1.28077E-05,W=1429.98546,P=38042.4805,fill=0.7512667,mass=7.871E-018,elements=6.489E-018,U=-4.547E-013,cells=1111936,steps=8687,rejected=0,ms=937,bytes=134752,detail=
+N=2,shared=True,rpm=4000,status=Converged,cycles=20,periodic=0.000270916,W=640.235457,P=16591.3748,fill=0.6830406,mass=-3.161E-018,elements=3.209E-018,U=6.821E-013,cells=2772384,steps=28879,rejected=0,ms=2491,bytes=1378712,detail=
+ESTUDIO casos=5; ms1=12630; ms2=9699
 PASS fases, límite monocilíndrico, 2–4 cilindros, conservación, periodicidad, no convergencia y cancelación.
 PASS Window calculates default RPM sweep
 PASS RPM grid receives results
@@ -158,7 +159,7 @@ PASS 4T UI Refined A/B preserves original result
 PASS 4T UI Export includes mesh evidence and valve flows
 PASS 4T UI Editing invalidates resolution and B only
 24/24 4T desktop checks passed.
-PASS 4T Desktop · 11/11 RPM, CFL .20, paso .15°, periódico 1e-6 · 104380 ms
+PASS 4T Desktop · 11/11 RPM, CFL .20, paso .15°, periódico 1e-6 · 104609 ms
 PASS study UI Opens existing 4T and preserves A
 PASS study UI Previews unique cost before running
 PASS study UI Runs outside the UI thread with cancellation
@@ -180,7 +181,7 @@ PASS audit inactive duct parameters cannot block 0D runs
 PASS audit 4T preserves inspected RPM when retaining A
 PASS audit 4T exports trace for the inspected RPM
 PASS audit compact window retains the cancellation control
-AUDIT large_project_bytes=19054900; rpm=80; open_ms=253; working_set_bytes=349413376
+AUDIT large_project_bytes=19054900; rpm=80; open_ms=259; working_set_bytes=335204352
 PASS audit reading a large 2T project yields to the WPF dispatcher
 PASS audit large project restores all settings
 PASS audit the large 2T result displays all RPMs
@@ -212,7 +213,7 @@ PASS multi 2T Desktop aplica B con A inmutable
 PASS multi 2T Desktop cancelación preserva A
 Desktop smoke checks passed; images in E:\dino2\artifacts\verification
 otto-air-standard-v1: 11 puntos; W=249.87530538485063 J/ciclo; eta=0.6018928294465027; par=19.884445004297937 Nm indicados ideales.
-four-stroke-0d-air-v1: 11 RPM, 701,0 ms. Sin validación experimental.
+four-stroke-0d-air-v1: 11 RPM, 732,2 ms. Sin validación experimental.
 1000: Pi=3323.18 W, Pb=2886.38 W, Tb=27.5629 Nm, VE=0.88996, cycles=9, periodic=7.784E-011
 1500: Pi=5439.80 W, Pb=4720.22 W, Tb=30.0498 Nm, VE=0.89282, cycles=7, periodic=4.142E-010
 2000: Pi=7563.22 W, Pb=6532.21 W, Tb=31.1890 Nm, VE=0.88946, cycles=6, periodic=1.426E-009
@@ -228,4 +229,4 @@ LEGACY / NO PREDICTIVO · contorno ausente en el archivo histórico.
 4000: Pi=1972.58 W, P=1225.65 W, T=2.9260 Nm, fresh=3.4500E-005 kg, cycles=67, periodic=3.748E-005
 5000: Pi=3116.35 W, P=2067.52 W, T=3.9487 Nm, fresh=4.1472E-005 kg, cycles=51, periodic=2.906E-005
 6000: Pi=2966.38 W, P=1628.61 W, T=2.5920 Nm, fresh=3.3173E-005 kg, cycles=67, periodic=4.481E-005
-two-stroke-reed-expansion-isooctane-v1: 11.726 s.
+two-stroke-reed-expansion-isooctane-v1: 11.728 s.

@@ -129,6 +129,36 @@ Near(config.Exhaust.RoofM, TwoStrokeGeometry.Travel(g, evo), 1e-13, "opening");
 Near(config.Exhaust.Area(TwoStrokeGeometry.Travel(g, 360 - evo)), 0, 1e-15, "closing");
 Near(config.Transfer.Area(config.Transfer.RoofM + .002), config.Transfer.Cd * config.Transfer.WidthM * .002, 1e-15, "window area");
 Near(config.Exhaust.Area(2), config.Exhaust.Cd * Math.Min(config.Exhaust.ThroatM2, config.Exhaust.WidthM * config.Exhaust.HeightM), 1e-15, "saturated area");
+{
+    var height = config.Transfer.HeightM;
+    var halfWidth = config.Transfer.WidthM;
+    var triangle = config.Transfer with
+    {
+        WidthProfile = [new(0, 0), new(height / 2, halfWidth), new(height, 0)],
+        WidthProfileSource = "synthetic-triangle.csv", WidthProfileSha256 = new string('c', 64)
+    };
+    Near(triangle.GeometricOpeningArea(config.Transfer.RoofM + height), halfWidth * height / 2, 1e-15,
+        "analytic triangular port area");
+    Near(triangle.Area(config.Transfer.RoofM + height / 2), config.Transfer.Cd * halfWidth * height / 4, 1e-15,
+        "partial contour integration");
+    Near(triangle.Area(config.Transfer.RoofM), 0, 0, "contour closure");
+    var rectangle = config.Transfer with
+    {
+        WidthProfile = [new(0, halfWidth), new(height, halfWidth)],
+        WidthProfileSource = "synthetic-rectangle.csv", WidthProfileSha256 = new string('d', 64)
+    };
+    Near(rectangle.Area(config.Transfer.RoofM + height / 3), config.Transfer.Cd * halfWidth * height / 3, 1e-15,
+        "rectangular contour matches historical width law");
+    string csv = Path.Combine(Path.GetTempPath(), "dino2-port-width-" + Guid.NewGuid().ToString("N") + ".csv");
+    try
+    {
+        File.WriteAllText(csv, $"height_mm,width_mm\n0,0\n{height * 500}, {halfWidth * 1000:R}\n{height * 1000:R},0\n");
+        var imported = PistonPortWidthProfileFile.Load(csv, height, halfWidth);
+        Check(imported.Points.SequenceEqual(triangle.WidthProfile!) && imported.Sha256.Length == 64,
+            "CSV contour import and hash");
+    }
+    finally { File.Delete(csv); }
+}
 Near(config.Reed.EffectiveArea(-10000), 0, 0, "reed reverse");
 Near(config.Reed.EffectiveArea(config.Reed.OpeningPressurePa), 0, 0, "reed crack");
 double lift = config.Reed.ThroatM2 * 1000 / config.Reed.StiffnessNPerM;
@@ -142,6 +172,30 @@ var pointA = TwoStrokeSimulator.Simulate(config, 5000);
 Console.WriteLine($"2T reference {watch.Elapsed.TotalMilliseconds:F1} ms, {pointA.Cycles} cycles, {pointA.Steps} steps, {pointA.ShaftPowerW:G10} W.");
 Check(pointA.PeriodicError <= config.Numerics.PeriodicTolerance && pointA.Cycles > 3, "periodic");
 Check(pointA.Trace.Count > 250 && pointA.Trace.Zip(pointA.Trace.Skip(1)).All(x => x.First.AngleDeg < x.Second.AngleDeg), "trace sorted");
+{
+    var height = config.Transfer.HeightM;
+    var port = config.Transfer with
+    {
+        WidthProfile = [new(0, 0), new(height / 2, config.Transfer.WidthM), new(height, 0)],
+        WidthProfileSource = "synthetic-area-time.csv", WidthProfileSha256 = new string('f', 64)
+    };
+    var profiled = TwoStrokeSimulator.Simulate(config with { Transfer = port }, 5000, false);
+    Check(double.IsFinite(profiled.ShaftPowerW) && Math.Abs(profiled.ShaftPowerW - pointA.ShaftPowerW) > .1,
+        "contour geometry changes a complete 2T cycle");
+    Console.WriteLine($"PORT CONTOUR 2T 5000 RPM reference={pointA.ShaftPowerW:F5} W profile={profiled.ShaftPowerW:F5} W · synthetic verification, not experiment");
+    var profiledConfiguration = config with { Transfer = port };
+    var profiledSweep = new TwoStrokeSweep(profiledConfiguration,
+        [new(5000, profiled, null, TwoStrokeRunStatus.Periodic)]);
+    string contourProject = Path.Combine(Path.GetTempPath(), "dino2-contour-project-" + Guid.NewGuid().ToString("N") + ".json");
+    try
+    {
+        TwoStrokeFiles.Save(contourProject, new(profiledConfiguration, null, profiledSweep));
+        var restored = TwoStrokeFiles.Load(contourProject);
+        Check(restored.Current == profiledConfiguration && restored.CurrentResult!.Configuration == profiledConfiguration,
+            "profiled port project and matching result survive integrity round trip");
+    }
+    finally { File.Delete(contourProject); }
+}
 Check(pointA.Trace.All(s => s.ReedKgPerS >= -1e-12 && s.FreshCylinderKg >= -1e-12 &&
     s.FreshCylinderKg <= s.CylinderMassKg + 1e-12), "admissible marker and reed");
 Check(pointA.Trace.Any(s => s.ReedKgPerS > 0) && pointA.Trace.Any(s => s.TransferKgPerS > 0) &&
@@ -201,6 +255,16 @@ try
     var reloaded = TwoStrokeFiles.Load(path);
     Check(reloaded.Current == variant && reloaded.Original == config &&
         reloaded.OriginalResult!.Runs[0].Point!.Trace.SequenceEqual(pointA.Trace), "project round trip");
+    var profiled = config with { Transfer = config.Transfer with
+    {
+        WidthProfile = [new(0, 0), new(config.Transfer.HeightM, config.Transfer.WidthM)],
+        WidthProfileSource = "synthetic-contour.csv", WidthProfileSha256 = new string('e', 64)
+    } };
+    string profiledPath = Path.Combine(temporary, "profiled.json");
+    TwoStrokeFiles.Save(profiledPath, new(profiled, null));
+    var restoredProfile = TwoStrokeFiles.Load(profiledPath).Current.Transfer;
+    Check(restoredProfile.WidthProfile!.SequenceEqual(profiled.Transfer.WidthProfile!) &&
+        restoredProfile.WidthProfileSha256 == profiled.Transfer.WidthProfileSha256, "contour profile persistence and integrity");
     var edited = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
     var editedPoint = edited["project"]!["currentResult"]!["runs"]![0]!["point"]!;
     editedPoint["peakPressurePa"] = pointB.PeakPressurePa + 100;

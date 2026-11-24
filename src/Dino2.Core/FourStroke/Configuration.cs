@@ -19,6 +19,21 @@ public sealed record PoppetValve(double DiameterM, double MaximumLiftM, int Coun
     public string? LiftProfileSource { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? LiftProfileSha256 { get; init; }
+
+    public bool Equals(PoppetValve? other) => other is not null && DiameterM == other.DiameterM &&
+        MaximumLiftM == other.MaximumLiftM && Count == other.Count && DischargeCoefficient == other.DischargeCoefficient &&
+        OpensDeg == other.OpensDeg && ClosesDeg == other.ClosesDeg &&
+        (LiftProfile is null ? other.LiftProfile is null : other.LiftProfile is not null && LiftProfile.SequenceEqual(other.LiftProfile)) &&
+        LiftProfileSource == other.LiftProfileSource && LiftProfileSha256 == other.LiftProfileSha256;
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(DiameterM); hash.Add(MaximumLiftM); hash.Add(Count); hash.Add(DischargeCoefficient);
+        hash.Add(OpensDeg); hash.Add(ClosesDeg); hash.Add(LiftProfileSource); hash.Add(LiftProfileSha256);
+        if (LiftProfile is not null) foreach (var point in LiftProfile) hash.Add(point);
+        return hash.ToHashCode();
+    }
 }
 public sealed record Combustion(double SparkAdvanceDeg, double IgnitionDelayS, double DurationS,
     double AirFuelRatio, double LowerHeatingValueJPerKg, double HeatReleaseEfficiency, double WiebeExponent)
