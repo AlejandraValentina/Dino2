@@ -53,8 +53,8 @@ internal static class PortBoundary
         bool feeding = false;
         Solution solution;
         var thermo = pipeThermo;
-        if (pipe.Velocity >= pipe.SoundSpeed && reservoir.Pressure <= pipe.Pressure &&
-            TryFree(intoTube, pipeThermo, alpha, out solution))
+        if (pipe.Velocity >= pipe.SoundSpeed && TryFree(intoTube, pipeThermo, alpha, out solution) &&
+            reservoir.Pressure <= solution.Throat.Pressure)
         {
             // The throat can carry the incident stream and the downstream static pressure
             // cannot send a compression into it. There is no wall wave in this branch.
@@ -189,39 +189,48 @@ internal static class PortBoundary
         }
         // Positive continuation is impossible below the wall pressure. This
         // also avoids evaluating a trial rarefaction into vacuum at tiny α.
-        double Incoming(PortState f)
+        double Incoming(PortState f, out PortState? contact, out double slope)
         {
+            contact = null;
+            slope = double.NaN;
             if (f.Pressure < wall.Pressure) return -f.Speed;
-            try { return wave.At(f.Pressure).Speed - f.Speed; }
+            try
+            {
+                var incident = wave.At(f.Pressure, out slope);
+                contact = incident;
+                return incident.Speed - f.Speed;
+            }
             catch (ModelDomainException) when (f.Pressure > wave.UpperPressure) { return double.PositiveInfinity; }
         }
         bool OnWave(PortState f, double residual) =>
             Math.Abs(residual) <= wave.SpeedFloor(f.Pressure) + 2e-11 * f.Speed;
 
         var first = Expanded(critical);
-        if (Incoming(first) <= 0)
+        if (Incoming(first, out _, out _) <= 0)
         {
             double lo = 0, hi = sonic;
             bool lowerOutside = false;
+            double u = hi * .5;
             for (int i = 1; i <= 64; i++)
             {
-                double u = (lo + hi) * .5;
                 var jet = Isentropic(u);
                 var face = Expanded(jet);
-                double residual = Incoming(face);
+                double residual = Incoming(face, out var contact, out double waveSlope);
                 if (OnWave(face, residual))
                 {
-                    var contact = wave.At(face.Pressure);
-                    residual = contact.Speed - face.Speed;
+                    var matched = contact ?? wave.At(face.Pressure);
+                    residual = matched.Speed - face.Speed;
                     if (OnWave(face, residual))
                     {
-                        wave.Certify(contact);
+                        wave.Certify(matched);
                         return new(face, jet, i, Regime.Step, residual);
                     }
                 }
                 if (u <= lo || u >= hi) break;
                 if (residual > 0) { lo = u; lowerOutside = double.IsPositiveInfinity(residual); }
                 else hi = u;
+                double derivative = StepSlope(thermo, alpha, jet, face, waveSlope);
+                u = BracketedNewton(u, residual, derivative, lo, hi);
             }
             if (lowerOutside || wall.Speed != 0)
                 throw new ModelDomainException("Interfaz fuera de 200–6000 K en la onda receptora de entrada.");
@@ -236,9 +245,9 @@ internal static class PortBoundary
             return new(criticalMass * r * t / u, t, u);
         }
         var sonicFace = new PortState(alpha * critical.Pressure, ts, sonic);
-        if (Incoming(sonicFace) >= 0)
+        if (Incoming(sonicFace, out var sonicContact, out _) >= 0)
         {
-            var contact = wave.At(sonicFace.Pressure);
+            var contact = sonicContact ?? wave.At(sonicFace.Pressure);
             double residual = contact.Speed - sonic;
             if (residual >= -wave.SpeedFloor(sonicFace.Pressure))
             {
@@ -249,28 +258,53 @@ internal static class PortBoundary
         double low = first.Speed, high = Math.Min(sonic, criticalMass * r * t0 / wall.Pressure);
         // p >= p_wall and T <= T0 imply u <= j R T0/p_wall. Both endpoints
         // now scale with alpha, including openings below the pressure ULP.
+        double speed = low + (high - low) * .5;
         for (int count = 1; count <= 64; count++)
         {
-            double u = (low + high) * .5;
-            var face = Choked(u);
-            double residual = Incoming(face);
+            var face = Choked(speed);
+            double residual = Incoming(face, out var contact, out double waveSlope);
             if (OnWave(face, residual))
             {
-                var contact = wave.At(face.Pressure);
-                residual = contact.Speed - face.Speed;
+                var matched = contact ?? wave.At(face.Pressure);
+                residual = matched.Speed - face.Speed;
                 if (OnWave(face, residual))
                 {
-                    wave.Certify(contact);
+                    wave.Certify(matched);
                     return new(face, critical, count, Regime.Jet, residual);
                 }
             }
-            if (u <= low || u >= high) break;
-            if (residual > 0) low = u; else high = u;
+            if (speed <= low || speed >= high) break;
+            if (residual > 0) low = speed; else high = speed;
+            double pressureSlope = -face.Pressure / speed - criticalMass * r / thermo.Cp(face.Temperature);
+            speed = BracketedNewton(speed, residual, waveSlope * pressureSlope - 1, low, high);
         }
         // A limiting temperature can bound the bracket without being a valid contact.
         if (wall.Speed != 0 || first.Pressure > wave.UpperPressure)
             throw new ModelDomainException("Interfaz fuera de 200–6000 K en la onda receptora de entrada.");
         throw new NumericalStateException("No convergió la compatibilidad de onda en la entrada estrangulada.");
+    }
+
+    private static double StepSlope(PortThermodynamics thermo, double alpha, PortState jet, PortState face, double waveSlope)
+    {
+        if (!double.IsFinite(waveSlope)) return double.NaN;
+        // On an isentropic streamline dp/du = -rho*u. Differentiate the
+        // area-weighted jet mass and the shoulder momentum relation.
+        double rho = jet.Density(thermo.R), pressureSlope = -rho * jet.Speed;
+        if (alpha == 1) return waveSlope * pressureSlope - 1;
+        double mass = alpha * rho * jet.Speed;
+        double massSlope = alpha * rho * (1 - jet.Speed * jet.Speed / thermo.SoundSquared(jet.Temperature));
+        double force = jet.Pressure + mass * jet.Speed;
+        double forceSlope = pressureSlope + massSlope * jet.Speed + mass;
+        double u = face.Speed, rt = thermo.R * face.Temperature;
+        double speedSlope = (massSlope * (u * u + rt) - u * forceSlope) /
+            (force - 2 * mass * u + mass * thermo.R * u / thermo.Cp(face.Temperature));
+        return waveSlope * (forceSlope - massSlope * u - mass * speedSlope) - speedSlope;
+    }
+
+    private static double BracketedNewton(double x, double residual, double slope, double lo, double hi)
+    {
+        double next = x - residual / slope;
+        return slope < 0 && next > lo && next < hi && next != x ? next : lo + (hi - lo) * .5;
     }
 
     private static bool TryFree(GasState pipe, PortThermodynamics thermo, double alpha, out Solution solution)

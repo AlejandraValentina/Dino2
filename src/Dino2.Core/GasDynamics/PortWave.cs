@@ -43,6 +43,8 @@ internal readonly struct PortWave(GasState gas, PortThermodynamics thermo)
 
     internal PortState At(double pressure) => At(pressure, pressure - gas.Pressure);
 
+    internal PortState At(double pressure, out double slope) => At(pressure, pressure - gas.Pressure, out slope);
+
     internal PortState At(double pressure, double change) => At(pressure, change, out _);
 
     internal PortState NearWall(PortState wall, double pressure, double delta)

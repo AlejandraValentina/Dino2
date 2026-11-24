@@ -82,11 +82,11 @@ internal readonly struct PortThermodynamics
         ? x * (1 + x * (.5 + x * (1.0 / 6 + x * (1.0 / 24 + x / 120))))
         : Math.Exp(x) - 1;
 
-    internal double EnthalpyChange(double a, double b) => a <= 1000
+    internal double EnthalpyChange(double a, double b) => a == b ? 0 : a <= 1000
         ? b <= 1000 ? low.Integral(a, b) : low.Integral(a, 1000) + high.Integral(1000, b)
         : b > 1000 ? high.Integral(a, b) : high.Integral(a, 1000) + low.Integral(1000, b);
 
-    internal double EntropyChange(double a, double b) => a <= 1000
+    internal double EntropyChange(double a, double b) => a == b ? 0 : a <= 1000
         ? b <= 1000 ? low.Entropy(a, b) : low.Entropy(a, 1000) + high.Entropy(1000, b)
         : b > 1000 ? high.Entropy(a, b) : high.Entropy(a, 1000) + low.Entropy(1000, b);
 

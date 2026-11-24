@@ -96,6 +96,10 @@ internal static class Interface14CChecks
         var pressure = PortBoundary.Flux(gas, 1, 1, tank, reservoir, pipe, incident, flux, out var trace);
         Require(pressure == incident.Pressure && trace is { Regime: "Free", MixedTemperatureK: 5800 },
             "La pared ficticia no interviene en la descarga libre.");
+        reservoir = gas.Encode(tank, Air, 100500, 380, 0, .1);
+        pressure = PortBoundary.Flux(gas, 1, .99, tank, reservoir, pipe, incident, flux, out trace);
+        Require(pressure == incident.Pressure && trace is { Regime: "Free", ThroatPressurePa: > 100500, ThroatMach: > 1 },
+            "La prueba de salida libre parcial usa la presión de garganta.");
     }
 
     private static void Predictor()
