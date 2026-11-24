@@ -31,7 +31,7 @@ internal static class Interface14BChecks
         double mass = incident.Density * incident.Velocity;
         double h0 = SpeciesThermodynamics.Enthalpy(composition, temperature) + .5 * incident.Velocity * incident.Velocity;
         double axial = p1 + mass * incident.Velocity;
-        var after = wave.StationaryShock(wave.Wall(gas.WallPressure(incident, false)).Pressure);
+        var after = wave.StationaryShock();
         double downstreamMass = after.Pressure * after.Speed / (incident.GasConstant * after.Temperature);
         Near(downstreamMass / mass, 1, 3e-11, "masa en choque estacionario");
         Near(after.Pressure + downstreamMass * after.Speed, axial, .0001, "momento en choque estacionario");
@@ -132,7 +132,8 @@ internal static class Interface14BChecks
         void Reject(GasState left, GasState right)
         {
             try { PortBoundary.Flux(gas, 1, .3, tank, left, pipe, right, flux); }
-            catch (ModelDomainException ex) when (ex.Message.Contains("garganta") || ex.Message.Contains("sección media"))
+            catch (ModelDomainException ex) when (ex.Message.Contains("garganta") || ex.Message.Contains("sección media") ||
+                ex.Message.Contains("onda receptora"))
             {
                 Check(flux.All(x => x == 123), "Se escribió un flujo antes de validar los planos.");
                 return;

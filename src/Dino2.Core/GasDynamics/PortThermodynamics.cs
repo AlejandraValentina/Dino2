@@ -7,6 +7,17 @@ namespace Dino2.Core.GasDynamics;
 // with a continuous entropy integral across the coefficient switch at 1000 K.
 internal readonly struct PortThermodynamics
 {
+    internal const double MinimumTemperature = 200;
+    internal const double MaximumTemperature = 6000;
+
+    internal static void RequireTemperature(double temperature, string plane)
+    {
+        if (!double.IsFinite(temperature) || temperature <= 0)
+            throw new NumericalStateException($"Temperatura no física en {plane}: {temperature:R} K.");
+        if (temperature is < MinimumTemperature or > MaximumTemperature)
+            throw new ModelDomainException($"Interfaz fuera de 200–6000 K en {plane}: {temperature:R} K.");
+    }
+
     private readonly record struct HeatCapacity(double A, double B, double C, double D, double E)
     {
         internal double At(double t) => A + t * (B + t * (C + t * (D + t * E)));
@@ -82,28 +93,68 @@ internal readonly struct PortThermodynamics
     internal double TemperatureChange(double from, double enthalpy)
     {
         double delta = enthalpy / Cp(from);
-        if (Perfect) return delta;
-        for (int i = 0; i < 10; i++)
+        if (Perfect)
         {
-            double to = from + delta;
-            double correction = (EnthalpyChange(from, to) - enthalpy) / Cp(to);
-            delta -= correction;
-            if (Math.Abs(correction) <= 2e-13 * from) return delta;
+            RequireTemperature(from + delta, "entalpía");
+            return delta;
+        }
+        double lo = MinimumTemperature - from, hi = MaximumTemperature - from;
+        if (delta < lo || delta > hi)
+        {
+            if (enthalpy < EnthalpyChange(from, MinimumTemperature) || enthalpy > EnthalpyChange(from, MaximumTemperature))
+                throw new ModelDomainException("Interfaz fuera de 200–6000 K en la inversión de entalpía.");
+            delta = (lo + hi) * .5;
+        }
+        for (int i = 0; i < 48; i++)
+        {
+            double to = from + delta, residual = EnthalpyChange(from, to) - enthalpy;
+            double correction = residual / Cp(to);
+            if (Math.Abs(correction) <= 2e-13 * from)
+            {
+                double exact = delta - correction;
+                return from + exact is >= MinimumTemperature and <= MaximumTemperature ? exact : delta;
+            }
+            if (residual < 0) lo = delta; else hi = delta;
+            double next = delta - correction;
+            if ((next < MinimumTemperature - from && enthalpy < EnthalpyChange(from, MinimumTemperature)) ||
+                (next > MaximumTemperature - from && enthalpy > EnthalpyChange(from, MaximumTemperature)))
+                throw new ModelDomainException("Interfaz fuera de 200–6000 K en la inversión de entalpía.");
+            delta = next > lo && next < hi ? next : lo + (hi - lo) * .5;
         }
         throw new NumericalStateException("No se resolvió la entalpía de la interfaz.");
     }
 
     internal double IsentropicTemperature(double t, double pressureLog)
     {
+        if (TryIsentropicTemperature(t, pressureLog, out double result)) return result;
+        throw new ModelDomainException($"Interfaz fuera de 200–6000 K en la isentrópica: T={t:R}, ln(p₂/p₁)={pressureLog:R}.");
+    }
+
+    internal bool TryIsentropicTemperature(double t, double pressureLog, out double result)
+    {
         double target = R * pressureLog;
-        double result = t * Math.Exp(target / Cp(t));
-        if (Perfect) return result;
-        for (int i = 0; i < 12; i++)
+        result = t * Math.Exp(target / Cp(t));
+        if (Perfect) return result is >= MinimumTemperature and <= MaximumTemperature;
+        double lo = MinimumTemperature, hi = MaximumTemperature;
+        if (!(result >= lo && result <= hi))
         {
-            double step = (EntropyChange(t, result) - target) * result / Cp(result);
-            // The logarithmic coordinate cannot produce a negative trial temperature.
-            result *= Math.Exp(-step / result);
-            if (Math.Abs(step) <= 2e-13 * t) return result;
+            if (target < EntropyChange(t, lo) || target > EntropyChange(t, hi)) return false;
+            result = (lo + hi) * .5;
+        }
+        for (int i = 0; i < 48; i++)
+        {
+            double residual = EntropyChange(t, result) - target;
+            double step = residual * result / Cp(result);
+            double next = result * Math.Exp(-step / result);
+            if ((next < MinimumTemperature && target < EntropyChange(t, MinimumTemperature)) ||
+                (next > MaximumTemperature && target > EntropyChange(t, MaximumTemperature))) return false;
+            if (Math.Abs(step) <= 2e-13 * t)
+            {
+                if (next is >= MinimumTemperature and <= MaximumTemperature) result = next;
+                return true;
+            }
+            if (residual < 0) lo = result; else hi = result;
+            result = next > lo && next < hi ? next : lo + (hi - lo) * .5;
         }
         throw new NumericalStateException($"No se resolvió la isentrópica de la interfaz: T={t:R}, ln(p₂/p₁)={pressureLog:R}.");
     }
@@ -123,14 +174,38 @@ internal readonly struct PortThermodynamics
 
     internal double SonicTemperature(double t, double kinetic)
     {
-        double guess = t + (kinetic - SoundSquared(t) * .5) / (Cp(t) + SoundSquared(t) / (2 * t));
-        if (Perfect) return guess;
-        for (int i = 0; i < 16; i++)
+        if (TrySonicTemperature(t, kinetic, out double temperature)) return temperature;
+        throw new ModelDomainException("Interfaz fuera de 200–6000 K en el estado sónico de garganta.");
+    }
+
+    internal bool TrySonicTemperature(double t, double kinetic, out double guess)
+    {
+        double a2 = SoundSquared(t);
+        guess = t + (kinetic - a2 * .5) / (Cp(t) + a2 / (2 * t));
+        if (Perfect) return guess is >= MinimumTemperature and <= MaximumTemperature;
+        double lo = MinimumTemperature, hi = MaximumTemperature;
+        if (!(guess >= lo && guess <= hi))
         {
-            double change = (EnthalpyChange(t, guess) + SoundSquared(guess) * .5 - kinetic) /
-                (Cp(guess) + SoundSquared(guess) / (2 * guess));
-            guess -= change;
-            if (Math.Abs(change) <= 2e-13 * t) return guess;
+            if (kinetic < EnthalpyChange(t, lo) + .5 * SoundSquared(lo) ||
+                kinetic > EnthalpyChange(t, hi) + .5 * SoundSquared(hi)) return false;
+            guess = (lo + hi) * .5;
+        }
+        for (int i = 0; i < 48; i++)
+        {
+            a2 = SoundSquared(guess);
+            double residual = EnthalpyChange(t, guess) + a2 * .5 - kinetic;
+            double correction = residual / (Cp(guess) + a2 / (2 * guess));
+            double next = guess - correction;
+            if ((next < MinimumTemperature && kinetic < EnthalpyChange(t, MinimumTemperature) + .5 * SoundSquared(MinimumTemperature)) ||
+                (next > MaximumTemperature && kinetic > EnthalpyChange(t, MaximumTemperature) + .5 * SoundSquared(MaximumTemperature)))
+                return false;
+            if (Math.Abs(correction) <= 2e-13 * t)
+            {
+                if (next is >= MinimumTemperature and <= MaximumTemperature) guess = next;
+                return true;
+            }
+            if (residual < 0) lo = guess; else hi = guess;
+            guess = next > lo && next < hi ? next : lo + (hi - lo) * .5;
         }
         throw new NumericalStateException("No se resolvió el estado sónico en la interfaz.");
     }

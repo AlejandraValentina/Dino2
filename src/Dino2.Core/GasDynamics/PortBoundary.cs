@@ -6,46 +6,84 @@ internal readonly record struct PortTrace(double ThroatPressurePa, double Throat
     double MixedPressurePa, double MixedVelocityMps, double MixedTemperatureK, int Iterations)
 {
     internal double ThroatMassKgPerS { get; init; }
+    internal string Regime { get; init; } = "";
+    internal double? WaveResidualMps { get; init; }
 }
 
 internal static class PortBoundary
 {
-    internal static double Flux(GasEquation gas, double totalArea, double openArea, ReadOnlySpan<double> chamber,
-        GasState reservoir, ReadOnlySpan<double> edge, GasState pipe, Span<double> flux) =>
-        Flux(gas, totalArea, openArea, chamber, reservoir, edge, pipe, flux, out _);
+    private enum Regime { Step, Jet, SonicJet, Contraction, Free }
+    private readonly record struct Solution(PortState Face, PortState Throat, int Iterations, Regime Regime, double? WaveResidual = null);
 
     internal static double Flux(GasEquation gas, double totalArea, double openArea, ReadOnlySpan<double> chamber,
-        GasState reservoir, ReadOnlySpan<double> edge, GasState pipe, Span<double> flux, out PortTrace? trace)
+        GasState reservoir, ReadOnlySpan<double> edge, GasState pipe, Span<double> flux) =>
+        Flux(gas, totalArea, openArea, chamber, reservoir, edge, pipe, flux, out _, true);
+
+    internal static double Flux(GasEquation gas, double totalArea, double openArea, ReadOnlySpan<double> chamber,
+        GasState reservoir, ReadOnlySpan<double> edge, GasState pipe, Span<double> flux, out PortTrace? trace) =>
+        Flux(gas, totalArea, openArea, chamber, reservoir, edge, pipe, flux, out trace, true);
+
+    internal static double OneWayFlux(GasEquation gas, double totalArea, double openArea, ReadOnlySpan<double> chamber,
+        GasState reservoir, ReadOnlySpan<double> edge, GasState pipe, Span<double> flux) =>
+        Flux(gas, totalArea, openArea, chamber, reservoir, edge, pipe, flux, out _, false);
+
+    private static double Flux(GasEquation gas, double totalArea, double openArea, ReadOnlySpan<double> chamber,
+        GasState reservoir, ReadOnlySpan<double> edge, GasState pipe, Span<double> flux, out PortTrace? trace,
+        bool allowReservoirFeed)
     {
         trace = null;
+        if (!(totalArea > 0 && openArea >= 0 && double.IsFinite(openArea) && double.IsFinite(totalArea)))
+            throw new ArgumentOutOfRangeException(nameof(openArea));
+        ValidateDonor(gas, pipe, edge, "conducto");
         double frozenWall = gas.WallPressure(pipe, true);
         var intoTube = pipe with { Velocity = -pipe.Velocity };
         var pipeThermo = new PortThermodynamics(pipe, edge, gas.SpeciesCount);
         var wave = new PortWave(intoTube, pipeThermo);
         if (openArea <= 0)
         {
-            double pressure = wave.Wall(frozenWall).Pressure;
-            flux.Clear();
-            flux[gas.Momentum] = pressure * totalArea;
-            return pressure;
+            var wall = wave.Wall(frozenWall);
+            wave.Certify(wall);
+            return WallFlux(gas, totalArea, wall.Pressure, flux);
         }
         ValidateDonor(gas, reservoir, chamber, "volumen");
-        ValidateDonor(gas, pipe, edge, "conducto");
-        var wall = wave.Wall(frozenWall);
-        if (wall.Pressure == reservoir.Pressure)
-        {
-            flux.Clear();
-            flux[gas.Momentum] = wall.Pressure * totalArea;
-            return wall.Pressure;
-        }
+        if (reservoir.Velocity != 0)
+            throw new ArgumentException("Este cierre requiere un volumen 0D en reposo.");
         double alpha = Math.Min(1, openArea / totalArea);
-        bool feeding = reservoir.Pressure > wall.Pressure;
-        var thermo = feeding ? new PortThermodynamics(reservoir, chamber, gas.SpeciesCount) : pipeThermo;
-        var (mixed, throat, iterations) = feeding ? Supply(reservoir, thermo, wave, wall.Pressure, alpha) :
-            Discharge(intoTube, thermo, wave, reservoir.Pressure, wall, alpha);
-
-        ValidatePlane(throat, thermo, "garganta", alpha, reservoir, pipe);
-        ValidatePlane(mixed, thermo, "sección media", alpha, reservoir, pipe);
+        if (alpha <= 0) throw new NumericalStateException("El área relativa positiva no es representable.");
+        bool feeding = false;
+        Solution solution;
+        var thermo = pipeThermo;
+        if (pipe.Velocity >= pipe.SoundSpeed && reservoir.Pressure <= pipe.Pressure &&
+            TryFree(intoTube, pipeThermo, alpha, out solution))
+        {
+            // The throat can carry the incident stream and the downstream static pressure
+            // cannot send a compression into it. There is no wall wave in this branch.
+        }
+        else
+        {
+            var wall = wave.Wall(frozenWall, allowBound: true);
+            if (wall.Speed == 0 && wall.Pressure == reservoir.Pressure)
+            {
+                wave.Certify(wall);
+                return WallFlux(gas, totalArea, wall.Pressure, flux);
+            }
+            feeding = reservoir.Pressure > wall.Pressure || (reservoir.Pressure == wall.Pressure && wall.Speed > 0);
+            if (feeding && !allowReservoirFeed)
+            {
+                if (wall.Speed != 0)
+                    throw new ModelDomainException("Interfaz fuera de 200–6000 K en la onda de pared.");
+                wave.Certify(wall);
+                return WallFlux(gas, totalArea, wall.Pressure, flux);
+            }
+            if (feeding) thermo = new(reservoir, chamber, gas.SpeciesCount);
+            solution = feeding ? Supply(reservoir, thermo, wave, wall, alpha) :
+                Discharge(intoTube, pipeThermo, wave, reservoir.Pressure, wall, alpha);
+        }
+        var mixed = solution.Face;
+        var throat = solution.Throat;
+        ValidatePlane(throat, thermo, "garganta");
+        ValidatePlane(mixed, thermo, "sección media");
+        if (!feeding && solution.Regime != Regime.Free) wave.Certify(mixed);
         var donor = feeding ? reservoir : pipe;
         var composition = feeding ? chamber : edge;
         // A single mass flux for the two domains and both planes. The mixed
@@ -54,25 +92,69 @@ internal static class PortBoundary
         double j = alpha * throat.MassPerArea(thermo.R);
         double velocity = j / mixed.Density(thermo.R);
         double mass = -j * totalArea;
+        double massTolerance = 2e-9 * Math.Abs(j) + mixed.Density(thermo.R) * wave.SpeedFloor(mixed.Pressure);
+        if (Math.Abs(mixed.MassPerArea(thermo.R) - j) > massTolerance || (feeding ? j < 0 : j > 0))
+            throw new NumericalStateException($"Caudal de garganta incompatible con la sección media: j={j:R}, cara={mixed.MassPerArea(thermo.R):R}, entrada={feeding}.");
+        double throatMach = Math.Abs(throat.Speed) / Math.Sqrt(thermo.SoundSquared(throat.Temperature));
+        if (throatMach > 1 + 2e-9 && solution.Regime != Regime.Free)
+            throw new NumericalStateException("Garganta supersónica en una rama limitada a Mach 1.");
+        double faceToThroat = thermo.EnthalpyChange(mixed.Temperature, throat.Temperature) +
+            .5 * (throat.Speed * throat.Speed - velocity * velocity);
+        double energyTolerance = 2e-8 * thermo.Cp(mixed.Temperature) * mixed.Temperature;
+        if (Math.Abs(faceToThroat) > energyTolerance)
+            throw new NumericalStateException($"Residuo de entalpía garganta–cara: {faceToThroat:R} J/kg.");
+        double entropy = thermo.EntropyChange(throat.Temperature, mixed.Temperature) -
+            thermo.R * Math.Log(mixed.Pressure / throat.Pressure);
+        double entropyTolerance = 2e-8 * thermo.R;
+        if ((feeding ? entropy < -entropyTolerance : Math.Abs(entropy) > entropyTolerance) || !double.IsFinite(entropy))
+            throw new NumericalStateException($"Residuo de entropía garganta–cara: {entropy:R} J/(kg·K).");
+        if (solution.Regime == Regime.Step)
+        {
+            double axial = mixed.Pressure - throat.Pressure + j * (velocity - throat.Speed);
+            if (Math.Abs(axial) > 2e-9 * mixed.Pressure)
+                throw new NumericalStateException($"Residuo de momento en la expansión: {axial:R} Pa.");
+        }
         double h0 = (donor.Energy + donor.Pressure) / donor.Density;
-        if (!feeding)
-            h0 += thermo.EnthalpyChange(pipe.Temperature, mixed.Temperature) + .5 * (velocity * velocity - pipe.Velocity * pipe.Velocity);
-        if (!double.IsFinite(h0) || !double.IsFinite(mass * h0))
-            throw new NumericalStateException("Entalpía total no finita en la interfaz.");
+        double energyChange = thermo.EnthalpyChange(donor.Temperature, mixed.Temperature) +
+            .5 * (velocity * velocity - donor.Velocity * donor.Velocity);
+        if (feeding && Math.Abs(energyChange) > energyTolerance)
+            throw new NumericalStateException($"Residuo de entalpía donante–cara: {energyChange:R} J/kg.");
+        if (!feeding) h0 += energyChange;
+        double momentum = totalArea * mixed.Pressure - mass * velocity;
+        if (!double.IsFinite(mass * h0) || !double.IsFinite(momentum))
+            throw new NumericalStateException("Flujo conservativo no finito en la interfaz.");
         for (int i = 0; i < gas.SpeciesCount; i++) flux[i] = mass * (composition[i] / donor.Density);
         flux[gas.Tag] = mass * (composition[gas.Tag] / donor.Density);
         flux[gas.Energy] = mass * h0;
-        flux[gas.Momentum] = totalArea * mixed.Pressure - mass * velocity;
-        trace = new(throat.Pressure, throat.Temperature, Math.Abs(throat.Speed) / Math.Sqrt(thermo.SoundSquared(throat.Temperature)),
-            mixed.Pressure, -velocity, mixed.Temperature, iterations) { ThroatMassKgPerS = mass };
+        flux[gas.Momentum] = momentum;
+        trace = new(throat.Pressure, throat.Temperature, throatMach, mixed.Pressure, -velocity, mixed.Temperature, solution.Iterations)
+        {
+            ThroatMassKgPerS = mass, WaveResidualMps = solution.WaveResidual,
+            Regime = solution.Regime switch
+            {
+                Regime.Step => nameof(Regime.Step), Regime.Jet => nameof(Regime.Jet), Regime.SonicJet => nameof(Regime.SonicJet),
+                Regime.Free => nameof(Regime.Free), _ => nameof(Regime.Contraction)
+            }
+        };
         return mixed.Pressure;
     }
 
-    private static (PortState Mixed, PortState Throat, int Count) Supply(
-        GasState tank, PortThermodynamics thermo, PortWave wave, double wallPressure, double alpha)
+    private static double WallFlux(GasEquation gas, double area, double pressure, Span<double> flux)
+    {
+        double force = pressure * area;
+        if (!double.IsFinite(force)) throw new NumericalStateException("Reacción de pared no finita.");
+        flux.Clear();
+        flux[gas.Momentum] = force;
+        return pressure;
+    }
+
+    private static Solution Supply(GasState tank, PortThermodynamics thermo, PortWave wave, PortState wall, double alpha)
     {
         double r = thermo.R, t0 = tank.Temperature;
-        double ts = thermo.SonicTemperature(t0, 0), sonic = Math.Sqrt(thermo.SoundSquared(ts));
+        bool chokes = thermo.TrySonicTemperature(t0, 0, out double ts);
+        if (!chokes) ts = PortThermodynamics.MinimumTemperature;
+        double sonic = chokes ? Math.Sqrt(thermo.SoundSquared(ts)) : Math.Sqrt(-2 * thermo.EnthalpyChange(t0, ts));
+        if (!(sonic > 0)) throw new ModelDomainException("Interfaz fuera de 200–6000 K al acelerar el donante en la garganta.");
         var critical = new PortState(thermo.IsentropicPressure(tank.Pressure, t0, ts), ts, sonic);
         PortState Isentropic(double u)
         {
@@ -107,20 +189,46 @@ internal static class PortBoundary
         }
         // Positive continuation is impossible below the wall pressure. This
         // also avoids evaluating a trial rarefaction into vacuum at tiny α.
-        double Incoming(PortState f) => f.Pressure <= wallPressure ? -f.Speed : wave.At(f.Pressure).Speed - f.Speed;
+        double Incoming(PortState f)
+        {
+            if (f.Pressure < wall.Pressure) return -f.Speed;
+            try { return wave.At(f.Pressure).Speed - f.Speed; }
+            catch (ModelDomainException) when (f.Pressure > wave.UpperPressure) { return double.PositiveInfinity; }
+        }
+        bool OnWave(PortState f, double residual) =>
+            Math.Abs(residual) <= wave.SpeedFloor(f.Pressure) + 2e-11 * f.Speed;
+
         var first = Expanded(critical);
         if (Incoming(first) <= 0)
         {
             double lo = 0, hi = sonic;
-            int i = 0;
-            for (; i < 50 && hi - lo > 2e-11 * hi; i++)
+            bool lowerOutside = false;
+            for (int i = 1; i <= 64; i++)
             {
                 double u = (lo + hi) * .5;
-                if (Incoming(Expanded(Isentropic(u))) > 0) lo = u; else hi = u;
+                var jet = Isentropic(u);
+                var face = Expanded(jet);
+                double residual = Incoming(face);
+                if (OnWave(face, residual))
+                {
+                    var contact = wave.At(face.Pressure);
+                    residual = contact.Speed - face.Speed;
+                    if (OnWave(face, residual))
+                    {
+                        wave.Certify(contact);
+                        return new(face, jet, i, Regime.Step, residual);
+                    }
+                }
+                if (u <= lo || u >= hi) break;
+                if (residual > 0) { lo = u; lowerOutside = double.IsPositiveInfinity(residual); }
+                else hi = u;
             }
-            var jet = Isentropic((lo + hi) * .5);
-            return (Expanded(jet), jet, i);
+            if (lowerOutside || wall.Speed != 0)
+                throw new ModelDomainException("Interfaz fuera de 200–6000 K en la onda receptora de entrada.");
+            throw new NumericalStateException("No convergió la compatibilidad de onda en la entrada subcrítica.");
         }
+        if (!chokes)
+            throw new ModelDomainException("Interfaz fuera de 200–6000 K en la garganta de entrada.");
         double criticalMass = alpha * critical.MassPerArea(r);
         PortState Choked(double u)
         {
@@ -128,18 +236,79 @@ internal static class PortBoundary
             return new(criticalMass * r * t / u, t, u);
         }
         var sonicFace = new PortState(alpha * critical.Pressure, ts, sonic);
-        if (Incoming(sonicFace) >= 0) return (sonicFace, critical, 0);
-        double low = first.Speed, high = sonic;
-        int count = 0;
-        for (; count < 42 && high - low > 2e-11 * high; count++)
+        if (Incoming(sonicFace) >= 0)
+        {
+            var contact = wave.At(sonicFace.Pressure);
+            double residual = contact.Speed - sonic;
+            if (residual >= -wave.SpeedFloor(sonicFace.Pressure))
+            {
+                wave.Certify(contact);
+                return new(sonicFace, critical, 0, Regime.SonicJet, residual);
+            }
+        }
+        double low = first.Speed, high = Math.Min(sonic, criticalMass * r * t0 / wall.Pressure);
+        // p >= p_wall and T <= T0 imply u <= j R T0/p_wall. Both endpoints
+        // now scale with alpha, including openings below the pressure ULP.
+        for (int count = 1; count <= 64; count++)
         {
             double u = (low + high) * .5;
-            if (Incoming(Choked(u)) > 0) low = u; else high = u;
+            var face = Choked(u);
+            double residual = Incoming(face);
+            if (OnWave(face, residual))
+            {
+                var contact = wave.At(face.Pressure);
+                residual = contact.Speed - face.Speed;
+                if (OnWave(face, residual))
+                {
+                    wave.Certify(contact);
+                    return new(face, critical, count, Regime.Jet, residual);
+                }
+            }
+            if (u <= low || u >= high) break;
+            if (residual > 0) low = u; else high = u;
         }
-        return (Choked((low + high) * .5), critical, count);
+        // A limiting temperature can bound the bracket without being a valid contact.
+        if (wall.Speed != 0 || first.Pressure > wave.UpperPressure)
+            throw new ModelDomainException("Interfaz fuera de 200–6000 K en la onda receptora de entrada.");
+        throw new NumericalStateException("No convergió la compatibilidad de onda en la entrada estrangulada.");
     }
 
-    private static (PortState Mixed, PortState Throat, int Count) Discharge(
+    private static bool TryFree(GasState pipe, PortThermodynamics thermo, double alpha, out Solution solution)
+    {
+        var free = new PortState(pipe.Pressure, pipe.Temperature, pipe.Velocity);
+        if (alpha == 1)
+        {
+            solution = new(free, free, 0, Regime.Free);
+            return true;
+        }
+        double kinetic = free.Speed * free.Speed * .5;
+        double r = thermo.R, target = -free.MassPerArea(r) / alpha;
+        bool sonic = thermo.TrySonicTemperature(free.Temperature, kinetic, out double ts);
+        if (!sonic) ts = PortThermodynamics.MaximumTemperature;
+        double lo = sonic ? Math.Sqrt(thermo.SoundSquared(ts)) :
+            Math.Sqrt(2 * (kinetic - thermo.EnthalpyChange(free.Temperature, ts)));
+        double hi = -pipe.Velocity;
+        var capacity = new PortState(thermo.IsentropicPressure(free.Pressure, free.Temperature, ts), ts, -lo);
+        solution = default;
+        if (!(hi >= lo) || -capacity.MassPerArea(r) < target) return false;
+        for (int i = 1; i <= 64; i++)
+        {
+            double u = lo + (hi - lo) * .5;
+            double t = free.Temperature + thermo.TemperatureChange(free.Temperature, kinetic - .5 * u * u);
+            var throat = new PortState(thermo.IsentropicPressure(free.Pressure, free.Temperature, t), t, -u);
+            double residual = -throat.MassPerArea(r) - target;
+            if (Math.Abs(residual) <= 2e-11 * target)
+            {
+                solution = new(free, throat, i, Regime.Free);
+                return true;
+            }
+            if (u <= lo || u >= hi) break;
+            if (residual > 0) lo = u; else hi = u;
+        }
+        throw new NumericalStateException("No convergió la capacidad de la garganta supersónica libre.");
+    }
+
+    private static Solution Discharge(
         GasState pipe, PortThermodynamics thermo, PortWave wave, double back, PortState wall, double alpha)
     {
         double r = thermo.R;
@@ -147,45 +316,67 @@ internal static class PortBoundary
         {
             double pressureLog = overBack < .5 * bulk.Pressure
                 ? PortThermodynamics.LogOnePlus(-overBack / bulk.Pressure) : Math.Log(back / bulk.Pressure);
-            double t = thermo.IsentropicTemperature(bulk.Temperature, pressureLog);
-            double kinetic = .5 * bulk.Speed * bulk.Speed - thermo.IsentropicEnthalpyChange(bulk.Temperature, t, pressureLog);
-            if (kinetic <= 0) return new(back, t, 0); // outside the physical bracket for nonzero discharge
-            if (2 * kinetic <= thermo.SoundSquared(t)) return new(back, t, -Math.Sqrt(2 * kinetic));
+            if (thermo.TryIsentropicTemperature(bulk.Temperature, pressureLog, out double t))
+            {
+                double kinetic = .5 * bulk.Speed * bulk.Speed - thermo.IsentropicEnthalpyChange(bulk.Temperature, t, pressureLog);
+                if (kinetic <= 0) return new(back, t, 0);
+                if (2 * kinetic <= thermo.SoundSquared(t)) return new(back, t, -Math.Sqrt(2 * kinetic));
+            }
             double ts = thermo.SonicTemperature(bulk.Temperature, .5 * bulk.Speed * bulk.Speed);
             return new(thermo.IsentropicPressure(bulk.Pressure, bulk.Temperature, ts), ts, -Math.Sqrt(thermo.SoundSquared(ts)));
         }
         double Balance(PortState face, PortState throat) => alpha * throat.MassPerArea(r) - face.MassPerArea(r);
         bool incidentSupersonic = -pipe.Velocity >= pipe.SoundSpeed;
-        var minimum = incidentSupersonic ? wave.StationaryShock(wall.Pressure) : wave.SonicOutflow();
-        if (incidentSupersonic && Balance(minimum, Contracted(minimum, minimum.Pressure - back)) <= 0)
+        PortState AtBack() => wall.Speed == 0 && wall.Pressure - back <= 1e-9 * wall.Pressure
+            ? wave.NearWall(wall, back, back - wall.Pressure) : wave.At(back);
+        PortState minimum;
+        bool thermalBound = false;
+        if (incidentSupersonic)
         {
-            var free = new PortState(pipe.Pressure, pipe.Temperature, pipe.Velocity);
-            if (alpha == 1) return (free, free, 0);
-            double stagnationKinetic = free.Speed * free.Speed * .5;
-            double slow = Math.Sqrt(thermo.SoundSquared(thermo.SonicTemperature(free.Temperature, stagnationKinetic)));
-            double fast = -pipe.Velocity, target = -free.MassPerArea(r) / alpha;
-            PortState AtSpeed(double u)
+            double upper = wall.Pressure;
+            if (alpha == 1 && back <= upper)
             {
-                double t = free.Temperature + thermo.TemperatureChange(free.Temperature, stagnationKinetic - .5 * u * u);
-                return new(thermo.IsentropicPressure(free.Pressure, free.Temperature, t), t, -u);
+                var atBack = AtBack();
+                // The incident stream evacuates when a compression at the prescribed
+                // pressure would have nonpositive propagation speed into the duct.
+                if (wave.ShockSpeed(atBack) <= 0 && TryFree(pipe, thermo, alpha, out var free)) return free;
+                return new(atBack, atBack, 0, Regime.Contraction, 0);
             }
-            int i = 0;
-            for (; i < 42 && fast - slow > 2e-12 * fast; i++)
+            minimum = wave.StationaryShock();
+            if (back <= minimum.Pressure &&
+                Balance(minimum, Contracted(minimum, minimum.Pressure - back)) <= 0 &&
+                TryFree(pipe, thermo, alpha, out var released)) return released;
+        }
+        else
+        {
+            // A subsonic trace at the prescribed pressure needs no sonic auxiliary.
+            PortState? atBack = null;
+            try
             {
-                double u = (slow + fast) * .5;
-                if (-AtSpeed(u).MassPerArea(r) > target) slow = u; else fast = u;
+                var f = AtBack();
+                if (-f.Speed <= Math.Sqrt(thermo.SoundSquared(f.Temperature))) atBack = f;
             }
-            return (free, AtSpeed((slow + fast) * .5), i);
+            catch (ModelDomainException) when (back < wave.LowerPressure) { }
+            if (atBack is { } bulk) minimum = bulk;
+            else
+            {
+                try { minimum = wave.SonicOutflow(); }
+                catch (ModelDomainException) when (alpha < 1)
+                {
+                    minimum = wave.At(wave.LowerPressure);
+                    thermalBound = true;
+                }
+            }
         }
         if (alpha == 1)
-        {
-            var full = back > minimum.Pressure ? wave.At(back) : minimum;
-            return (full, full, 0);
-        }
+            return new(minimum, minimum, 0, Regime.Contraction, 0);
 
         // No nonzero subsonic contraction reaches a pressure higher than
         // the bulk static pressure. This tightens the bracket at reversal.
         double lo = Math.Max(0, minimum.Pressure - back), wallExcess = wall.Pressure - back, hi = wallExcess;
+        if (!(hi >= lo) || (wall.Speed != 0 && Balance(wall, Contracted(wall, hi)) > 0) ||
+            (thermalBound && Balance(minimum, Contracted(minimum, lo)) < 0))
+            throw new ModelDomainException("Interfaz fuera de 200–6000 K en la onda de descarga.");
         double pressureChange = back - pipe.Pressure;
         PortState mixed = wall, throat = Contracted(wall, hi);
         for (int i = 1; i <= 96; i++)
@@ -195,44 +386,57 @@ internal static class PortBoundary
             {
                 double precision = Math.Abs(Math.BitIncrement(mixed.Pressure) - mixed.Pressure);
                 double impulse = precision / Math.Sqrt(thermo.SoundSquared(mixed.Temperature));
-                if (Math.Abs(Balance(mixed, throat)) <= 32 * impulse) return (mixed, throat, i);
+                if (Math.Abs(Balance(mixed, throat)) <= 32 * impulse)
+                    return Checked(mixed, throat, i);
                 throw new NumericalStateException($"Residuo de caudal del puerto {Balance(mixed, throat):R} kg/(m²·s), p={mixed.Pressure:R}, p pared={wall.Pressure:R}, p volumen={back:R}, α={alpha:R}.");
             }
             double p = back + excess;
             double fromWall = excess - wallExcess;
-            mixed = -fromWall <= 1e-9 * wall.Pressure
+            mixed = wall.Speed == 0 && -fromWall <= 1e-9 * wall.Pressure
                 ? wave.NearWall(wall, p, fromWall) : wave.At(p, pressureChange + excess);
             throat = Contracted(mixed, excess);
             double discrepancy = Balance(mixed, throat);
             double scale = Math.Max(Math.Abs(mixed.MassPerArea(r)), Math.Abs(alpha * throat.MassPerArea(r)));
-            if (Math.Abs(discrepancy) <= 2e-9 * scale) return (mixed, throat, i);
+            if (Math.Abs(discrepancy) <= 2e-9 * scale) return Checked(mixed, throat, i);
             if (discrepancy > 0) lo = excess; else hi = excess;
         }
         throw new NumericalStateException($"No convergió el balance local de caudal: p={mixed.Pressure:R}, p pared={wall.Pressure:R}, p volumen={back:R}, α={alpha:R}.");
+
+        Solution Checked(PortState face, PortState neck, int iterations)
+        {
+            // Compare the actual characteristic velocity with the velocity of the shared mass flux.
+            double residual = alpha * neck.MassPerArea(r) / face.Density(r) - face.Speed;
+            if (Math.Abs(residual) > 2e-9 * Math.Abs(face.Speed) + wave.SpeedFloor(face.Pressure))
+                throw new NumericalStateException($"Residuo de onda en la descarga: {residual:R} m/s.");
+            return new(face, neck, iterations, Regime.Contraction, residual);
+        }
     }
 
-    private static void ValidateDonor(GasEquation equation, GasState s, ReadOnlySpan<double> values, string plane)
+    internal static void ValidateDonor(GasEquation equation, GasState s, ReadOnlySpan<double> values, string plane)
     {
-        if (!(s.Density > 0 && s.Pressure > 0 && s.Temperature > 0 && s.SoundSpeed > 0) ||
-            !double.IsFinite(s.Energy) || !double.IsFinite(s.GasConstant) || !double.IsFinite(s.Velocity))
+        if (!(double.IsFinite(s.Density) && s.Density > 0 && double.IsFinite(s.Pressure) && s.Pressure > 0 &&
+            double.IsFinite(s.SoundSpeed) && s.SoundSpeed > 0 && double.IsFinite(s.GasConstant) && s.GasConstant > 0) ||
+            !double.IsFinite(s.Energy) || !double.IsFinite(s.Velocity) || !double.IsFinite(values[equation.Tag]))
             throw new NumericalStateException($"Estado no físico en la interfaz, plano {plane}.");
+        double density = 0;
         for (int i = 0; i < equation.SpeciesCount; i++)
+        {
             if (!double.IsFinite(values[i]) || values[i] < -1e-12)
                 throw new NumericalStateException($"Especie inadmisible en la interfaz, plano {plane}, especie {i}.");
-        if (s.Temperature is < 200 or > 6000)
-            throw new ModelDomainException($"Interfaz fuera de 200–6000 K en {plane}: {s.Temperature:G8} K, {s.Pressure:G8} Pa.");
+            density += values[i];
+        }
+        double eosPressure = s.Density * s.GasConstant * s.Temperature;
+        if (Math.Abs(density - s.Density) > 1e-11 * s.Density || Math.Abs(eosPressure - s.Pressure) > 1e-11 * s.Pressure)
+            throw new NumericalStateException($"Densidad y presión incompatibles con el estado conservativo en {plane}.");
+        PortThermodynamics.RequireTemperature(s.Temperature, plane);
     }
 
-    private static void ValidatePlane(PortState state, PortThermodynamics thermo, string plane,
-        double alpha, GasState reservoir, GasState pipe)
+    private static void ValidatePlane(PortState state, PortThermodynamics thermo, string plane)
     {
+        PortThermodynamics.RequireTemperature(state.Temperature, plane);
         double a2 = thermo.SoundSquared(state.Temperature);
         if (!(state.Pressure > 0 && state.Temperature > 0 && a2 > 0) ||
             !double.IsFinite(state.Pressure) || !double.IsFinite(a2) || !double.IsFinite(state.Speed))
             throw new NumericalStateException($"Estado no físico en la interfaz, plano {plane}.");
-        if (state.Temperature is < 200 or > 6000)
-            throw new ModelDomainException($"Interfaz fuera de 200–6000 K en {plane}: {state.Temperature:G8} K, " +
-                $"{state.Pressure:G8} Pa, área relativa {alpha:G6}, p volumen={reservoir.Pressure:G8} Pa, " +
-                $"Mach incidente={pipe.Velocity / pipe.SoundSpeed:G6}.");
     }
 }

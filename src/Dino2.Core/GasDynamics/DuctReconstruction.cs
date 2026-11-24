@@ -49,6 +49,10 @@ internal sealed partial class DuctMesh
         {
             throw new NumericalStateException($"Celda {i + 1}/{Cells}: {ex.Message}");
         }
+        catch (ModelDomainException ex)
+        {
+            throw new ModelDomainException($"Celda {i + 1}/{Cells}: {ex.Message}");
+        }
         centers[i] = center;
         var v = primitives.AsSpan(i * stride, stride);
         for (int k = 0; k < n; k++) v[k] = q[k] / center.Density;
@@ -77,8 +81,9 @@ internal sealed partial class DuctMesh
             if (k < n || (k == n + 3 && !boundedPassiveTag))
                 fraction = Bound(fraction, Math.Max(0, center[k]), slope[k]);
             if (k == n + 1) fraction = Bound(fraction, .99 * center[k], slope[k]);
-            if (n > 1 && k == n + 2)
-                fraction = Bound(fraction, Math.Min(center[k] - 200, 6000 - center[k]), slope[k]);
+            if (k == n + 2)
+                fraction = Bound(fraction, Math.Min(center[k] - PortThermodynamics.MinimumTemperature,
+                    PortThermodynamics.MaximumTemperature - center[k]), slope[k]);
         }
         // A passive mass fraction has its own bounds. Its slope must not reduce hydro slopes.
         if (boundedPassiveTag)

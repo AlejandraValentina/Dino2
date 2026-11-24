@@ -58,6 +58,7 @@ public static class FourStrokeFiles
             throw new InvalidDataException("Modelo, versión o proyecto 4T incompatible.");
         document.Project.Current.Validate(false); document.Project.Original?.Validate(false);
         if (document.Model != ProjectModel(document.Project) &&
+            document.Model != ProjectModel(document.Project, path => path.Stage14BIdentifier) &&
             document.Model != ProjectModel(document.Project, path => path.Stage13Identifier) &&
             document.Model != ProjectModel(document.Project, path => path.Stage12Identifier) &&
             document.Model != ProjectModel(document.Project, path => path.Stage11Identifier))

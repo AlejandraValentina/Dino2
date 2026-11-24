@@ -33,7 +33,9 @@ public sealed record GasPath(DuctGeometry Intake, DuctGeometry Exhaust, double C
     public ExteriorBoundary ExhaustBoundary => ExhaustExterior ?? Exterior;
     public const string ModelId = "four-stroke-isooctane-ducts-v4";
     public const string MusclModelId = "four-stroke-isooctane-ducts-v4-muscl";
-    public string Identifier => Stage11Identifier + (PhysicalCoupling ? "-ports-v3" : "");
+    public string Identifier => Stage11Identifier + (PhysicalCoupling ? "-ports-v4" : "");
+    [JsonIgnore]
+    public string Stage14BIdentifier => Stage11Identifier + (PhysicalCoupling ? "-ports-v3" : "");
     [JsonIgnore]
     public string Stage13Identifier => Stage11Identifier + (PhysicalCoupling ? "-ports-v2" : "");
     [JsonIgnore]
@@ -79,8 +81,8 @@ internal sealed class GasEquation(int speciesCount)
     internal int Momentum => speciesCount;
     internal int Energy => speciesCount + 1;
     internal int Tag => speciesCount + 2;
-    private readonly double[] energyAtMinimum = ThermalBounds(speciesCount, 200);
-    private readonly double[] energyAtMaximum = ThermalBounds(speciesCount, 6000);
+    private readonly double[] energyAtMinimum = ThermalBounds(speciesCount, PortThermodynamics.MinimumTemperature);
+    private readonly double[] energyAtMaximum = ThermalBounds(speciesCount, PortThermodynamics.MaximumTemperature);
 
     private static double[] ThermalBounds(int speciesCount, double temperature) => speciesCount == 1
         ? [287 * temperature / .4]
@@ -98,9 +100,13 @@ internal sealed class GasEquation(int speciesCount)
             minimum += value * energyAtMinimum[i];
             maximum += value * energyAtMaximum[i];
         }
+        if (!(density > 1e-9 && double.IsFinite(density)))
+            throw new NumericalStateException("Densidad no positiva o no finita en el conducto.");
         double energy = cell[Energy] - .5 * cell[Momentum] * cell[Momentum] / density;
-        if (density <= 1e-9 || !(energy >= minimum && energy <= maximum))
-            throw new NumericalStateException($"Estado del conducto fuera de 200–6000 K: ρ={density:G6}, u_int={energy:G6}, intervalo [{minimum:G6}, {maximum:G6}] J/m³.");
+        if (!double.IsFinite(energy))
+            throw new NumericalStateException("Energía interna no finita en el conducto.");
+        if (energy < minimum || energy > maximum)
+            throw new ModelDomainException($"Estado del conducto fuera de 200–6000 K: ρ={density:G6}, u_int={energy:G6}, intervalo [{minimum:G6}, {maximum:G6}] J/m³.");
     }
 
     internal GasState Decode(ReadOnlySpan<double> cell, double temperatureGuess = 600)
@@ -122,6 +128,7 @@ internal sealed class GasEquation(int speciesCount)
             gamma = 1.4;
             r = 287;
             t = internalEnergy / density * (gamma - 1) / r;
+            PortThermodynamics.RequireTemperature(t, "celda del conducto");
         }
         else
         {
@@ -155,6 +162,7 @@ internal sealed class GasEquation(int speciesCount)
 
     internal GasState EncodeFace(Span<double> destination, ReadOnlySpan<double> fractions, double p, double t, double u, double tag)
     {
+        PortThermodynamics.RequireTemperature(t, "estado reconstruido");
         if (speciesCount == 1) return Encode(destination, fractions, p, t, u, tag);
         double mixtureR = 0, cp = 0, cv = 0;
         for (int i = 0; i < speciesCount; i++)

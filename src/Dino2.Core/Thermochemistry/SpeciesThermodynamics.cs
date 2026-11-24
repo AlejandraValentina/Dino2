@@ -1,4 +1,5 @@
 using Dino2.Core.FourStroke;
+using Dino2.Core.GasDynamics;
 
 namespace Dino2.Core.Thermochemistry;
 
@@ -116,8 +117,11 @@ public static class SpeciesThermodynamics
         for (int i = 0; i < masses.Length; i++)
             if (!double.IsFinite(masses[i]) || masses[i] < -1e-13)
                 throw new NumericalStateException("Masa de especie negativa fuera de tolerancia de redondeo.");
-        double t = initialTemperature;
-        for (int iteration = 0; iteration < 15; iteration++)
+        if (!double.IsFinite(energy)) throw new NumericalStateException("Energía reactiva no finita.");
+        const double minimum = PortThermodynamics.MinimumTemperature, maximum = PortThermodynamics.MaximumTemperature;
+        double lo = minimum, hi = maximum;
+        double t = initialTemperature is >= minimum and <= maximum ? initialTemperature : 600;
+        for (int iteration = 0; iteration < 48; iteration++)
         {
             double u = 0, cv = 0;
             for (int i = 0; i < masses.Length; i++)
@@ -128,10 +132,14 @@ public static class SpeciesThermodynamics
             }
             double correction = (u - energy) / cv;
             double next = t - correction;
-            if (!double.IsFinite(next) || next < 199.999 || next > 6000.001)
-                throw new NumericalStateException("El estado reactivo sale de 200–6000 K; no se extrapolan las propiedades.");
-            t = next;
-            if (Math.Abs(correction) < 1e-8) return t;
+            if (!double.IsFinite(next) || !(cv > 0)) throw new NumericalStateException("Inversión reactiva no física.");
+            if ((next < minimum && energy < Energy(masses, minimum)) ||
+                (next > maximum && energy > Energy(masses, maximum)))
+                throw new ModelDomainException("El estado reactivo sale de 200–6000 K.");
+            if (Math.Abs(correction) < 1e-8)
+                return next is >= minimum and <= maximum ? next : t;
+            if (u < energy) lo = t; else hi = t;
+            t = next > lo && next < hi ? next : lo + (hi - lo) * .5;
         }
         throw new NumericalStateException("No convergió la inversión de energía con composición.");
     }

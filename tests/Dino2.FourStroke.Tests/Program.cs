@@ -24,6 +24,11 @@ if (args is ["--stage14b"])
     Console.WriteLine("PASS C13-01, C13-02, C13-03");
     return 0;
 }
+if (args is ["--stage14c"] or ["--stage14c", _])
+{
+    Interface14CChecks.Run(args.Length == 2 ? int.Parse(args[1], System.Globalization.CultureInfo.InvariantCulture) : 140301);
+    return 0;
+}
 if (args is ["--stage13", var mode13, var path13])
 {
     switch (mode13)
@@ -41,6 +46,7 @@ void Test(string name, Action action) => tests.Add((name, action));
 Test("Physical reservoir boundaries, quarter-wave and distributed wall sources", ReservoirChecks.Run);
 Test("Compact aperture choking, shock and dynamic plenum acoustics", CouplingChecks.Run);
 Test("Variable-property jumps, local transfer and port domain (C13-01 to C13-03)", Interface14BChecks.Run);
+Test("Certified port closure, regimes, predictor and generated states", () => Interface14CChecks.Run());
 void Assert(bool value, string message) { if (!value) throw new Exception(message); }
 void Near(double value, double expected, double tolerance = 1e-8) =>
     Assert(double.IsFinite(value) && Math.Abs(value - expected) <= tolerance, $"Expected {expected:R}, got {value:R}");

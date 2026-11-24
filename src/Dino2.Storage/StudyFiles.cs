@@ -46,6 +46,7 @@ public static class StudyFiles
         var plan = Validate(envelope.Study);
         if (envelope.SolverModel != plan.Definition.Base.ModelIdentifier &&
             envelope.SolverModel != plan.Definition.Base.Ducts?.Stage11Identifier &&
+            envelope.SolverModel != plan.Definition.Base.Ducts?.Stage14BIdentifier &&
             envelope.SolverModel != plan.Definition.Base.Ducts?.Stage13Identifier &&
             envelope.SolverModel != plan.Definition.Base.Ducts?.Stage12Identifier)
             throw new InvalidDataException("La identidad del solver no coincide con la base del estudio.");
@@ -115,6 +116,7 @@ public static class StudyFiles
         var rpms = plan.Definition.Speeds.Values().ToArray();
         if (run.Provenance is { } stamp && (stamp.PhysicsModel != stamp.NumericalRevision ||
             (stamp.PhysicsModel != plan.Definition.Base.ModelIdentifier && stamp.PhysicsModel != plan.Definition.Base.Ducts?.Stage11Identifier &&
+                stamp.PhysicsModel != plan.Definition.Base.Ducts?.Stage14BIdentifier &&
                 stamp.PhysicsModel != plan.Definition.Base.Ducts?.Stage13Identifier &&
                 stamp.PhysicsModel != plan.Definition.Base.Ducts?.Stage12Identifier) ||
             stamp.ResultSchema != 1 || string.IsNullOrWhiteSpace(stamp.Build) || stamp.SourceTree is not ("clean" or "dirty" or "unknown")))

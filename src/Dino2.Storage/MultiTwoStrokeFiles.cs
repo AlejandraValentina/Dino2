@@ -77,7 +77,7 @@ public static partial class TwoStrokeFiles
         // Older comparisons recorded the model identifier instead of the numerical revision.
         var cylinder = a.Configuration.Cylinder;
         return revision == MultiTwoStrokeConfiguration.ModelId &&
-            (cylinder.Stage13Revision == cylinder.Revision || recorded != cylinder.Revision + "-network-recovery-v1");
+            (cylinder.Stage14BRevision == cylinder.Revision || recorded != cylinder.Revision + "-network-recovery-v1");
     }
 
     private static void CheckMulti(MultiTwoStrokeConfiguration? c, MultiTwoStrokeSweep? sweep, bool allowSummary = false)
@@ -89,6 +89,7 @@ public static partial class TwoStrokeFiles
         if (sweep.Provenance is { } provenance &&
             !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Revision + "-network-recovery-v1") &&
             !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Stage11Revision + "-network-recovery-v1") &&
+            !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Stage14BRevision + "-network-recovery-v1") &&
             !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Stage13Revision + "-network-recovery-v1") &&
             !ValidProvenance(provenance, MultiTwoStrokeConfiguration.ModelId, c.Cylinder.Stage12Revision + "-network-recovery-v1"))
             throw new InvalidDataException("La revisión declarada de la curva multicilíndrica no corresponde a su configuración.");

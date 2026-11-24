@@ -41,8 +41,8 @@ internal static class HistoricalStage13
                     "4T multicilíndrico conserva ambos resultados históricos y bloquea el contraste");
                 await four.RunEditor();
                 var solved = four.Snapshot();
-                Assert(solved.CurrentResult?.Provenance?.NumericalRevision.Contains("ports-v3") == true &&
-                    solved.OriginalResult?.Provenance?.NumericalRevision.Contains("ports-v3") == true &&
+                Assert(solved.CurrentResult?.Provenance?.NumericalRevision.Contains("ports-v4") == true &&
+                    solved.OriginalResult?.Provenance?.NumericalRevision.Contains("ports-v4") == true &&
                     ((DataGrid)four.FindName("DifferenceRows")).Items.Count > 0,
                     "4T vuelve a calcular A y B con la revisión actual");
                 four.Close();

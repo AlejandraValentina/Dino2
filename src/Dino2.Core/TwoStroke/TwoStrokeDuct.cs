@@ -81,9 +81,9 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
         if (boundaryMode == ExteriorBoundary.PressureReservoir)
         {
             double aperture = Math.Min(mesh.ValveArea, reed?.EffectiveArea(wall - plenum.Pressure) ?? portArea);
-            facePressure = PortBoundary.Flux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner);
-            if (reed is not null && SpeciesThermodynamics.TotalMass(inner[..gas.SpeciesCount]) < 0)
-                facePressure = PortBoundary.Flux(gas, mesh.ValveArea, 0, donor, plenum, face, right, inner);
+            facePressure = reed is null
+                ? PortBoundary.Flux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner)
+                : PortBoundary.OneWayFlux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner);
         }
         else if (reed is not null ? wall <= limit : portArea <= 0)
         {

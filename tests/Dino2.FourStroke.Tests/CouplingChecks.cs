@@ -132,6 +132,7 @@ internal static class CouplingChecks
         double shockSpeed = 2 * a - a * Math.Sqrt(1 + (ratio - 1) * (Gamma + 1) / (2 * Gamma));
         double expectedVelocity = shockSpeed + (2 * a - shockSpeed) / jump;
         Near(flux[0] / (total * Pressure / (R * Temperature) * jump * expectedVelocity), 1, 1e-12);
+        lowBack = Air.Encode(reservoir, Pure, Pressure * shockPressureRatio * .95, Temperature, 0, 0);
         PortBoundary.Flux(Air, total, open, reservoir, lowBack, edge, inflow, flux, out var restricted);
         if (restricted is not { } shocked || shocked.MixedPressurePa < Pressure * shockPressureRatio)
             throw new Exception("La restricción debe enviar un choque aguas arriba.");
