@@ -50,6 +50,10 @@ internal static class MultiTwoStrokeSmoke
             await app.LoadProjectAsync(file);
             Check(app.Snapshot().Original == config && app.Snapshot().Curve?.Complete == true &&
                 app.Snapshot().Contrast?.Check.NumericalRevision == evidence.NumericalRevision, "guardado y reapertura con contraste");
+            var legacyEvidence = evidence with { NumericalRevision = MultiTwoStrokeConfiguration.ModelId };
+            TwoStrokeFiles.SaveMulti(file, project with { Contrast = new(5000, legacyEvidence) });
+            Check(TwoStrokeFiles.LoadMulti(file).Contrast?.Check.NumericalRevision == legacyEvidence.NumericalRevision,
+                "conserva el contraste histórico del esquema sin presión prescrita");
             bool rejected = false;
             try
             {

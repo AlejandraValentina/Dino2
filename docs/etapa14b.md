@@ -4,7 +4,7 @@
 
 La revisión científica `ports-v3` unifica las propiedades del gas en la garganta y la cara del conducto. Corrige el salto térmico a apertura plena, la publicación de flujos fuera del dominio térmico y la fuga numérica al invertir el caudal. El ejemplo 4T predeterminado da 11/11 RPM con la tolerancia periódica original. El cierre local sigue siendo cuasiestacionario.
 
-La referencia auditada es `7a080e70196388f83c8d49172df46d75f1de7d53`, preservada en `recovery/stage13-7a080e7`. La rama de trabajo es `stage14b/coherencia-de-interfaz`. Se repitieron los programas de la contraauditoría independiente de etapa 13 antes de intervenir. El banco, los perfiles y las trazas de esta revisión se conservan en `E:/dino2-stage14b`. El portable se compiló desde el árbol limpio `1ae1bbcc2893d6518eb3bada5a0190e8b92959b7`. Los commits posteriores contienen documentación e instrumentación de reproducción.
+La referencia auditada es `7a080e70196388f83c8d49172df46d75f1de7d53`, preservada en `recovery/stage13-7a080e7`. La rama de trabajo es `stage14b/coherencia-de-interfaz`. Se repitieron los programas de la contraauditoría independiente de etapa 13 antes de intervenir. El banco, los perfiles y las trazas de esta revisión se conservan en `E:/dino2-stage14b`. El identificador exacto del árbol limpio usado para compilar el portable está en `portable-commit.txt` del paquete de evidencia y en los sellos de las curvas exportadas.
 
 El alcance comprende el acoplamiento compacto de válvulas, lumbreras y láminas a los conductos. Las bocas exteriores ideales y el cierre de pleno compacto conservan sus propias aproximaciones. El caso 4T usa química reducida; el 2T de referencia usa pseudoaire y un modelo de extracción fresca. Los ejemplos son sintéticos y esta etapa aporta verificación numérica.
 
@@ -157,7 +157,7 @@ Las fuentes de reproducción de los hallazgos anteriores son las auditorías ori
 
 **Veredicto — NUMERICALLY VERIFIED / EXPERIMENTALLY UNVALIDATED.** La recuperación numérica queda cerrada dentro del dominio ensayado de la interfaz compacta. El dominio se acota por la composición congelada en saltos, propiedades de 200–6000 K, el régimen cuasiestacionario del puerto y la periodicidad comprobada para cada caso. La etapa conserva la validación experimental como pendiente.
 
-El ZIP Windows x64 autocontenido tiene SHA-256 `6437CE499BE4C307E2459FD42C5AA147AD86702ED99E04EC10027397F2793E48`. La [guía de reproducción](../evidence/stage14b/README.md) identifica bancos, configuraciones y pasos de compilación y verificación. Las carpetas externas preservan trazas, CSV, perfiles, logs y hashes.
+El SHA-256 del ZIP Windows x64 autocontenido y el de sus binarios se conservan en `portable-hashes.txt` del paquete de evidencia. La [guía de reproducción](../evidence/stage14b/README.md) identifica bancos, configuraciones y pasos de compilación y verificación. Las carpetas externas preservan trazas, CSV, perfiles, logs y hashes.
 
 La etapa 15 puede investigar inertancia reactiva, pérdidas pulsantes de pared, radiación, geometría y pérdidas de uniones, dinámica de láminas y barrido, Cd en banco y química ampliada. Para atribuir precisión predictiva se necesitan datos independientes calibrados de presión dinámica, alzada, flujo y potencia, además de condiciones de ensayo reproducibles. La siguiente contraauditoría debe verificar los tres mínimos locales, los controles efectivos del ejemplo 4T y los contrastes emparejados antes de incorporar esos cambios.
 

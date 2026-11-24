@@ -75,7 +75,9 @@ public static partial class TwoStrokeFiles
         if (recorded != b.Provenance?.NumericalRevision) return false;
         if (recorded is not null && revision == recorded) return true;
         // Older comparisons recorded the model identifier instead of the numerical revision.
-        return revision == MultiTwoStrokeConfiguration.ModelId && recorded != a.Configuration.Cylinder.Revision + "-network-recovery-v1";
+        var cylinder = a.Configuration.Cylinder;
+        return revision == MultiTwoStrokeConfiguration.ModelId &&
+            (cylinder.Stage13Revision == cylinder.Revision || recorded != cylinder.Revision + "-network-recovery-v1");
     }
 
     private static void CheckMulti(MultiTwoStrokeConfiguration? c, MultiTwoStrokeSweep? sweep, bool allowSummary = false)
