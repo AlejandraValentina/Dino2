@@ -43,7 +43,7 @@ El paquete de evidencia conserva los resultados de la sonda independiente de 14B
 Desde una copia del paquete de evidencia, completá `reference/source` con `src` del commit que quieras comprobar. `reference/probe/Audit.csproj` apunta a ese árbol. Ejecutá cada modo con destino nuevo. La sonda de predictor de 14B espera estudiar un RHS y se detiene con el rechazo legítimo actual. Las comprobaciones permanentes de 14C cubren ambos esquemas y ambos extremos.
 
 ```powershell
-git archive --output "$out/source.zip" 4deeb3075c43a2f95aa3e2361473974754d389c5 src
+git archive --output "$out/source.zip" 4deeb3075c43a2f95aa3e2361473974754d389c5 src Directory.Build.props Directory.Build.targets
 Expand-Archive "$out/source.zip" "$out/reference/source" -Force
 dotnet build "$out/reference/probe/Audit.csproj" -c Release
 $probe = "$out/reference/probe/bin/Release/net10.0/Dino2.FourStroke.Tests.dll"
