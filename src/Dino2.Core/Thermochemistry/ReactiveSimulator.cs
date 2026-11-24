@@ -65,6 +65,7 @@ public static class ReactiveSimulator
                     eq.PumpingInterval = angle < 180 - 1e-9 || angle >= 540 - 1e-9;
                     double error = double.PositiveInfinity;
                     string? rejectedState = null;
+                    ModelDomainException? interfaceDomain = null;
                     try
                     {
                         if (eq.Ducts is not null)
@@ -99,6 +100,7 @@ public static class ReactiveSimulator
                         }
                     }
                     catch (NumericalStateException exception) { rejectedState = exception.Message; }
+                    catch (ModelDomainException exception) when (eq.Ducts is not null) { interfaceDomain = exception; }
                     if (error <= 1)
                     {
                         (y, refined) = (refined, y); angle += step; accepted++;
@@ -111,7 +113,11 @@ public static class ReactiveSimulator
                     else rejected++;
                     step = Math.Min(c.Solver.MaximumStepDeg, step * (error == 0 ? 2 : Math.Clamp(.9 * Math.Pow(1 / error, .2), .2, 2)));
                     if (step < 1e-7 && boundary - angle > 1e-8)
+                    {
+                        if (interfaceDomain is not null)
+                            throw new ModelDomainException($"{rpm} RPM a {angle:F5}°: {interfaceDomain.Message}");
                         throw new ArithmeticException($"{rpm} RPM a {angle:F5}°: estado reactivo irresoluble. {rejectedState}");
+                    }
                 }
                 angle = boundary;
                 if (Math.Abs(boundary - c.IntakeValve.ClosesDeg) < 1e-8) freshAirRetained = y[11];

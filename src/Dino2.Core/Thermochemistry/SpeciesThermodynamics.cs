@@ -27,6 +27,7 @@ internal sealed class NasaSpecies
     private static double[] IntegratedCoefficients(double[] a) => [a[0], a[1] / 2, a[2] / 3, a[3] / 4, a[4] / 5];
     private static double Integral(double[] a, double t) => t * (a[0] + t * (a[1] + t * (a[2] + t * (a[3] + t * a[4]))));
     public double FormationEnthalpy => h298;
+    internal ReadOnlySpan<double> HeatCapacityCoefficients(bool upper) => (upper ? high : low).AsSpan(0, 5);
     public double Cp(double t)
     {
         var a = t <= 1000 ? low : high;

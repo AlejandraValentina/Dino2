@@ -53,9 +53,14 @@ public sealed partial class TwoStrokeSimulator
                     double h = Math.Min(end - angle, Math.Min(c.Numerics.MaximumStepDeg, .98 * limit));
                     TwoStrokeSample last;
                     string? cause = null;
+                    ModelDomainException? interfaceDomain = null;
                     while (true)
                     {
-                        if (!double.IsFinite(h) || h <= 0 || (h < 1e-7 && h < end - angle)) throw new NumericalStateException($"Paso 2T insuficiente ciclo {cycle} a {angle:G7}°: {cause} [pc={first.CylinderPressurePa:G5},tc={first.CylinderTemperatureK:G5},pk={first.CrankcasePressurePa:G5},tk={first.CrankcaseTemperatureK:G5},e={first.ExhaustOutKgPerS:G6},t={first.TransferKgPerS:G6},work={state[Wc]:G6},q={state[Q]:G6}]");
+                        if (!double.IsFinite(h) || h <= 0 || (h < 1e-7 && h < end - angle))
+                        {
+                            if (interfaceDomain is not null) throw new ModelDomainException($"{rpm} RPM, ciclo {cycle}, {angle:G7}°: {interfaceDomain.Message}");
+                            throw new NumericalStateException($"Paso 2T insuficiente ciclo {cycle} a {angle:G7}°: {cause} [pc={first.CylinderPressurePa:G5},tc={first.CylinderTemperatureK:G5},pk={first.CrankcasePressurePa:G5},tk={first.CrankcaseTemperatureK:G5},e={first.ExhaustOutKgPerS:G6},t={first.TransferKgPerS:G6},work={state[Wc]:G6},q={state[Q]:G6}]");
+                        }
                         for (int i = 0; i < dimension; i++) predictor[i] = state[i] + h * k1[i];
                         try
                         {
@@ -70,6 +75,7 @@ public sealed partial class TwoStrokeSimulator
                             rejected++;
                         }
                         catch (NumericalStateException ex) { cause = ex.Message; h /= 2; rejected++; }
+                        catch (ModelDomainException ex) { interfaceDomain = ex; h /= 2; rejected++; }
                     }
 
                     (state, candidate) = (candidate, state);

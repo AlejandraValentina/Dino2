@@ -86,7 +86,9 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
 {
     public const string ModelId = "two-stroke-reed-expansion-isooctane-v1";
     public const string NumericalRevision = "two-stroke-ssprk2-passive-limiter-v2";
-    public string Revision => Stage11Revision + (Numerics.Exterior == ExteriorBoundary.PressureReservoir ? "-ports-v2" : "");
+    public string Revision => Stage11Revision + (Numerics.Exterior == ExteriorBoundary.PressureReservoir ? "-ports-v3" : "");
+    [JsonIgnore]
+    public string Stage13Revision => Stage11Revision + (Numerics.Exterior == ExteriorBoundary.PressureReservoir ? "-ports-v2" : "");
     [JsonIgnore]
     public string Stage12Revision => Stage11Revision + (Numerics.Exterior == ExteriorBoundary.PressureReservoir ? "-ports-v1" : "");
     [JsonIgnore]

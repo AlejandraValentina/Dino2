@@ -185,10 +185,14 @@ public sealed partial class TwoStrokeSimulator
 
                     double step = Math.Min(end - angle, Math.Min(c.Numerics.MaximumStepDeg, .98 * time));
                     string? lastError = null;
+                    ModelDomainException? interfaceDomain = null;
                     while (true)
                     {
                         if (!double.IsFinite(step) || step <= 0 || (step < 1e-7 && step < end - angle))
+                        {
+                            if (interfaceDomain is not null) throw new ModelDomainException($"Ciclo {cycle}, {angle:F5}°: {interfaceDomain.Message}");
                             throw new NumericalStateException($"Paso conjunto insuficiente en ciclo {cycle}, {angle:F5}°. {lastError}");
+                        }
                         for (int i = 0; i < y.Length; i++) stage[i] = y[i] + step * k1[i];
                         try
                         {
@@ -205,6 +209,7 @@ public sealed partial class TwoStrokeSimulator
                             step = Math.Min(step / 2, .98 * limit);
                         }
                         catch (NumericalStateException ex) { lastError = ex.Message; step *= .5; }
+                        catch (ModelDomainException ex) { interfaceDomain = ex; step *= .5; }
                         rejected++;
                     }
                     (y, candidate) = (candidate, y);

@@ -303,7 +303,7 @@ public partial class TwoStrokeWindow : Window
         dirty = false;
         ShowStatus("Proyecto 2T recuperado." + (curve is null ? "" : " " + Dino2.Core.ResultProvenance.Describe(curve.Provenance)));
         if (project.Current.Numerics.BoundaryNotice() is { } notice) Status.Text += " " + notice;
-        if (curve is not null && curve.NumericalRevision != project.Current.Revision)
+        if ((curve is not null && !CurrentRevision(curve)) || (baseline is not null && !CurrentRevision(baseline)))
             Status.Text += " Resultado de otra revisión. Recalculá antes de interpretarlo.";
     }
 

@@ -205,7 +205,7 @@ public static class MultiSimulator
                     cancellation.ThrowIfCancellationRequested();
                     if (accepted + rejected > 2_000_000) throw new ArithmeticException("Se excedió el límite de pasos acoplados.");
                     step = Math.Min(step, boundary - angle);
-                    if (Advance(angle - start, ref step))
+                    if (Advance(angle - start, ref step, out var invalid))
                     {
                         angle += step;
                         accepted++;
@@ -220,7 +220,12 @@ public static class MultiSimulator
                     {
                         rejected++;
                         step *= .5;
-                        if (step < 1e-7) throw new ArithmeticException($"Estado irresoluble a {angle:F5}° de cigüeñal.");
+                        if (step < 1e-7)
+                        {
+                            if (invalid is ModelDomainException)
+                                throw new ModelDomainException($"{rpm} RPM a {angle:F5}°: {invalid.Message}");
+                            throw new ArithmeticException($"Estado irresoluble a {angle:F5}° de cigüeñal. {invalid?.Message}");
+                        }
                     }
                 }
                 angle = boundary;
@@ -248,8 +253,9 @@ public static class MultiSimulator
             }
         }
 
-        private bool Advance(double elapsedAngle, ref double step)
+        private bool Advance(double elapsedAngle, ref double step, out ArithmeticException? invalid)
         {
+            invalid = null;
             try
             {
                 step = Math.Min(step, .97 * Evaluate(elapsedAngle, state));
@@ -283,7 +289,11 @@ public static class MultiSimulator
                 (state, next) = (next, state);
                 return true;
             }
-            catch (NumericalStateException) { return false; }
+            catch (ArithmeticException ex) when (ex is NumericalStateException or ModelDomainException)
+            {
+                invalid = ex;
+                return false;
+            }
         }
 
         private double Evaluate(double elapsedAngle, double[] y)
