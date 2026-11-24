@@ -80,12 +80,14 @@ try {
     $ductModel.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
     $dropdown.Collapse()
     (Find-Control 'CalculateButton').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-    $deadline = [DateTime]::UtcNow.AddSeconds(55)
+    $deadline = [DateTime]::UtcNow.AddSeconds(240)
     do {
         Start-Sleep -Milliseconds 250
         $status = (Find-Control 'Status').Current.Name
     } while (!$status.Contains('four-stroke-isooctane-ducts-v4-muscl') -and !$status.StartsWith('No se completó') -and [DateTime]::UtcNow -lt $deadline)
     if (!$status.Contains('four-stroke-isooctane-ducts-v4-muscl')) { throw "Published v4 calculation failed: $status" }
+    if (!$status.StartsWith('11/11 RPM') -or $status -notmatch 'CFL 0[.,]2' -or $status -notmatch 'paso máximo 0[.,]15' -or
+        $status -notmatch 'tolerancia periódica 1E-06') { throw "Cobertura o controles 1D incorrectos: $status" }
     Write-Output "PASS published 1D calculation: $status"
 }
 finally {

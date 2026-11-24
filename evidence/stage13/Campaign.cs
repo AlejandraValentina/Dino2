@@ -66,10 +66,11 @@ void Network(string key, int mask, bool outer, double volume, int scale = 1, boo
 }
 void Two(string key, TwoStrokeConfiguration c)
 {
+    var clock = System.Diagnostics.Stopwatch.StartNew();
     var result = TwoStrokeSimulator.Sweep(c);
     Save(key, new { c, result });
     var p = result.Runs.Single();
-    Console.WriteLine(FormattableString.Invariant($"{key}: {p.Status} T={p.Point?.ShaftTorqueNm:F6} trap={p.Point?.FreshTrappedKg:E5} TE={p.Point?.TrappingEfficiency:F5} periodic={p.Point?.PeriodicError:E3} ms={p.Convergence?.AcceptedSteps} {p.Failure}"));
+    Console.WriteLine(FormattableString.Invariant($"{key}: {p.Status} T={p.Point?.ShaftTorqueNm:F6} trap={p.Point?.FreshTrappedKg:E5} TE={p.Point?.TrappingEfficiency:F5} periodic={p.Point?.PeriodicError:E3} cycles={p.Convergence?.Cycles} accepted={p.Convergence?.AcceptedSteps} rejected={p.Convergence?.RejectedSteps} wall_ms={clock.Elapsed.TotalMilliseconds:F0} workers_max=3 {p.Failure}"));
 }
 TwoStrokeConfiguration T2(int rpm, int intakeScale, int exhaustScale) =>
     TwoStrokeConfiguration.RecoveryExample with

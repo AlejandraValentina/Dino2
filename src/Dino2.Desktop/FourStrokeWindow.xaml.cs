@@ -215,6 +215,8 @@ public partial class FourStrokeWindow : Window
             CurrentResult = await Task.Run(() => EngineSimulation.Run(config, token, progress), token);
             RenderResults();
             Status.Text = $"{CurrentResult.Points.Count}/{config.Speeds.Values().Count()} RPM · {CurrentResult.ElapsedMilliseconds:F0} ms · {CurrentResult.Model}. Ver diagnósticos.";
+            if (config.Ducts is { } path)
+                Status.Text += $" CFL {path.Courant:G3} · paso máximo {config.Solver.MaximumStepDeg:G3}° · tolerancia periódica {config.Solver.PeriodicTolerance:G3}.";
             if (config.Ducts?.BoundaryNotice() is { } notice) Status.Text += " " + notice;
         }
         catch (OperationCanceledException) { Status.Text = "Simulación cancelada. A se conserva; no se publican resultados parciales."; }
@@ -238,6 +240,12 @@ public partial class FourStrokeWindow : Window
             var config=ReadConfiguration(false);
             bool ducts = PhysicsModel.SelectedIndex >= 5;
             var path = config.Ducts ?? GasPath.RecoveryExample;
+            if (PhysicsModel.SelectedIndex >= 7 && config.Ducts is null)
+            {
+                path = path with { Courant = .20 };
+                if (config.Solver.MaximumStepDeg == SolverSettings.Default.MaximumStepDeg)
+                    config = config with { Solver = config.Solver with { MaximumStepDeg = .15 } };
+            }
             config = config with { Ducts = ducts ? path with
             {
                 Scheme = PhysicsModel.SelectedIndex >= 7 ? DuctScheme.Muscl : DuctScheme.FirstOrder

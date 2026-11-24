@@ -13,6 +13,33 @@ namespace Dino2.Desktop.Tests;
 
 internal static class FourStrokeSmoke
 {
+    internal static async Task PhysicalDefaults(string output)
+    {
+        var window = new FourStrokeWindow(() => true);
+        try
+        {
+            window.Show();
+            ((ComboBox)window.FindName("PhysicsModel")).SelectedIndex = 7;
+            await window.SimulateAsync();
+            var result = window.CurrentResult ?? throw new Exception(((TextBlock)window.FindName("Status")).Text);
+            int[] rpm = Enumerable.Range(2, 11).Select(i => 500 * i).ToArray();
+            if (!result.Configuration.Speeds.Values().SequenceEqual(rpm) || !result.Points.Select(p => p.Rpm).SequenceEqual(rpm) ||
+                result.Failures.Count != 0 || result.Configuration.Ducts?.Courant != .20 || result.Configuration.Solver.MaximumStepDeg != .15 ||
+                result.Configuration.Solver.PeriodicTolerance != 1e-6 || result.Configuration.Combustion.DurationDeg is not null)
+                throw new Exception("Barrido físico predeterminado incompleto: " + string.Join(" | ", result.Failures));
+            foreach (var point in result.Points)
+                if (!(point.PeriodicError < 1e-6 && Math.Abs(point.MassResidualKg) < 1e-12 &&
+                    Math.Abs(point.EnergyResidualJ) < 1e-7 && point.GasDynamics is { } diagnostics &&
+                    Math.Abs(diagnostics.EnergyResidualJ) < 1e-7))
+                    throw new Exception($"Periodicidad o balance incompatible a {point.Rpm} RPM.");
+            FourStrokeFiles.Save(Path.Combine(output, "stage14b-4t-default.json"), new(result.Configuration, null));
+            File.WriteAllText(Path.Combine(output, "stage14b-4t-default-result.json"),
+                System.Text.Json.JsonSerializer.Serialize(result));
+            Console.WriteLine($"PASS 4T Desktop · 11/11 RPM, CFL .20, paso .15°, periódico 1e-6 · {result.ElapsedMilliseconds:F0} ms");
+        }
+        finally { window.Close(); }
+    }
+
     public static async Task Run(string output)
     {
         var window = new FourStrokeWindow(() => true);
