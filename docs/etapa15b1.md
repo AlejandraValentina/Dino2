@@ -2,7 +2,7 @@
 
 ## Veredicto
 
-**CONDITIONAL / RESTRICTED.** Se recuperaron y separaron los desarrollos de Opus y Codex; los mapas siguen integrados sólo en las formulaciones verificadas que se describen abajo. La etapa no queda lista para declarar sus veinte criterios: falta llevar la integración al escape 1D 2T y a láminas cuando corresponda, una interfaz Desktop de mapas, campañas comparativas completas y referencias independientes más amplias. La dinámica de láminas permanece experimental. No se inicia 15B.2, 15B.3 ni transfers 1D.
+**CONDITIONAL / RESTRICTED.** Se recuperaron y separaron los desarrollos de Opus y Codex. La integración ahora abarca 4T 0D, 4T 1D `ports-v4`, transfer agregado 2T 0D, escape 2T 1D `ports-v4` y láminas de admisión 2T con `ports-v4` en modo cuasiestático y dinámico. Desktop permite importar, consultar, limpiar, guardar y reabrir mapas. Aún faltan campañas comparativas completas y medición map-on; el modelo dinámico de lámina conserva sus limitaciones de balance energético y periodicidad. No se inicia transfers 1D ni 15B.2/15B.3.
 
 ## Repositorio y preservación
 
@@ -25,7 +25,9 @@ Convenciones implementadas y separadas por modelo:
 | 4T 0D | `four-stroke-0d-isentropic-nozzle`; área de cortina; remanso aguas arriba / estática aguas abajo | Integrado antes en 15B; compatibilidad de persistencia cubierta por pruebas existentes |
 | 4T 1D `ports-v4` | `ports-v4-equivalent-capacity-v1`; `curtain_area`; misma convención de presión | Integración nueva: búsqueda implícita de área de capacidad equivalente |
 | Transfer agregado 2T 0D | `two-stroke-0d-isentropic-nozzle`; `port_open_area`; misma convención de presión | Integración de geometría/mapa en modelo de tobera agregada |
-| Escape 1D 2T y láminas | Sin adaptador aceptado en esta etapa | No declarar compatible ni aplicar silenciosamente un Cd de otro modelo |
+| Escape 1D 2T | `ports-v4-equivalent-capacity-v1`; `port_open_area`; remanso aguas arriba / estática aguas abajo | Adaptador de capacidad equivalente, ambos sentidos |
+| Lámina 2T (cuasiestática/dinámica) | `ports-v4-equivalent-capacity-v1`; `reed_open_area`; remanso aguas arriba / estática aguas abajo | Adaptador en frontera de depósito; mapa directo/reverso según sentido aceptado |
+| Transfers 1D | No implementados por alcance explícito | Sin conductos 1D nuevos |
 
 Para el adaptador 4T 1D, `PortBoundary.MappedFlux` prueba áreas de apertura y para cada una resuelve la interfaz normal de `ports-v4`; consulta el Cd con la presión mixta/estado donante de esa solución y compara caudal másico con la referencia ideal. Una bisección busca la capacidad equivalente. Se vuelve a evaluar el flujo por `ports-v4` con el área resuelta y se registra Cd, residuo e iteraciones. Esto evita multiplicar el Cd sobre el caudal/área efectivos de una solución que ya contiene contracción, expansión y recuperación de presión. No convierte de forma única un mapa medido entre tomas remotas: requiere exactamente la convención compatible indicada.
 
@@ -37,13 +39,13 @@ La dirección selecciona mapas forward/reverse independientes o uno explícitame
 2. Build científico Release: 0 warnings/errores.
 3. 4T: **25/25** grupos; incluye el grupo nuevo de integración de Cd con presión de estado aceptado, flujo directo/inverso, masa y fuera de dominio. Masa ideal independiente con expresión isentrópica de gas perfecto y balance conservativo inspeccionado por la interfaz. No se usó este adaptador como banco experimental.
 4. Resto de `scripts/verify.ps1`: 13/13 base, 15/15 termoquímica reactiva, 7/7 estudios, pruebas 2T, redes multicilíndricas, Desktop y reproducciones CLI completas; proceso terminó con código 0.
-5. Logs íntegros: `evidence/stage15b1/science-regression.log` y la repetición final en `evidence/stage15b1/integration-final-regression.log`. Salidas CLI finales: `evidence/stage15b1/integration-cli`. CSV/mapa sintético anterior: `evidence/stage15b/cd-map-synthetic.csv`. Reproducción: desde el worktree deseado, poner `E:\dino2\.tools\dotnet` al frente de `PATH` y ejecutar `scripts/verify.ps1`.
+5. Log final íntegro de esta revisión: `evidence/stage15b1/integration-final-regression-2.log`; el log anterior se conserva. Salidas CLI: `evidence/stage15b1/integration-cli`. Los smoke checks Desktop ahora cubren importación/puntos/convenciones, limpiar a constante y persistencia 4T/2T. Reproducción: desde el worktree deseado, poner `E:\dino2\.tools\dotnet` al frente de `PATH` y ejecutar `scripts/verify.ps1`.
 
-La prueba no constituye una regresión exhaustiva de 112 descargas variables, choque caliente/móvil, sensibilidad de todas las mezclas ni semillas reservadas con cada variante de mapa. La regresión base 14C de interfaces se preserva en el conjunto actual de pruebas y pasó, pero esta adaptación aún necesita una suite específica más amplia. Las campañas 4T 11/11 RPM y 2T existentes pasan sin mapas; no se atribuye al mapa ningún cambio de rendimiento completo. No se ajustaron combustión ni fricción. No se midió todavía el costo de una campaña con mapa `ports-v4`; el benchmark 4T existente (11 RPM, ~0.53 s mediana) es baseline sin afirmación de costo diferencial.
+La prueba no constituye una regresión exhaustiva de 112 descargas variables, choque caliente/móvil, sensibilidad de todas las mezclas ni semillas reservadas con cada variante de mapa. La regresión base 14C de interfaces se preserva y pasó, pero falta una campaña map-on de motores completos que compare mapa constante, dependencias apertura/presión y direcciones. Las campañas existentes de motor completo pasan sin que se atribuyan cambios al mapa. No se ajustaron combustión ni fricción. No se midió todavía el costo de una campaña con mapa `ports-v4`; el benchmark 4T existente (~0.53 s para 11 RPM) es baseline sin afirmación de costo diferencial.
 
 ## Persistencia, Desktop y lámina
 
-CSV y metadatos tienen SHA-256, carga/validación y pruebas de roundtrip del modelo. No existe aún flujo Desktop para escoger/importar/visualizar el mapa, ver su dominio o alternar a constante; por eso el criterio Desktop de mapas no pasa. La igualdad estructural/hash y reapertura del estado 4T/2T existente pasan en las suites, pero no hay una campaña de exportación/reapertura Desktop de un proyecto que contenga mapas nuevos en todos los modelos.
+CSV y metadatos tienen SHA-256, carga/validación y pruebas de roundtrip del modelo. Desktop incluye importación con validación del contrato, visualización de puntos y dominio, identificación de origen/hash/sentido, y regreso explícito al Cd constante. Los smoke checks guardan y reabren proyectos 4T/2T con mapas, incluidos el mapa inverso agregado, escape 1D y mapas de lámina. El mapa CSV original se conserva y se verifica su SHA; no se crea una falsa fuente medida.
 
 La lámina modal conserva el fallo de periodicidad de 5000 RPM: residuo `3.422e-3` luego de 200 ciclos, dominante en energía de celda 26 del ducto de escape. Tampoco se ha cerrado el trabajo presión–estructura en el balance energético. Evidencia original: `evidence/stage15b/reed-motor-periodicity.txt`. No se revisa ni se reconstruye en esta etapa.
 
@@ -54,7 +56,7 @@ La lámina modal conserva el fallo de periodicidad de 5000 RPM: residuo `3.422e-
 3. **¿Qué worktrees?** `E:\dino2-desktop`, `E:\dino2-science`, e integración `E:\dino2-integration`.
 4. **¿Desktop pasó?** Sí, 116/116; compiló sin warnings/errores.
 5. **¿Cómo se integró Cd con `ports-v4`?** Con área de capacidad implícita que iguala el caudal ideal del mapa con el flujo aceptado por `ports-v4` en la presión mixta correspondiente; el flujo final se recalcula con el cierre certificado.
-6. **¿Convenciones compatibles?** Sólo modelos/áreas/presiones explícitos: 4T 0D (`four-stroke-0d-isentropic-nozzle`), 4T 1D (`ports-v4-equivalent-capacity-v1`, `curtain_area`), y transfer agregado 2T 0D (`two-stroke-0d-isentropic-nozzle`, `port_open_area`). No son intercambiables.
+6. **¿Convenciones compatibles?** Sólo modelos/áreas/presiones explícitos: 4T 0D (`four-stroke-0d-isentropic-nozzle`, `curtain_area`), 4T 1D (`ports-v4-equivalent-capacity-v1`, `curtain_area`), transfer agregado 2T 0D (`two-stroke-0d-isentropic-nozzle`, `port_open_area`), escape 2T 1D (`ports-v4-equivalent-capacity-v1`, `port_open_area`) y lámina (`ports-v4-equivalent-capacity-v1`, `reed_open_area`). No son intercambiables.
 7. **¿Cómo se evita duplicar pérdidas?** El Cd prescribe capacidad másica equivalente; no se multiplica sobre el resultado de masa efectivo previo de `ports-v4`.
 8. **¿Qué pasa fuera de cobertura?** Error explícito de dominio/dirección/capacidad; no extrapola ni cae a Cd constante.
 9. **¿Se verificó masa, momento y energía?** Sí para la certificación nativa de `ports-v4` en cada solución aceptada; masa Cd se compara con referencia ideal independiente y residuo queda registrado. La suite nueva no cubre de forma independiente todas las magnitudes de toda la matriz de estados, así que el criterio general queda parcialmente verificado.
@@ -62,11 +64,11 @@ La lámina modal conserva el fallo de periodicidad de 5000 RPM: residuo `3.422e-
 11. **¿Se preservó robustez 14C?** Regresión completa existente, incluido `ports-v4` y casos generativos base, pasó; falta extender la matriz a mapas variables y combinaciones térmicas nuevas.
 12. **¿Cambios en motores completos?** No se reportan diferencias causales con mapa: las campañas completas ejecutadas fueron referencia sin mapas; no hay motor completo map-vs-constante aceptado.
 13. **¿Costo computacional?** Se añade una búsqueda de hasta 48 iteraciones, cada una resolviendo la interfaz y evaluando el mapa. Falta medir sobre campañas map-on; la cifra baseline 11 RPM no mide esa sobrecarga.
-14. **¿Guardado, reapertura y exportación?** Persistence/CSV y pruebas generales pasan; falta comprobar el ciclo completo Desktop de proyectos con mapas para cada contrato.
+14. **¿Guardado, reapertura y exportación?** Guardado/reapertura Desktop y vista de tabla pasan para los proyectos sintéticos 4T/2T. Exportación del proyecto serializa el mapa con sus datos y metadatos; la verificación no equivale a una campaña de datos medidos.
 15. **¿Está preparada 15B.2?** El repositorio sí está organizado, pero el subsistema Cd aún no satisface el alcance completo; veredicto científico **CONDITIONAL / RESTRICTED**, no READY. La lámina conserva fallo conocido y no se tocó.
 
 ## Próximos límites de alcance
 
-Cerrar integración y pruebas 2T 1D/láminas aplicables, suite generativa independiente de cobertura y capacidad, campañas comparativas completas con cambios sintéticos claramente etiquetados, costo map-on, y flujo Desktop de mapa con persistencia/exportación; repetir regresión sobre el commit final. La dinámica de lámina sigue pendiente según 15B.2. Transfers 1D siguen fuera de esta solicitud.
+Faltan suite generativa reservada para mapas, benchmark map-on, campañas comparativas completas con motores sintéticos identificados y evaluación map-vs-constante en motor. La dinámica modal de lámina de etapa 15B permanece experimental: no se ha resuelto su balance energético presión-estructura y el caso documentado de 5000 RPM no converge periódicamente (`3.422e-3` tras 200 ciclos). Transfers 1D y cualquier trabajo de 15B.2/15B.3 siguen fuera del alcance explícito.
 
 
