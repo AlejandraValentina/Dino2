@@ -4,7 +4,7 @@ Dino2 calcula curvas de rendimiento para motores 4T y 2T monocilíndricos y en l
 
 ## Empezar en Windows
 
-Extraé todo el ZIP Windows x64 y abrí **Dino2.Desktop.exe**. El portable incluye el runtime de .NET 10. Al iniciar se carga un caso sintético 4T. Desde esa ventana se puede abrir **Motor 2T**, **Multicilíndrico 2T**, **Multicilíndrico 4T** u **Otto de referencia**.
+Extraé todo el ZIP Windows x64 y abrí **Dino2.Desktop.exe**. El portable incluye el runtime de .NET 10. Dino2 trabaja en una sola ventana. El panel lateral **Motores** alterna entre **Motor 4T**, **Motor 2T**, **Multicilíndrico 4T**, **Multicilíndrico 2T** y **Otto ideal**, y cada simulador conserva su estado al cambiar. Al iniciar se carga un caso sintético 4T.
 
 - [Manual de Desktop](docs/manual-desktop.md)
 - [Referencia científica y convenciones](docs/referencia-cientifica.md)

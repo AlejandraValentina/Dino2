@@ -1,27 +1,338 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Style TargetType="Button">
-    <Setter Property="Padding" Value="10,6"/>
-    <Setter Property="Margin" Value="0,0,6,4"/>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib"
+                    xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                    xmlns:local="clr-namespace:Dino2.Desktop">
+  <ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml"/>
+    <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml"/>
+    <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Light.Steel.xaml"/>
+  </ResourceDictionary.MergedDictionaries>
+
+  <!-- Paleta Dino2. Cambiar aquí repercute en todas las ventanas. -->
+  <Color x:Key="Dino2.Colors.Accent">#176B8C</Color>
+  <SolidColorBrush x:Key="Dino2.Brushes.Accent" Color="#176B8C"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.AccentHover" Color="#1E83AB"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.AccentPressed" Color="#11546E"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.AccentSoft" Color="#E3F0F6"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.TitleBar" Color="#1C2A35"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.Workspace" Color="#E9EDF1"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.Panel" Color="#FFFFFF"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.PanelHeader" Color="#F4F6F8"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.Border" Color="#C6D0D8"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.Text" Color="#1E2B35"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.TextMuted" Color="#56687A"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.Warning" Color="#FFF5DA"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.WarningEdge" Color="#D99A00"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.StatusBar" Color="#DDE4EA"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.Error" Color="#C62828"/>
+
+  <!-- Acento de MahApps alineado con la paleta. -->
+  <Color x:Key="MahApps.Colors.Accent">#176B8C</Color>
+  <Color x:Key="MahApps.Colors.Highlight">#11546E</Color>
+  <SolidColorBrush x:Key="MahApps.Brushes.Accent" Color="#176B8C"/>
+  <SolidColorBrush x:Key="MahApps.Brushes.Accent2" Color="#CC176B8C"/>
+  <SolidColorBrush x:Key="MahApps.Brushes.Accent3" Color="#99176B8C"/>
+  <SolidColorBrush x:Key="MahApps.Brushes.Accent4" Color="#66176B8C"/>
+  <SolidColorBrush x:Key="MahApps.Brushes.Highlight" Color="#11546E"/>
+  <SolidColorBrush x:Key="MahApps.Brushes.WindowTitle" Color="#1C2A35"/>
+  <SolidColorBrush x:Key="MahApps.Brushes.WindowTitle.NonActive" Color="#3A4853"/>
+
+  <!-- Tipografía densa, propia de software técnico. -->
+  <FontFamily x:Key="Dino2.Font">Segoe UI</FontFamily>
+  <sys:Double x:Key="MahApps.Font.Size.Default">13</sys:Double>
+  <sys:Double x:Key="MahApps.Font.Size.Content">13</sys:Double>
+  <sys:Double x:Key="MahApps.Font.Size.Button">13</sys:Double>
+  <sys:Double x:Key="MahApps.Font.Size.Button.Flat">13</sys:Double>
+  <sys:Double x:Key="MahApps.Font.Size.TabItem">13</sys:Double>
+  <sys:Double x:Key="MahApps.Font.Size.Menu">13</sys:Double>
+  <sys:Double x:Key="MahApps.Font.Size.ContextMenu">13</sys:Double>
+  <sys:Double x:Key="MahApps.Font.Size.StatusBar">13</sys:Double>
+  <sys:Double x:Key="MahApps.Font.Size.Tooltip">12</sys:Double>
+  <sys:Double x:Key="MahApps.Font.Size.Window.Title">13</sys:Double>
+
+  <!-- Ventanas. Las propiedades propias de MetroWindow (barra de título, brillo) se aplican en
+       DesktopLayout.Fit: en un Setter se resolverían antes de registrarse y fallaría la carga. -->
+  <Style x:Key="Dino2.Window" TargetType="Window">
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Dino2.Brushes.TitleBar}"/>
+    <Setter Property="Background" Value="{StaticResource Dino2.Brushes.Workspace}"/>
+    <Setter Property="Foreground" Value="{StaticResource Dino2.Brushes.Text}"/>
+    <Setter Property="FontFamily" Value="{StaticResource Dino2.Font}"/>
+    <Setter Property="FontSize" Value="13"/>
   </Style>
-  <Style TargetType="TextBox">
-    <Setter Property="Padding" Value="7,5"/>
+
+  <!-- Botones -->
+  <Style TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button}">
+    <Setter Property="mah:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
+    <Setter Property="mah:ControlsHelper.CornerRadius" Value="2"/>
+    <Setter Property="FontWeight" Value="Normal"/>
+    <Setter Property="Padding" Value="10,5"/>
+    <Setter Property="Margin" Value="0,0,6,4"/>
+    <Setter Property="MinHeight" Value="28"/>
+  </Style>
+  <Style x:Key="Dino2.Button.Primary" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+    <Setter Property="Background" Value="{StaticResource Dino2.Brushes.Accent}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Dino2.Brushes.AccentPressed}"/>
+    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="mah:ControlsHelper.MouseOverBorderBrush" Value="{StaticResource Dino2.Brushes.AccentPressed}"/>
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Background" Value="{StaticResource Dino2.Brushes.AccentHover}"/>
+      </Trigger>
+      <Trigger Property="IsPressed" Value="True">
+        <Setter Property="Background" Value="{StaticResource Dino2.Brushes.AccentPressed}"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- Barra de comandos: grupos que pasan a otra fila en ventanas angostas, sin ocultar comandos. -->
+  <Style x:Key="Dino2.ToolButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.ToolBar}">
+    <Setter Property="Padding" Value="7,4"/>
+    <Setter Property="Margin" Value="1,0"/>
+    <Setter Property="MinHeight" Value="28"/>
+    <Setter Property="Foreground" Value="{StaticResource Dino2.Brushes.Text}"/>
+    <Style.Triggers>
+      <Trigger Property="IsEnabled" Value="False">
+        <Setter Property="Opacity" Value="0.45"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+  <Style x:Key="Dino2.CommandBar" TargetType="WrapPanel">
+    <Setter Property="Margin" Value="6,3"/>
+    <Style.Resources>
+      <Style TargetType="Button" BasedOn="{StaticResource Dino2.ToolButton}"/>
+    </Style.Resources>
+  </Style>
+  <Style x:Key="Dino2.CommandGroup" TargetType="StackPanel">
+    <Setter Property="Orientation" Value="Horizontal"/>
+    <Setter Property="Margin" Value="0,2,2,2"/>
+  </Style>
+  <Style x:Key="Dino2.CommandSeparator" TargetType="Border">
+    <Setter Property="Width" Value="1"/>
+    <Setter Property="Margin" Value="6,4,7,4"/>
+    <Setter Property="Background" Value="{StaticResource Dino2.Brushes.Border}"/>
+  </Style>
+  <Style x:Key="Dino2.ToolGroupLabel" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource Dino2.Brushes.TextMuted}"/>
+    <Setter Property="FontSize" Value="10.5"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="Margin" Value="2,0,6,0"/>
+  </Style>
+  <Style x:Key="Dino2.ToolIcon" TargetType="Control">
+    <Setter Property="Width" Value="16"/>
+    <Setter Property="Height" Value="16"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="Margin" Value="0,0,6,0"/>
+  </Style>
+
+  <!-- Campos -->
+  <Style TargetType="TextBox" BasedOn="{StaticResource MahApps.Styles.TextBox}">
+    <Setter Property="Padding" Value="5,3"/>
+    <Setter Property="MinHeight" Value="26"/>
     <Setter Property="VerticalContentAlignment" Value="Center"/>
+    <Style.Triggers>
+      <!-- Formato numérico inválido (FieldValidation): borde rojo y explicación en la ayuda emergente. -->
+      <Trigger Property="local:FieldValidation.IsInvalid" Value="True">
+        <Setter Property="BorderBrush" Value="{StaticResource Dino2.Brushes.Error}"/>
+        <Setter Property="mah:ControlsHelper.FocusBorderBrush" Value="{StaticResource Dino2.Brushes.Error}"/>
+        <Setter Property="mah:ControlsHelper.MouseOverBorderBrush" Value="{StaticResource Dino2.Brushes.Error}"/>
+        <Setter Property="Background" Value="#FFF5F5"/>
+        <Setter Property="ToolTip" Value="{Binding (local:FieldValidation.Message), RelativeSource={RelativeSource Self}}"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+  <Style TargetType="Label" BasedOn="{StaticResource MahApps.Styles.Label}">
+    <Setter Property="Foreground" Value="{StaticResource Dino2.Brushes.TextMuted}"/>
+    <Setter Property="FontSize" Value="12"/>
+  </Style>
+  <Style TargetType="ComboBox" BasedOn="{StaticResource MahApps.Styles.ComboBox}">
+    <Setter Property="MinHeight" Value="26"/>
+  </Style>
+  <Style TargetType="GroupBox" BasedOn="{StaticResource MahApps.Styles.GroupBox}">
+    <Setter Property="mah:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
+    <Setter Property="mah:HeaderedControlHelper.HeaderFontSize" Value="13"/>
+  </Style>
+
+  <!-- Pestañas de análisis -->
+  <Style TargetType="TabControl" BasedOn="{StaticResource MahApps.Styles.TabControl}">
+    <Setter Property="mah:TabControlHelper.Underlined" Value="TabPanel"/>
+    <Setter Property="Background" Value="{StaticResource Dino2.Brushes.Panel}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Dino2.Brushes.Border}"/>
+  </Style>
+  <Style TargetType="TabItem" BasedOn="{StaticResource MahApps.Styles.TabItem}">
+    <Setter Property="mah:HeaderedControlHelper.HeaderFontSize" Value="13"/>
+    <Setter Property="mah:HeaderedControlHelper.HeaderFontWeight" Value="SemiBold"/>
+    <Setter Property="Padding" Value="8,6"/>
+    <Setter Property="MinHeight" Value="0"/>
+    <Style.Resources>
+      <!-- MahApps pinta en gris claro las pestañas no seleccionadas; aquí se oscurecen para que no parezcan deshabilitadas. -->
+      <SolidColorBrush x:Key="MahApps.Brushes.Gray" Color="#46596A"/>
+      <SolidColorBrush x:Key="MahApps.Brushes.Gray1" Color="#46596A"/>
+      <SolidColorBrush x:Key="MahApps.Brushes.Gray2" Color="#46596A"/>
+      <SolidColorBrush x:Key="MahApps.Brushes.Gray3" Color="#56687A"/>
+      <SolidColorBrush x:Key="MahApps.Brushes.Gray4" Color="#56687A"/>
+      <SolidColorBrush x:Key="MahApps.Brushes.Gray5" Color="#56687A"/>
+      <SolidColorBrush x:Key="MahApps.Brushes.Gray6" Color="#56687A"/>
+      <SolidColorBrush x:Key="MahApps.Brushes.Gray7" Color="#56687A"/>
+    </Style.Resources>
+  </Style>
+
+  <!-- Navegador lateral de grupos de parámetros -->
+  <Style x:Key="Dino2.SideTabItem" TargetType="TabItem">
+    <Setter Property="Foreground" Value="{StaticResource Dino2.Brushes.Text}"/>
+    <Setter Property="FontSize" Value="13"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabItem">
+          <Border x:Name="Root" Background="Transparent" BorderThickness="3,0,0,0" BorderBrush="Transparent" Padding="9,6,6,6" Cursor="Hand">
+            <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" TextBlock.Foreground="{TemplateBinding Foreground}"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Root" Property="Background" Value="#EEF2F5"/>
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="Root" Property="Background" Value="{StaticResource Dino2.Brushes.AccentSoft}"/>
+              <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Dino2.Brushes.Accent}"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Dino2.Brushes.AccentHover}"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.5"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
   </Style>
   <Style x:Key="ScrollableSideTabs" TargetType="TabControl">
+    <Setter Property="ItemContainerStyle" Value="{StaticResource Dino2.SideTabItem}"/>
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="TabControl">
-          <Grid KeyboardNavigation.TabNavigation="Local">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="100"/><ColumnDefinition/></Grid.ColumnDefinitions>
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                          CanContentScroll="False" Focusable="False">
-              <TabPanel IsItemsHost="True" KeyboardNavigation.TabIndex="1"/>
-            </ScrollViewer>
-            <Border Grid.Column="1" Background="White" BorderBrush="#C0CBD4" BorderThickness="1">
-              <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent"
-                                KeyboardNavigation.TabNavigation="Local"/>
-            </Border>
-          </Grid>
+          <Border Background="{StaticResource Dino2.Brushes.Panel}" BorderBrush="{StaticResource Dino2.Brushes.Border}" BorderThickness="1">
+            <DockPanel>
+              <Border DockPanel.Dock="Top" Background="{StaticResource Dino2.Brushes.PanelHeader}" BorderBrush="{StaticResource Dino2.Brushes.Border}"
+                      BorderThickness="0,0,0,1" Padding="10,6">
+                <TextBlock Text="Parámetros" FontWeight="SemiBold" Foreground="{StaticResource Dino2.Brushes.Text}"/>
+              </Border>
+              <Grid KeyboardNavigation.TabNavigation="Local">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="108"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                <Border Background="{StaticResource Dino2.Brushes.PanelHeader}" BorderBrush="{StaticResource Dino2.Brushes.Border}" BorderThickness="0,0,1,0">
+                  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                CanContentScroll="False" Focusable="False">
+                    <StackPanel IsItemsHost="True" KeyboardNavigation.TabIndex="1" Margin="0,4"/>
+                  </ScrollViewer>
+                </Border>
+                <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Column="1" ContentSource="SelectedContent"
+                                  KeyboardNavigation.TabNavigation="Local"/>
+              </Grid>
+            </DockPanel>
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Tablas -->
+  <Style TargetType="DataGrid" BasedOn="{StaticResource MahApps.Styles.DataGrid}">
+    <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+    <Setter Property="HorizontalGridLinesBrush" Value="#E3E8EC"/>
+    <Setter Property="AlternatingRowBackground" Value="#F7F9FA"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Dino2.Brushes.Border}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="FontFamily" Value="Consolas, Segoe UI"/>
+  </Style>
+  <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource MahApps.Styles.DataGridColumnHeader}">
+    <Setter Property="mah:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
+    <Setter Property="FontFamily" Value="{StaticResource Dino2.Font}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Background" Value="{StaticResource Dino2.Brushes.PanelHeader}"/>
+    <Setter Property="Padding" Value="8,4"/>
+  </Style>
+
+  <!-- Avisos y barra de estado -->
+  <Style x:Key="Dino2.Notice" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource Dino2.Brushes.Warning}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Dino2.Brushes.WarningEdge}"/>
+    <Setter Property="BorderThickness" Value="3,0,0,0"/>
+    <Setter Property="Padding" Value="8,6"/>
+  </Style>
+  <Style x:Key="Dino2.StatusBar" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource Dino2.Brushes.StatusBar}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource Dino2.Brushes.Border}"/>
+    <Setter Property="BorderThickness" Value="0,1,0,0"/>
+  </Style>
+  <Style x:Key="Dino2.Muted" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource Dino2.Brushes.TextMuted}"/>
+    <Setter Property="FontSize" Value="12"/>
+  </Style>
+  <Style TargetType="GridSplitter">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
+    <Setter Property="ResizeDirection" Value="Columns"/>
+    <Setter Property="Focusable" Value="False"/>
+  </Style>
+  <BooleanToVisibilityConverter x:Key="Dino2.BoolToVisibility"/>
+
+  <!-- Panel lateral de motores (ShellWindow) -->
+  <SolidColorBrush x:Key="Dino2.Brushes.NavText" Color="#DCE5EC"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.NavMuted" Color="#8FA3B3"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.NavHover" Color="#24343F"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.NavSelected" Color="#2B3E4C"/>
+  <SolidColorBrush x:Key="Dino2.Brushes.NavAccent" Color="#3AA7D4"/>
+  <Style x:Key="Dino2.NavHeader" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource Dino2.Brushes.NavMuted}"/>
+    <Setter Property="FontSize" Value="10.5"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Margin" Value="16,14,0,6"/>
+  </Style>
+  <Style x:Key="Dino2.NavFooter" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource Dino2.Brushes.NavMuted}"/>
+    <Setter Property="FontSize" Value="11"/>
+    <Setter Property="TextWrapping" Value="Wrap"/>
+    <Setter Property="Margin" Value="16,10,12,12"/>
+  </Style>
+  <Style x:Key="Dino2.NavItem" TargetType="ListBoxItem">
+    <Setter Property="Foreground" Value="{StaticResource Dino2.Brushes.NavText}"/>
+    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ListBoxItem">
+          <Border x:Name="Root" Background="Transparent" BorderBrush="Transparent" BorderThickness="3,0,0,0" Padding="13,8,10,8" Cursor="Hand">
+            <ContentPresenter TextBlock.Foreground="{TemplateBinding Foreground}"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Root" Property="Background" Value="{StaticResource Dino2.Brushes.NavHover}"/>
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="Root" Property="Background" Value="{StaticResource Dino2.Brushes.NavSelected}"/>
+              <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Dino2.Brushes.NavAccent}"/>
+              <Setter Property="Foreground" Value="White"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource Dino2.Brushes.NavAccent}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key="Dino2.NavList" TargetType="ListBox">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+    <Setter Property="ItemContainerStyle" Value="{StaticResource Dino2.NavItem}"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ListBox">
+          <ScrollViewer Focusable="False" VerticalScrollBarVisibility="Auto"><ItemsPresenter/></ScrollViewer>
         </ControlTemplate>
       </Setter.Value>
     </Setter>

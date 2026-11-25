@@ -9,7 +9,7 @@ using Microsoft.Win32;
 
 namespace Dino2.Desktop;
 
-public partial class MainWindow : Window
+public partial class MainWindow : EngineDocument
 {
     private readonly List<TextBox> inputs = [];
     private bool populating;
@@ -20,6 +20,10 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DesktopLayout.Fit(this);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.F5, System.Windows.Input.ModifierKeys.None, CalculateButton);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.O, System.Windows.Input.ModifierKeys.Control, OpenButton);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.S, System.Windows.Input.ModifierKeys.Control, SaveButton);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.E, System.Windows.Input.ModifierKeys.Control, ExportButton);
         string[] labels = ["Diámetro [mm]", "Carrera [mm]", "Relación de compresión [–]",
             "Presión inicial absoluta [kPa]", "Temperatura inicial [K]", "Calor aportado [kJ/kg aire]",
             "Gamma = cp/cv [–]", "R del gas [J/(kg·K)]", "RPM inicial", "RPM final", "Paso RPM"];
@@ -31,6 +35,8 @@ public partial class MainWindow : Window
             System.Windows.Automation.AutomationProperties.SetName(input, labels[i]);
             label.Target = input;
             inputs.Add(input);
+            bool rpm = i >= 8; // RPM inicial, final y paso son enteras.
+            FieldValidation.Attach(input, text => FieldValidation.Invariant(text, rpm));
             Fields.Children.Add(label);
             Fields.Children.Add(input);
             input.TextChanged += (_, _) =>
@@ -125,9 +131,9 @@ public partial class MainWindow : Window
         Status.Text = "Configuración recuperada. Pulse Calcular para regenerar los resultados.";
     }
 
-    internal bool CanCloseFromOwner() => ConfirmDiscard();
+    internal override bool CanCloseDocument() => ConfirmDiscard();
 
-    private bool ConfirmDiscard() => !dirty || MessageBox.Show(this,
+    private bool ConfirmDiscard() => !dirty || MessageBox.Show(DialogOwner,
         "Hay cambios de configuración sin guardar. ¿Desea descartarlos?", "Dino2",
         MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
 
@@ -142,21 +148,21 @@ public partial class MainWindow : Window
     private void Save_Click(object sender, RoutedEventArgs e) => Guard(() =>
     {
         var dialog = new SaveFileDialog { Filter = "Configuración Dino2 (*.json)|*.json", FileName = "motor.json" };
-        if (dialog.ShowDialog(this) == true) SaveTo(dialog.FileName);
+        if (dialog.ShowDialog(DialogOwner) == true) SaveTo(dialog.FileName);
     });
 
     private void Open_Click(object sender, RoutedEventArgs e) => Guard(() =>
     {
         if (!ConfirmDiscard()) return;
         var dialog = new OpenFileDialog { Filter = "Configuración Dino2 (*.json)|*.json" };
-        if (dialog.ShowDialog(this) == true) LoadFrom(dialog.FileName);
+        if (dialog.ShowDialog(DialogOwner) == true) LoadFrom(dialog.FileName);
     });
 
     private void Export_Click(object sender, RoutedEventArgs e) => Guard(() =>
     {
         if (Result is null) return;
         var dialog = new SaveFileDialog { Filter = "Resultados CSV (*.csv)|*.csv", FileName = "otto-ideal.csv" };
-        if (dialog.ShowDialog(this) != true) return;
+        if (dialog.ShowDialog(DialogOwner) != true) return;
         ResultCsv.Save(dialog.FileName, Result);
         Status.Text = "Resultados e inputs del cálculo exportados: " + dialog.FileName;
     });

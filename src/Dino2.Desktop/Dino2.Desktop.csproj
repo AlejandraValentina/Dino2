@@ -10,4 +10,8 @@
     <ProjectReference Include="../Dino2.Storage/Dino2.Storage.csproj" />
     <InternalsVisibleTo Include="Dino2.Desktop.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MahApps.Metro" Version="2.4.11" />
+    <PackageReference Include="MahApps.Metro.IconPacks.Material" Version="6.2.1" />
+  </ItemGroup>
 </Project>

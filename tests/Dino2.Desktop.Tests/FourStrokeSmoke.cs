@@ -19,7 +19,7 @@ internal static class FourStrokeSmoke
         try
         {
             window.Show();
-            ((ComboBox)window.FindName("PhysicsModel")).SelectedIndex = 7;
+            window.PhysicsModelIndex = 7;
             await window.SimulateAsync();
             var result = window.CurrentResult ?? throw new Exception(((TextBlock)window.FindName("Status")).Text);
             int[] rpm = Enumerable.Range(2, 11).Select(i => 500 * i).ToArray();
@@ -109,12 +109,12 @@ internal static class FourStrokeSmoke
             window.Width = 1080; window.Height = 750; Capture("4t-minimum.png");
             window.Width=1350;window.Height=900;
             var savedOriginal=window.OriginalResult;
-            ((ComboBox)window.FindName("PhysicsModel")).SelectedIndex=0;
+            window.PhysicsModelIndex=0;
             await window.SimulateAsync();
             Assert(window.CurrentResult!.Model!=window.OriginalResult!.Model&&ReferenceEquals(window.OriginalResult,savedOriginal),
                 "Reference v1 remains selectable while preserving saved original A");
             Assert(((TextBlock)window.FindName("ComparisonNotice")).Text.Contains("modelos diferentes"),"Cross-model A/B cannot masquerade as a mechanical gain");
-            ((ComboBox)window.FindName("PhysicsModel")).SelectedIndex=1;
+            window.PhysicsModelIndex=1;
             await window.SimulateAsync();
             Assert(window.CurrentResult!.Model == ThermochemicalOptions.ModelId && window.CurrentResult.Configuration.Thermochemistry!.BurnLaw==BurnLaw.PrescribedWiebe,"Frozen species model supports prescribed reference combustion");
             window.LoadFrom(file);await window.SimulateAsync();
@@ -125,8 +125,7 @@ internal static class FourStrokeSmoke
             string ductFile = Path.Combine(output, "4t-ui-ducts.json");
             FourStrokeFiles.Save(ductFile, new(ducts with { Speeds = new(4000, 4000, 1) }, null));
             window.LoadFrom(ductFile);
-            var model = (ComboBox)window.FindName("PhysicsModel");
-            Assert(model.SelectedIndex == 5 && Field("IntakeDuctLength").IsEnabled, "1D project restores duct model and editable geometry");
+            Assert(window.PhysicsModelIndex == 5 && Field("IntakeDuctLength").IsEnabled, "1D project restores duct model and editable geometry");
             await window.SimulateAsync();
             Assert(window.CurrentResult?.Model == GasPath.ModelId && window.CurrentResult.Points.Single().GasDynamics is not null,
                 "1D Windows calculation publishes diagnostics");
@@ -153,7 +152,7 @@ internal static class FourStrokeSmoke
             FourStrokeFiles.Save(musclFile, new(Reduced(example.Current, 12), Reduced(example.Original!, 8)));
             window.LoadFrom(musclFile);
             await window.SimulateAsync();
-            Assert(model.SelectedIndex == 7 && window.CurrentResult?.Model == GasPath.MusclModelId, "MUSCL example selects the correct model");
+            Assert(window.PhysicsModelIndex == 7 && window.CurrentResult?.Model == GasPath.MusclModelId, "MUSCL example selects the correct model");
             Assert(((Button)window.FindName("ResolveMeshButton")).IsEnabled, "Equivalent A/B enables resolution check");
             var originalMuscl = window.OriginalResult;
             await window.CheckResolutionAsync(4000);

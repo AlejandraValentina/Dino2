@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using Dino2.Core.FourStroke;
 using Dino2.Core.GasDynamics;
@@ -13,7 +14,7 @@ using Microsoft.Win32;
 
 namespace Dino2.Desktop;
 
-public partial class FourStrokeWindow : Window
+public partial class FourStrokeWindow : EngineDocument
 {
     private readonly Dictionary<string, TextBox> fields = [];
     private FourStrokeConfiguration? original;
@@ -31,31 +32,13 @@ public partial class FourStrokeWindow : Window
     }
     internal FourStrokeResult? OriginalResult { get; private set; }
 
-    private TwoStrokeWindow? twoStrokeWindow;
-    private MainWindow? ottoWindow;
-    private MulticylinderWindow? multicylinderWindow;
-    private MultiTwoStrokeWindow? multiTwoStrokeWindow;
-
-    private void MultiTwoStroke_Click(object sender, RoutedEventArgs e)
-    {
-        if (multiTwoStrokeWindow is not null)
-        {
-            multiTwoStrokeWindow.Activate();
-            return;
-        }
-        var child = new MultiTwoStrokeWindow { Owner = this };
-        multiTwoStrokeWindow = child;
-        child.Closed += (_, _) => multiTwoStrokeWindow = null;
-        child.Show();
-    }
-
     private void ImportIntakeLift_Click(object sender, RoutedEventArgs e) => ImportLiftProfile(true);
     private void ImportExhaustLift_Click(object sender, RoutedEventArgs e) => ImportLiftProfile(false);
 
     private void ImportLiftProfile(bool intake)
     {
         var dialog = new OpenFileDialog { Filter = "Perfil de alzada CSV (*.csv)|*.csv", Title = intake ? "Alzada de admisión" : "Alzada de escape" };
-        if (dialog.ShowDialog(this) != true) return;
+        if (dialog.ShowDialog(DialogOwner) != true) return;
         try
         {
             var config = ReadConfiguration(false);
@@ -76,39 +59,17 @@ public partial class FourStrokeWindow : Window
         }
     }
 
-    private void Multicylinder_Click(object sender, RoutedEventArgs e)
-    {
-        if (multicylinderWindow is not null)
-        {
-            multicylinderWindow.Activate();
-            return;
-        }
-        var child = new MulticylinderWindow { Owner = this };
-        multicylinderWindow = child;
-        child.Closed += (_, _) => multicylinderWindow = null;
-        child.Show();
-    }
-
-    private void TwoStroke_Click(object sender, RoutedEventArgs e)
-    {
-        if (twoStrokeWindow is not null)
-        {
-            twoStrokeWindow.Show();
-            twoStrokeWindow.Activate();
-            return;
-        }
-        var child = new TwoStrokeWindow { Owner = this };
-        twoStrokeWindow = child;
-        child.Closed += (_, _) => twoStrokeWindow = null;
-        child.Show();
-    }
-
     public FourStrokeWindow() : this(null) { }
     internal FourStrokeWindow(Func<bool>? confirmDiscard)
     {
         this.confirmDiscard = confirmDiscard;
         InitializeComponent();
         DesktopLayout.Fit(this);
+        DesktopLayout.Shortcut(this, Key.F5, ModifierKeys.None, CalculateButton);
+        DesktopLayout.Shortcut(this, Key.O, ModifierKeys.Control, OpenButton);
+        DesktopLayout.Shortcut(this, Key.S, ModifierKeys.Control, SaveButton);
+        DesktopLayout.Shortcut(this, Key.E, ModifierKeys.Control, ExportButton);
+        DesktopLayout.Shortcut(this, Key.Escape, ModifierKeys.None, CancelButton);
         Studies.Configure(() => ReadConfiguration(), () => original, ApplyStudyVariant);
         PowerChart.Caption = "Potencia [kW]"; TorqueChart.Caption = "Par [N·m]";
         PressureChart.Caption = "Presión absoluta [bar]"; PressureChart.XLabel = "Ángulo [°]";
@@ -130,6 +91,7 @@ public partial class FourStrokeWindow : Window
                 RegisterName(input.Name, input);
                 System.Windows.Automation.AutomationProperties.SetName(input, parameter.Label);
                 fields.Add(parameter.Key, input); panel.Children.Add(label); panel.Children.Add(input);
+                FieldValidation.Attach(input, text => FieldValidation.Invariant(text, parameter.Integer));
                 input.TextChanged += (_, _) =>
                 {
                     if (populating) return;
@@ -150,15 +112,14 @@ public partial class FourStrokeWindow : Window
         });
         ParameterTabs.Items.Add(evidenceEditor.Tab);
         Populate(ThermochemicalOptions.EquilibriumExample);
-        Closing += (_, e) =>
-        {
-            if (Studies.IsBusy) { Studies.Cancel(); e.Cancel = true; Status.Text = "Cancelando el estudio."; }
-            else if (busy) { cancellation?.Cancel(); e.Cancel = true; Status.Text = "Cancelando; cierre la ventana cuando termine el cálculo."; }
-            else if (!ConfirmDiscard() || !Studies.ConfirmDiscard(this, confirmDiscard) ||
-                twoStrokeWindow?.CanCloseFromOwner() == false || ottoWindow?.CanCloseFromOwner() == false ||
-                multicylinderWindow?.CanCloseFromOwner() == false || multiTwoStrokeWindow?.CanCloseFromOwner() == false)
-                e.Cancel = true;
-        };
+        Closing += (_, e) => e.Cancel = !CanCloseDocument();
+    }
+
+    internal override bool CanCloseDocument()
+    {
+        if (Studies.IsBusy) { Studies.Cancel(); Status.Text = "Cancelando el estudio."; return false; }
+        if (busy) { cancellation?.Cancel(); Status.Text = "Cancelando; cierre cuando termine el cálculo."; return false; }
+        return ConfirmDiscard() && Studies.ConfirmDiscard(DialogOwner, confirmDiscard);
     }
 
     private static int ModelIndex(FourStrokeConfiguration configuration) => configuration.Ducts is { } ducts
@@ -176,7 +137,7 @@ public partial class FourStrokeWindow : Window
     {
         populating = true;
         editorTemplate = configuration;
-        PhysicsModel.SelectedIndex = ModelIndex(configuration);
+        ShowModel(ModelIndex(configuration));
         foreach (var p in EngineParameter.All) fields[p.Key].Text = (p.Get(configuration) * p.Scale).ToString("R", CultureInfo.InvariantCulture);
         foreach(var parameter in EngineParameter.All.Where(p=>p.Group=="Comb. v2")) fields[parameter.Key].IsEnabled=configuration.Thermochemistry?.BurnLaw==BurnLaw.ConditionScaledWiebe;
         foreach (var parameter in EngineParameter.All.Where(p => p.Group == "Conductos"))
@@ -264,15 +225,56 @@ public partial class FourStrokeWindow : Window
     private async void Simulate_Click(object sender, RoutedEventArgs e) => await SimulateAsync();
     private void Cancel_Click(object sender, RoutedEventArgs e) => cancellation?.Cancel();
 
-    private void PhysicsModel_Changed(object sender, SelectionChangedEventArgs e)
+    /// <summary>
+    /// Índice de modelo físico 0–8 (v1; v2 prescrita/escalada; v3 escalada/prescrita; v4 1D y MUSCL, prescrita/escalada).
+    /// Se elige con dos selectores: modelo y ley de combustión. Asignarlo equivale a elegirlo en la interfaz.
+    /// </summary>
+    internal int PhysicsModelIndex
     {
-        if(populating || evidenceEditor is null || PhysicsModel.SelectedIndex<0) return;
+        get => ModelFamily.SelectedIndex switch
+        {
+            0 => 0,
+            1 => BurnLawChoice.SelectedIndex == 0 ? 1 : 2,
+            2 => BurnLawChoice.SelectedIndex == 0 ? 4 : 3,
+            3 => BurnLawChoice.SelectedIndex == 0 ? 5 : 6,
+            4 => BurnLawChoice.SelectedIndex == 0 ? 7 : 8,
+            _ => -1
+        };
+        set
+        {
+            bool wasPopulating = populating;
+            populating = true;
+            ShowModel(value);
+            populating = wasPopulating;
+            if (!populating) ApplyModel(value);
+        }
+    }
+
+    private void ShowModel(int index)
+    {
+        (ModelFamily.SelectedIndex, BurnLawChoice.SelectedIndex) = index switch
+        {
+            0 => (0, 0), 1 => (1, 0), 2 => (1, 1), 3 => (2, 1), 4 => (2, 0), 5 => (3, 0), 6 => (3, 1), 7 => (4, 0), _ => (4, 1)
+        };
+        BurnLawChoice.IsEnabled = index != 0;
+    }
+
+    private void ModelSelection_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (populating || evidenceEditor is null || ModelFamily.SelectedIndex < 0 || BurnLawChoice.SelectedIndex < 0) return;
+        BurnLawChoice.IsEnabled = ModelFamily.SelectedIndex != 0;
+        ApplyModel(PhysicsModelIndex);
+    }
+
+    private void ApplyModel(int model)
+    {
+        if (evidenceEditor is null || model < 0) return;
         try
         {
             var config=ReadConfiguration(false);
-            bool ducts = PhysicsModel.SelectedIndex >= 5;
+            bool ducts = model >= 5;
             var path = config.Ducts ?? GasPath.RecoveryExample;
-            if (PhysicsModel.SelectedIndex >= 7 && config.Ducts is null)
+            if (model >= 7 && config.Ducts is null)
             {
                 path = path with { Courant = .20 };
                 if (config.Solver.MaximumStepDeg == SolverSettings.Default.MaximumStepDeg)
@@ -280,15 +282,15 @@ public partial class FourStrokeWindow : Window
             }
             config = config with { Ducts = ducts ? path with
             {
-                Scheme = PhysicsModel.SelectedIndex >= 7 ? DuctScheme.Muscl : DuctScheme.FirstOrder
+                Scheme = model >= 7 ? DuctScheme.Muscl : DuctScheme.FirstOrder
             } : null };
-            if(PhysicsModel.SelectedIndex==0) config=config with{Thermochemistry=null};
+            if(model==0) config=config with{Thermochemistry=null};
             else
             {
                 bool wasLegacy=config.Thermochemistry is null;
                 var settings=config.Thermochemistry??ThermochemicalOptions.Default;
-                settings=settings with{BurnLaw=PhysicsModel.SelectedIndex is 1 or 4 or 5 or 7 ? BurnLaw.PrescribedWiebe : BurnLaw.ConditionScaledWiebe,
-                    Products=PhysicsModel.SelectedIndex >= 3 ? ProductChemistry.ClosedCycleEquilibrium : ProductChemistry.Frozen,
+                settings=settings with{BurnLaw=model is 1 or 4 or 5 or 7 ? BurnLaw.PrescribedWiebe : BurnLaw.ConditionScaledWiebe,
+                    Products=model >= 3 ? ProductChemistry.ClosedCycleEquilibrium : ProductChemistry.Frozen,
                     CombustionEvidence=settings.CombustionEvidence with{Status=EvidenceStatus.Estimated},
                     HeatTransferEvidence=settings.HeatTransferEvidence with{Status=EvidenceStatus.Estimated},
                     FrictionEvidence=settings.FrictionEvidence with{Status=EvidenceStatus.Estimated}};
@@ -302,7 +304,7 @@ public partial class FourStrokeWindow : Window
         }
         catch(Exception ex) when(Expected(ex))
         {
-            populating=true;PhysicsModel.SelectedIndex=ModelIndex(editorTemplate);populating=false;
+            bool wasPopulating=populating;populating=true;ShowModel(ModelIndex(editorTemplate));populating=wasPopulating;
             Status.Text="No se cambió el modelo: "+ex.Message;
         }
     }
@@ -542,7 +544,7 @@ public partial class FourStrokeWindow : Window
         Title = "Dino2 · " + Path.GetFileName(path); Status.Text = "Proyecto recuperado. Pulse Simular para reconstruir las curvas A y actual.";
         if (project.Current.Ducts?.BoundaryNotice() is { } notice) Status.Text += " " + notice;
     }
-    private bool ConfirmDiscard() => !dirty || (confirmDiscard?.Invoke() ?? (MessageBox.Show(this, "Hay cambios del proyecto sin guardar. ¿Desea descartarlos?",
+    private bool ConfirmDiscard() => !dirty || (confirmDiscard?.Invoke() ?? (MessageBox.Show(DialogOwner, "Hay cambios del proyecto sin guardar. ¿Desea descartarlos?",
         "Dino2", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes));
     private static bool Expected(Exception e) => e is ArgumentException or ArithmeticException or IOException or InvalidDataException or UnauthorizedAccessException or JsonException;
     private void Guard(Action action) { try { action(); } catch (Exception e) when (Expected(e)) { Status.Text = "No se completó la operación: " + e.Message; } }
@@ -556,18 +558,18 @@ public partial class FourStrokeWindow : Window
     {
         if (!ConfirmDiscard()) return;
         var dialog = new OpenFileDialog { Filter = "Proyecto 4T (*.json)|*.json" };
-        if (dialog.ShowDialog(this) == true) LoadFrom(dialog.FileName);
+        if (dialog.ShowDialog(DialogOwner) == true) LoadFrom(dialog.FileName);
     });
     private void Save_Click(object sender, RoutedEventArgs e) => Guard(() =>
     {
         var dialog = new SaveFileDialog { Filter = "Proyecto 4T (*.json)|*.json", FileName = "motor-4t.json" };
-        if (dialog.ShowDialog(this) == true) SaveTo(dialog.FileName);
+        if (dialog.ShowDialog(DialogOwner) == true) SaveTo(dialog.FileName);
     });
     private void Export_Click(object sender, RoutedEventArgs e) => Guard(() =>
     {
         if (CurrentResult is null) return;
         var dialog = new SaveFileDialog { Filter = "Resultados CSV (*.csv)|*.csv", FileName = "motor-4t.csv" };
-        if (dialog.ShowDialog(this) != true) return;
+        if (dialog.ShowDialog(DialogOwner) != true) return;
         ExportTo(dialog.FileName);
     });
 
@@ -586,13 +588,5 @@ public partial class FourStrokeWindow : Window
                     JsonSerializer.Serialize(check, new JsonSerializerOptions { WriteIndented = true }));
         }
         Status.Text = "Se exportaron curvas, traza del régimen seleccionado y comparación cuando existe A: " + path;
-    }
-    private void Otto_Click(object sender, RoutedEventArgs e)
-    {
-        if (ottoWindow is not null) { ottoWindow.Activate(); return; }
-        var child = new MainWindow { Owner = this };
-        ottoWindow = child;
-        child.Closed += (_, _) => ottoWindow = null;
-        child.Show();
     }
 }

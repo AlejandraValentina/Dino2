@@ -13,7 +13,7 @@ using Microsoft.Win32;
 
 namespace Dino2.Desktop;
 
-public partial class TwoStrokeWindow : Window
+public partial class TwoStrokeWindow : EngineDocument
 {
     private TwoStrokeConfiguration template = TwoStrokeConfiguration.RecoveryExample;
     private TwoStrokeConfiguration? original;
@@ -31,16 +31,21 @@ public partial class TwoStrokeWindow : Window
     {
         InitializeComponent();
         DesktopLayout.Fit(this);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.F5, System.Windows.Input.ModifierKeys.None, CalculateButton);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.O, System.Windows.Input.ModifierKeys.Control, OpenTwoStroke);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.S, System.Windows.Input.ModifierKeys.Control, SaveTwoStroke);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.E, System.Windows.Input.ModifierKeys.Control, ExportButton);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.Escape, System.Windows.Input.ModifierKeys.None, CancelButton);
         DesktopLayout.FormatGrid(ResultGrid);
         DesktopLayout.FormatGrid(ComparisonGrid);
         BuildEditor();
         Populate(template);
         studies = new(this);
         StudyHost.Content = studies;
-        Closing += (_, e) => e.Cancel = !CanCloseFromOwner();
+        Closing += (_, e) => e.Cancel = !CanCloseDocument();
     }
 
-    internal bool CanCloseFromOwner()
+    internal override bool CanCloseDocument()
     {
         if (operation is not null)
         {
@@ -52,7 +57,7 @@ public partial class TwoStrokeWindow : Window
     }
 
     private bool CanDiscard() => !dirty ||
-        MessageBox.Show(this, "¿Descartar los cambios del proyecto 2T?", "Dino2", MessageBoxButton.YesNo,
+        MessageBox.Show(DialogOwner, "¿Descartar los cambios del proyecto 2T?", "Dino2", MessageBoxButton.YesNo,
             MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
 
     internal TwoStrokeConfiguration CurrentConfiguration()
@@ -164,13 +169,6 @@ public partial class TwoStrokeWindow : Window
         dirty = true;
         Render();
         ShowStatus("Curva original A conservada.");
-    }
-
-    private void Return_Click(object sender, RoutedEventArgs e)
-    {
-        if (Owner is null) { Close(); return; }
-        Hide();
-        Owner.Activate();
     }
 
     private void RemoveOriginal_Click(object sender, RoutedEventArgs e)
@@ -372,7 +370,7 @@ public partial class TwoStrokeWindow : Window
         FileDialog dialog = save ? new SaveFileDialog() : new OpenFileDialog();
         dialog.Filter = filter;
         if (save) dialog.FileName = name;
-        return dialog.ShowDialog(this) == true ? dialog.FileName : null;
+        return dialog.ShowDialog(DialogOwner) == true ? dialog.FileName : null;
     }
 
     private void Render()

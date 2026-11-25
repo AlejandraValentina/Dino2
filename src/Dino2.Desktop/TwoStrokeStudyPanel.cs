@@ -360,7 +360,7 @@ internal sealed class TwoStrokeStudyPanel : DockPanel
         host.ShowStatus("Estudio 2T recuperado.");
     }
 
-    internal bool ConfirmDiscard() => !unsavedRun || DesktopLayout.ConfirmDiscard(host, "el estudio 2T");
+    internal bool ConfirmDiscard() => !unsavedRun || DesktopLayout.ConfirmDiscard(host.DialogOwner, "el estudio 2T");
 
     private void Save()
     {

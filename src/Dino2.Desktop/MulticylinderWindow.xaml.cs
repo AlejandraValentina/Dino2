@@ -13,7 +13,7 @@ using Microsoft.Win32;
 
 namespace Dino2.Desktop;
 
-public partial class MulticylinderWindow : Window
+public partial class MulticylinderWindow : EngineDocument
 {
     private static readonly Brush[] CylinderColors = [Brushes.SteelBlue, Brushes.IndianRed, Brushes.SeaGreen, Brushes.DarkViolet];
     private static readonly EngineParameter[] Parameters = EngineParameter.All
@@ -40,6 +40,11 @@ public partial class MulticylinderWindow : Window
         this.confirmDiscard = confirmDiscard;
         InitializeComponent();
         DesktopLayout.Fit(this);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.F5, System.Windows.Input.ModifierKeys.None, MultiCalculate);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.O, System.Windows.Input.ModifierKeys.Control, MultiOpen);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.S, System.Windows.Input.ModifierKeys.Control, MultiSave);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.E, System.Windows.Input.ModifierKeys.Control, MultiExport);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.Escape, System.Windows.Input.ModifierKeys.None, MultiCancel);
         BuildEditor();
         BuildStudyEditor();
         foreach (var grid in new[] { MultiRows, CylinderRows, DifferenceRows, StudyRows, StudyPointRows })
@@ -49,10 +54,10 @@ public partial class MulticylinderWindow : Window
         initialized = true;
         Populate(template);
         Render();
-        Closing += (_, e) => e.Cancel = !CanCloseFromOwner();
+        Closing += (_, e) => e.Cancel = !CanCloseDocument();
     }
 
-    internal bool CanCloseFromOwner()
+    internal override bool CanCloseDocument()
     {
         if (cancellation is not null)
         {
@@ -63,7 +68,7 @@ public partial class MulticylinderWindow : Window
         return ConfirmDiscard();
     }
 
-    private bool ConfirmDiscard() => !dirty || (confirmDiscard?.Invoke() ?? DesktopLayout.ConfirmDiscard(this, "Multicilíndrico 4T"));
+    private bool ConfirmDiscard() => !dirty || (confirmDiscard?.Invoke() ?? DesktopLayout.ConfirmDiscard(DialogOwner, "Multicilíndrico 4T"));
 
     private void BuildEditor()
     {
@@ -124,6 +129,7 @@ public partial class MulticylinderWindow : Window
             var box = new TextBox { Name = "MultiField_" + key };
             RegisterName(box.Name, box);
             fields.Add(key, box);
+            FieldValidation.Attach(box, text => FieldValidation.CurrentOrInvariant(text));
             Label(panel, caption, box);
             box.TextChanged += (_, _) => Changed();
         }
@@ -367,7 +373,7 @@ public partial class MulticylinderWindow : Window
     private async void Open_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog { Filter = "Proyecto multicilíndrico 4T (*.json)|*.json" };
-        if (dialog.ShowDialog(this) != true || !ConfirmDiscard()) return;
+        if (dialog.ShowDialog(DialogOwner) != true || !ConfirmDiscard()) return;
         await LoadProjectAsync(dialog.FileName);
     }
 
@@ -379,7 +385,7 @@ public partial class MulticylinderWindow : Window
         {
             var project = Snapshot();
             var dialog = new SaveFileDialog { Filter = "Proyecto multicilíndrico 4T (*.json)|*.json", FileName = "motor-multicilindrico.json" };
-            if (dialog.ShowDialog(this) != true) return;
+            if (dialog.ShowDialog(DialogOwner) != true) return;
             MultiFiles.Save(dialog.FileName, project);
             dirty = false;
             MultiStatusText.Text = "Proyecto multicilíndrico guardado.";
@@ -390,7 +396,7 @@ public partial class MulticylinderWindow : Window
     private void Import_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog { Filter = "Proyecto 4T monocilíndrico (*.json)|*.json" };
-        if (dialog.ShowDialog(this) != true || !ConfirmDiscard()) return;
+        if (dialog.ShowDialog(DialogOwner) != true || !ConfirmDiscard()) return;
         try
         {
             var mono = FourStrokeFiles.Load(dialog.FileName).Current;
@@ -404,7 +410,7 @@ public partial class MulticylinderWindow : Window
     private void DoExport(string name, Action<string> export)
     {
         var dialog = new SaveFileDialog { Filter = "CSV (*.csv)|*.csv", FileName = name + ".csv" };
-        if (dialog.ShowDialog(this) != true) return;
+        if (dialog.ShowDialog(DialogOwner) != true) return;
         try { export(dialog.FileName); MultiStatusText.Text = "CSV exportado."; }
         catch (Exception ex) when (IsInputError(ex)) { Message(ex); }
     }

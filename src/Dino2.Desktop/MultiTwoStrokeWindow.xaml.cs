@@ -12,7 +12,7 @@ using Microsoft.Win32;
 
 namespace Dino2.Desktop;
 
-public partial class MultiTwoStrokeWindow : Window
+public partial class MultiTwoStrokeWindow : EngineDocument
 {
     private MultiTwoStrokeConfiguration template = MultiTwoStrokeConfiguration.Example(exterior: ExteriorBoundary.PressureReservoir);
     private MultiTwoStrokeConfiguration? original;
@@ -38,6 +38,11 @@ public partial class MultiTwoStrokeWindow : Window
         confirm = confirmDiscard;
         InitializeComponent();
         DesktopLayout.Fit(this);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.F5, System.Windows.Input.ModifierKeys.None, M2Run);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.O, System.Windows.Input.ModifierKeys.Control, M2Open);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.S, System.Windows.Input.ModifierKeys.Control, M2Save);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.E, System.Windows.Input.ModifierKeys.Control, M2Export);
+        DesktopLayout.Shortcut(this, System.Windows.Input.Key.Escape, System.Windows.Input.ModifierKeys.None, M2Cancel);
         BuildEditor();
         BuildStudy();
         foreach (var grid in new[] { RunRows, CylinderRows, DiffRows, StudyRows, StudyRunRows }) DesktopLayout.FormatGrid(grid);
@@ -46,10 +51,10 @@ public partial class MultiTwoStrokeWindow : Window
         initializing = false;
         Populate(template);
         Render();
-        Closing += (_, e) => e.Cancel = !CanCloseFromOwner();
+        Closing += (_, e) => e.Cancel = !CanCloseDocument();
     }
 
-    internal bool CanCloseFromOwner()
+    internal override bool CanCloseDocument()
     {
         if (operation is null) return CanDiscard();
         operation.Cancel();
@@ -57,7 +62,7 @@ public partial class MultiTwoStrokeWindow : Window
         return false;
     }
 
-    private bool CanDiscard() => !dirty || (confirm?.Invoke() ?? DesktopLayout.ConfirmDiscard(this, "Multicilíndrico 2T"));
+    private bool CanDiscard() => !dirty || (confirm?.Invoke() ?? DesktopLayout.ConfirmDiscard(DialogOwner, "Multicilíndrico 2T"));
 
     private void BuildEditor()
     {
@@ -110,6 +115,7 @@ public partial class MultiTwoStrokeWindow : Window
             AutomationProperties.SetAutomationId(box, box.Name);
             RegisterName(box.Name, box);
             network.Add(key, box);
+            FieldValidation.Attach(box, FieldValidation.Flexible);
             Label(Group(key[0] == 'A' ? "Colector de admisión" : "Colector de escape"), caption, box);
             box.TextChanged += (_, _) => Edited();
         }
@@ -118,6 +124,7 @@ public partial class MultiTwoStrokeWindow : Window
         {
             var box = new TextBox();
             editor.Add(field, box);
+            FieldValidation.Attach(box, FieldValidation.Flexible);
             Label(Group(field.Group), field.Label, box);
             box.TextChanged += (_, _) => Edited();
         }
@@ -351,7 +358,7 @@ public partial class MultiTwoStrokeWindow : Window
     private string? OpenProject()
     {
         var dialog = new OpenFileDialog { Filter = "Proyecto 2T (*.json)|*.json" };
-        return dialog.ShowDialog(this) == true ? dialog.FileName : null;
+        return dialog.ShowDialog(DialogOwner) == true ? dialog.FileName : null;
     }
     private void Save_Click(object sender, RoutedEventArgs e)
     {
@@ -359,7 +366,7 @@ public partial class MultiTwoStrokeWindow : Window
         {
             var project = Snapshot();
             var dialog = new SaveFileDialog { Filter = "Proyecto 2T (*.json)|*.json", FileName = "motor-multicilindrico-2t.json" };
-            if (dialog.ShowDialog(this) != true) return;
+            if (dialog.ShowDialog(DialogOwner) != true) return;
             TwoStrokeFiles.SaveMulti(dialog.FileName, project);
             dirty = false;
             M2Status.Text = "Proyecto 2T multicilíndrico guardado.";
@@ -370,7 +377,7 @@ public partial class MultiTwoStrokeWindow : Window
     private void Export(string name, Action<string> write)
     {
         var dialog = new SaveFileDialog { Filter = "CSV (*.csv)|*.csv", FileName = name + ".csv" };
-        if (dialog.ShowDialog(this) != true) return;
+        if (dialog.ShowDialog(DialogOwner) != true) return;
         try { write(dialog.FileName); M2Status.Text = "CSV exportado."; }
         catch (Exception ex) when (Expected(ex)) { Message(ex); }
     }

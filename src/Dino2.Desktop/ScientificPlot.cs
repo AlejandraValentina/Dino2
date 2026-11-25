@@ -14,14 +14,20 @@ public sealed record PlotLine(string Name, IReadOnlyList<Point> Points, Brush Co
 
 public class ScientificPlot : FrameworkElement
 {
-    private static readonly Pen GridPen = MakePen(new SolidColorBrush(Color.FromRgb(221, 230, 235)), 1);
+    private static readonly Pen GridPen = MakePen(new SolidColorBrush(Color.FromRgb(226, 232, 237)), 1);
+    private static readonly Pen FramePen = MakePen(new SolidColorBrush(Color.FromRgb(198, 208, 216)), 1);
     private static readonly Pen ZeroPen = MakePen(Brushes.SlateGray, 1);
+    private static readonly Pen CursorPen = MakePen(new SolidColorBrush(Color.FromArgb(160, 30, 43, 53)), 1, true);
+    private static readonly Brush CaptionBrush = Frozen(Color.FromRgb(30, 43, 53));
+    private static readonly Brush TickBrush = Frozen(Color.FromRgb(86, 104, 122));
+    private static readonly Brush ReadoutBackground = Frozen(Color.FromArgb(240, 255, 255, 255));
     private readonly Typeface font = new("Segoe UI");
     private IReadOnlyList<PlotLine> lines = [];
     private Rect full = Rect.Empty, view = Rect.Empty;
     private Point? dragStart;
     private Rect dragView;
-    private string? inspection;
+    private Point? cursor;
+    private (PlotLine Line, Point Sample)[] readout = [];
     private Geometry?[] paths = [];
     private Rect pathArea, pathView;
     public string Caption { get; set; } = "";
@@ -47,7 +53,8 @@ public class ScientificPlot : FrameworkElement
         protected override string GetNameCore() => plot.Caption;
         protected override string GetClassNameCore() => nameof(ScientificPlot);
         protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Image;
-        protected override string GetHelpTextCore() => "Rueda o teclas + y − para zoom, flechas para desplazar e Inicio para ajustar.";
+        protected override string GetHelpTextCore() => plot.Inspection is { Length: > 0 } reading
+            ? reading : "Rueda o teclas + y − para zoom, flechas para desplazar e Inicio para ajustar.";
     }
 
     public void SetLines(IReadOnlyList<PlotLine> values)
@@ -79,8 +86,37 @@ public class ScientificPlot : FrameworkElement
         double span = y0 == y1 ? 10 : y1 - y0;
         y0 -= y0 < 0 ? span * .07 : 0;
         y1 += span * .1;
+        // Extremos verticales en múltiplos del paso de marcas: el eje termina en un valor redondo.
+        double step = NiceStep(y1 - y0, 5);
+        y1 = Math.Ceiling(y1 / step) * step;
+        if (y0 < 0) y0 = Math.Floor(y0 / step) * step;
         return new Rect(x0, y0, x1 - x0, y1 - y0);
     }
+
+    /// <summary>Paso de marcas 1–2–5 × 10ⁿ que divide <paramref name="span"/> en unas <paramref name="target"/> partes.</summary>
+    internal static double NiceStep(double span, double target)
+    {
+        if (!(span > 0) || !double.IsFinite(span)) return 1;
+        double raw = span / Math.Max(1, target);
+        double magnitude = Math.Pow(10, Math.Floor(Math.Log10(raw)));
+        double normalized = raw / magnitude;
+        return (normalized < 1.5 ? 1 : normalized < 3 ? 2 : normalized < 7 ? 5 : 10) * magnitude;
+    }
+
+    /// <summary>Marcas múltiplo de <paramref name="step"/> dentro de [lo, hi].</summary>
+    internal static IEnumerable<double> Ticks(double lo, double hi, double step)
+    {
+        double tolerance = step * 1e-9;
+        for (double k = Math.Ceiling((lo - tolerance) / step); k * step <= hi + tolerance; k++)
+        {
+            double value = k * step;
+            yield return Math.Abs(value) < tolerance ? 0 : value;
+        }
+    }
+
+    /// <summary>Texto de una marca con los decimales que exige el paso.</summary>
+    internal static string TickLabel(double value, double step) =>
+        value.ToString("F" + Math.Clamp((int)-Math.Floor(Math.Log10(step) + 1e-9), 0, 6), CultureInfo.CurrentCulture);
 
     private Rect Area => new(66, 26, Math.Max(1, ActualWidth - 91),
         Math.Max(1, ActualHeight - 66 - LegendRows * 16));
@@ -155,26 +191,27 @@ public class ScientificPlot : FrameworkElement
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
-        var cursor = e.GetPosition(this);
+        var position = e.GetPosition(this);
         var area = Area;
         if (dragStart is Point start)
         {
             var moved = dragView;
-            moved.Offset((start.X - cursor.X) / area.Width * dragView.Width, (cursor.Y - start.Y) / area.Height * dragView.Height);
+            moved.Offset((start.X - position.X) / area.Width * dragView.Width, (position.Y - start.Y) / area.Height * dragView.Height);
             SetView(moved);
             return;
         }
-        if (full.IsEmpty || !area.Contains(cursor)) { ClearInspection(); return; }
-        var location = new Point(view.X + (cursor.X - area.Left) / area.Width * view.Width,
-            view.Y + (area.Bottom - cursor.Y) / area.Height * view.Height);
-        string message = string.Join("\n", lines.Select(line =>
-        {
-            var point = Nearest(line.Points, location, view);
-            return point is Point p
-                ? FormattableString.CurrentCulture($"{line.Name} · {XLabel} {p.X:G7} · {Caption} {p.Y:G7}") : null;
-        }).OfType<string>());
-        if (inspection != message) { inspection = message; ToolTip = message.Length > 0 ? message : null; }
+        if (full.IsEmpty || !area.Contains(position)) { ClearInspection(); return; }
+        var location = new Point(view.X + (position.X - area.Left) / area.Width * view.Width,
+            view.Y + (area.Bottom - position.Y) / area.Height * view.Height);
+        cursor = position;
+        readout = lines.Select(line => (Line: line, Sample: Nearest(line.Points, location, view)))
+            .Where(item => item.Sample is not null).Select(item => (item.Line, item.Sample!.Value)).ToArray();
+        InvalidateVisual();
     }
+
+    /// <summary>Lectura del cursor: muestras calculadas más próximas, una por curva.</summary>
+    internal string Inspection => string.Join("\n", readout.Select(item =>
+        FormattableString.CurrentCulture($"{item.Line.Name} · {XLabel} {item.Sample.X:G7} · {Caption} {item.Sample.Y:G7}")));
 
     internal static Point? Nearest(IReadOnlyList<Point> points, Point location, Rect viewport)
     {
@@ -191,33 +228,45 @@ public class ScientificPlot : FrameworkElement
         return nearest;
     }
 
-    private void ClearInspection() { inspection = null; ToolTip = null; }
+    private void ClearInspection()
+    {
+        if (cursor is null && readout.Length == 0) return;
+        cursor = null; readout = [];
+        InvalidateVisual();
+    }
 
     protected override void OnRender(DrawingContext dc)
     {
         dc.DrawRectangle(Brushes.White, null, new Rect(RenderSize));
-        Text(dc, Caption, 10, 3, 14, Math.Max(1, ActualWidth - 100));
-        if (full.IsEmpty) { Text(dc, "Sin resultados", 70, 37); return; }
-        if (view != full) Text(dc, "Vista ampliada", Math.Max(10, ActualWidth - 94), 4, 11);
+        Text(dc, Caption, 10, 3, 13, Math.Max(1, ActualWidth - 100), CaptionBrush, FontWeights.SemiBold);
+        if (full.IsEmpty) { Text(dc, "Sin resultados", 70, 37, 12, 300, TickBrush); return; }
+        if (view != full) Text(dc, "Vista ampliada · Inicio para ajustar", Math.Max(10, ActualWidth - 230), 5, 11, 220, TickBrush,
+            alignment: TextAlignment.Right);
         Rect area = Area;
         Point Map(Point p) => new(area.Left + (p.X - view.X) / view.Width * area.Width,
             area.Bottom - (p.Y - view.Y) / view.Height * area.Height);
-        for (int i = 0; i <= 4; i++)
+        // Marcas redondas: aproximadamente una cada 32 px en vertical (al menos tres) y cada 90 px en horizontal.
+        double yStep = NiceStep(view.Height, Math.Clamp(area.Height / 32, 3, 8));
+        double xStep = NiceStep(view.Width, Math.Clamp(area.Width / 90, 2, 10));
+        foreach (double y in Ticks(view.Top, view.Bottom, yStep))
         {
-            double y = view.Y + view.Height * i / 4, x = view.X + view.Width * i / 4;
             double py = Map(new Point(view.Left, y)).Y;
-            double px = Map(new Point(x, view.Top)).X;
             dc.DrawLine(GridPen, new Point(area.Left, py), new Point(area.Right, py));
-            dc.DrawLine(GridPen, new Point(px, area.Top), new Point(px, area.Bottom));
-            Text(dc, y.ToString("G5", CultureInfo.CurrentCulture), 3, py - 7, 11, 62);
-            Text(dc, x.ToString("G6", CultureInfo.CurrentCulture), px - 17, area.Bottom + 2, 11, 54);
+            Text(dc, TickLabel(y, yStep), 2, py - 7, 11, area.Left - 8, TickBrush, alignment: TextAlignment.Right);
         }
+        foreach (double x in Ticks(view.Left, view.Right, xStep))
+        {
+            double px = Map(new Point(x, view.Top)).X;
+            dc.DrawLine(GridPen, new Point(px, area.Top), new Point(px, area.Bottom));
+            Text(dc, TickLabel(x, xStep), px - 40, area.Bottom + 3, 11, 80, TickBrush, alignment: TextAlignment.Center);
+        }
+        dc.DrawRectangle(null, FramePen, area);
         if (view.Top < 0 && view.Bottom > 0)
         {
             double zero = Map(new Point(view.Left, 0)).Y;
             dc.DrawLine(ZeroPen, new Point(area.Left, zero), new Point(area.Right, zero));
         }
-        Text(dc, XLabel, area.Left + Math.Max(0, area.Width / 2 - 25), area.Bottom + 16, 11);
+        Text(dc, XLabel, area.Left, area.Bottom + 17, 11, area.Width, CaptionBrush, alignment: TextAlignment.Center);
         if (paths.Length != lines.Count || pathArea != area || pathView != view)
         {
             paths = lines.Select(line => BuildPath(line, Map)).ToArray();
@@ -233,7 +282,14 @@ public class ScientificPlot : FrameworkElement
                     foreach (var point in line.Points.Where(p => Finite(p) && view.Contains(p)))
                         dc.DrawEllipse(line.Color, null, Map(point), 2.6, 2.6);
             }
+        if (cursor is Point mouse && readout.Length > 0)
+        {
+            dc.DrawLine(CursorPen, new Point(mouse.X, area.Top), new Point(mouse.X, area.Bottom));
+            foreach (var (line, sample) in readout)
+                dc.DrawEllipse(Brushes.White, MakePen(line.Color, 2), Map(sample), 4, 4);
+        }
         dc.Pop();
+        if (cursor is Point at && readout.Length > 0) DrawReadout(dc, at, area);
         DrawLegend(dc, area.Bottom + 32);
         if (IsKeyboardFocused)
             dc.DrawRectangle(null, MakePen(Brushes.SteelBlue, 1), new Rect(1, 1, Math.Max(0, ActualWidth - 2), Math.Max(0, ActualHeight - 2)));
@@ -241,6 +297,27 @@ public class ScientificPlot : FrameworkElement
 
     protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e) { base.OnGotKeyboardFocus(e); InvalidateVisual(); }
     protected override void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs e) { base.OnLostKeyboardFocus(e); InvalidateVisual(); }
+
+    private void DrawReadout(DrawingContext dc, Point at, Rect area)
+    {
+        const double row = 16, pad = 7, swatch = 14;
+        var header = Format($"{XLabel} = {readout[0].Sample.X.ToString("G6", CultureInfo.CurrentCulture)}", 11, CaptionBrush, FontWeights.SemiBold);
+        var rows = readout.Select(item => Format($"{item.Line.Name}: {item.Sample.Y.ToString("G5", CultureInfo.CurrentCulture)}",
+            11, CaptionBrush, FontWeights.Normal)).ToArray();
+        double width = Math.Max(header.Width, rows.Max(r => r.Width) + swatch) + 2 * pad;
+        double height = row * (rows.Length + 1) + 2 * pad - 2;
+        double x = at.X + 14 + width > area.Right ? at.X - 14 - width : at.X + 14;
+        double y = Math.Clamp(at.Y - height / 2, area.Top + 2, Math.Max(area.Top + 2, area.Bottom - height - 2));
+        dc.DrawRoundedRectangle(ReadoutBackground, FramePen, new Rect(x, y, width, height), 3, 3);
+        dc.DrawText(header, new Point(x + pad, y + pad));
+        for (int i = 0; i < rows.Length; i++)
+        {
+            double top = y + pad + row * (i + 1);
+            var line = readout[i].Line;
+            dc.DrawLine(MakePen(line.Color, 2, line.Dashed), new Point(x + pad, top + 7), new Point(x + pad + 10, top + 7));
+            dc.DrawText(rows[i], new Point(x + pad + swatch, top));
+        }
+    }
 
     private void DrawLegend(DrawingContext dc, double top)
     {
@@ -253,7 +330,7 @@ public class ScientificPlot : FrameworkElement
             double x = 10 + i % columns * width, y = top + i / columns * 16;
             if (line.MarkersOnly) dc.DrawEllipse(line.Color, null, new Point(x + 8, y + 7), 2.6, 2.6);
             else dc.DrawLine(MakePen(line.Color, 2, line.Dashed), new Point(x, y + 7), new Point(x + 19, y + 7));
-            Text(dc, line.Name, x + 24, y, 11, Math.Max(1, width - 25));
+            Text(dc, line.Name, x + 24, y, 11, Math.Max(1, width - 25), CaptionBrush);
         }
     }
 
@@ -284,12 +361,26 @@ public class ScientificPlot : FrameworkElement
     }
 
     private void Text(DrawingContext dc, string text, double x, double y, double size = 12,
-        double width = 300)
+        double width = 300, Brush? brush = null, FontWeight? weight = null, TextAlignment alignment = TextAlignment.Left)
     {
-        var label = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            font, size, Brushes.DarkSlateGray, VisualTreeHelper.GetDpi(this).PixelsPerDip)
-        { MaxTextWidth = width, MaxLineCount = 1, Trimming = TextTrimming.CharacterEllipsis };
+        var label = Format(text, size, brush ?? CaptionBrush, weight ?? FontWeights.Normal);
+        label.MaxTextWidth = Math.Max(1, width);
+        label.MaxLineCount = 1;
+        label.Trimming = TextTrimming.CharacterEllipsis;
+        label.TextAlignment = alignment;
         dc.DrawText(label, new Point(x, y));
+    }
+
+    private FormattedText Format(string text, double size, Brush brush, FontWeight weight) =>
+        new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+            new Typeface(font.FontFamily, FontStyles.Normal, weight, FontStretches.Normal), size, brush,
+            VisualTreeHelper.GetDpi(this).PixelsPerDip);
+
+    private static Brush Frozen(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
     }
 
     private void SaveImage()

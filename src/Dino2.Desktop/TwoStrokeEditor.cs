@@ -31,6 +31,7 @@ public partial class TwoStrokeWindow
             panel.Children.Add(new Label { Content = label, Target = input, Padding = new Thickness(0, 6, 0, 3) });
             panel.Children.Add(input);
             inputs.Add(field, input);
+            FieldValidation.Attach(input, FieldValidation.Flexible);
             input.TextChanged += (_, _) => Edited();
         }
 

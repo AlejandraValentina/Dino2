@@ -1,32 +1,53 @@
-<Window x:Class="Dino2.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Dino2.Desktop"
-        Title="Dino2" Width="1200" Height="850" MinWidth="810" MinHeight="520" WindowStartupLocation="CenterOwner" Background="#F2F5F8" FontFamily="Segoe UI" FontSize="14">
-  <DockPanel Margin="14">
-    <StackPanel DockPanel.Dock="Top">
-      <TextBlock Text="Dino2  /  Laboratorio de ciclos" FontSize="27" FontWeight="SemiBold" Foreground="#142F43"/>
-      <TextBlock Text="Monocilíndrico 4T · Otto ideal de aire · Modelo v1" Margin="0,4,0,14" Foreground="#415A6B"/>
-      <WrapPanel Margin="0,0,0,12">
-        <Button Content="Ejemplo" Click="Example_Click"/>
-        <Button x:Name="OpenButton" Content="Abrir…" Click="Open_Click"/>
-        <Button x:Name="SaveButton" Content="Guardar como…" Click="Save_Click"/>
-        <Button x:Name="CalculateButton" Content="Calcular" Click="Calculate_Click" Background="#176B8C" Foreground="White"/>
-        <Button x:Name="ExportButton" Content="Exportar CSV…" Click="Export_Click" IsEnabled="False"/>
+<local:EngineDocument x:Class="Dino2.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Dino2.Desktop"
+        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls" xmlns:ic="http://metro.mahapps.com/winfx/xaml/iconpacks"
+        Style="{StaticResource Dino2.Window}" Title="Dino2 · Otto de referencia" Width="1200" Height="850" MinWidth="810" MinHeight="520">
+  <mah:MetroWindow.IconTemplate>
+    <DataTemplate><ic:PackIconMaterial Kind="SineWave" Width="18" Height="18" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="White"/></DataTemplate>
+  </mah:MetroWindow.IconTemplate>
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="{StaticResource Dino2.Brushes.Panel}" BorderBrush="{StaticResource Dino2.Brushes.Border}" BorderThickness="0,0,0,1">
+      <WrapPanel Style="{StaticResource Dino2.CommandBar}">
+        <StackPanel Style="{StaticResource Dino2.CommandGroup}" ToolTipService.ToolTip="Archivo">
+          <Button Click="Example_Click" ToolTip="Cargar el ejemplo ilustrativo">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="FileDocumentOutline" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Ejemplo"/></StackPanel></Button>
+          <Button x:Name="OpenButton" Click="Open_Click" ToolTip="Abrir configuración (Ctrl+O)">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="FolderOpenOutline" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Abrir…"/></StackPanel></Button>
+          <Button x:Name="SaveButton" Click="Save_Click" ToolTip="Guardar configuración (Ctrl+S)">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="ContentSaveOutline" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Guardar como…"/></StackPanel></Button>
+          <Button x:Name="ExportButton" Click="Export_Click" IsEnabled="False" ToolTip="Exportar resultados a CSV (Ctrl+E)">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="FileDelimitedOutline" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Exportar CSV…"/></StackPanel></Button>
+        </StackPanel>
+        <StackPanel Style="{StaticResource Dino2.CommandGroup}" ToolTipService.ToolTip="Cálculo"><Border Style="{StaticResource Dino2.CommandSeparator}"/>
+          <Button x:Name="CalculateButton" Click="Calculate_Click" Style="{StaticResource Dino2.Button.Primary}" Margin="0" ToolTip="Calcular el ciclo (F5)">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="Calculator" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Calcular"/></StackPanel></Button>
+        </StackPanel>
       </WrapPanel>
-      <Border Background="#FFF3CF" Padding="12" Margin="0,0,0,14">
-        <TextBlock TextWrapping="Wrap" Text="Resultado indicado ideal, sin validación experimental. Sin intercambio de gases, fricción ni combustión finita: par constante y potencia proporcional a RPM. No predice potencia al freno ni límites de giro."/>
+    </Border>
+    <StackPanel DockPanel.Dock="Top" Margin="10,8,10,0">
+      <Border Style="{StaticResource Dino2.Notice}">
+        <DockPanel>
+          <ic:PackIconMaterial Kind="AlertOutline" Width="16" Height="16" Margin="0,1,8,0" Foreground="{StaticResource Dino2.Brushes.WarningEdge}" VerticalAlignment="Top"/>
+          <TextBlock TextWrapping="Wrap" Text="Ciclo Otto ideal de aire · Modelo v1. Resultado indicado ideal, sin validación experimental. Sin intercambio de gases, fricción ni combustión finita: par constante y potencia proporcional a RPM. No predice potencia al freno ni límites de giro."/>
+        </DockPanel>
       </Border>
     </StackPanel>
-    <Border DockPanel.Dock="Bottom" Background="#E1EAF0" Padding="10" Margin="0,12,0,0">
-      <TextBlock x:Name="Status" Text="Configure el ciclo y pulse Calcular. El ejemplo es ilustrativo." TextWrapping="Wrap"/>
+    <Border DockPanel.Dock="Bottom" Style="{StaticResource Dino2.StatusBar}">
+      <Grid Margin="10,3,6,3" MinHeight="28">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock x:Name="Status" Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" Text="Configure el ciclo y pulse Calcular. El ejemplo es ilustrativo."/>
+      </Grid>
     </Border>
-    <Grid>
-      <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <Border Background="White" Padding="16">
+    <Grid Margin="10,8,10,10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="250" MinWidth="220"/><ColumnDefinition Width="8"/><ColumnDefinition MinWidth="380"/></Grid.ColumnDefinitions>
+      <GridSplitter Grid.Column="1" ToolTip="Arrastrar para redimensionar"/>
+      <Border Background="White" Padding="14" BorderBrush="{StaticResource Dino2.Brushes.Border}" BorderThickness="1">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel>
-            <TextBlock Text="Configuración" FontSize="19" FontWeight="SemiBold" Margin="0,0,0,10"/>
-            <TextBlock Text="Presión absoluta al inicio de compresión. Calor por kg de aire; no es PCI de combustible." TextWrapping="Wrap" Foreground="#415A6B" Margin="0,0,0,8"/>
+            <TextBlock Text="Configuración" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8"/>
+            <TextBlock Text="Presión absoluta al inicio de compresión. Calor por kg de aire; no es PCI de combustible." TextWrapping="Wrap" Foreground="{StaticResource Dino2.Brushes.TextMuted}" Margin="0,0,0,8"/>
             <StackPanel x:Name="Fields"/>
-            <TextBlock Text="Acepta coma o punto decimal, sin separadores de miles. RPM enteras. Fin incluido si lo alcanza el paso. Máximo 2000 puntos." TextWrapping="Wrap" FontSize="12" Foreground="#415A6B" Margin="0,12,0,0"/>
+            <TextBlock Text="Acepta coma o punto decimal, sin separadores de miles. RPM enteras. Fin incluido si lo alcanza el paso. Máximo 2000 puntos." TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Dino2.Brushes.TextMuted}" Margin="0,12,0,0"/>
           </StackPanel>
         </ScrollViewer>
       </Border>
@@ -65,4 +86,4 @@
       </TabControl>
     </Grid>
   </DockPanel>
-</Window>
+</local:EngineDocument>
