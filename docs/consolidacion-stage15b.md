@@ -23,7 +23,7 @@ Incluye `DischargeMap.cs`, `DischargeMapFile.cs`, campos de mapa forward/reverse
 - Desktop en `E:\dino2-desktop`: compilación Release correcta, 0 warnings/0 errores; 116/116 checks (`evidence/stage15b1/desktop-tests.log`).
 - Científico en `E:\dino2-science`: `scripts/verify.ps1` finalizó con código 0; log íntegro en `evidence/stage15b1/science-regression.log`. Incluye build sin warnings, 13/13 generales, 25/25 grupos 4T, 15/15 reactivos, 7/7 estudios, campaña 2T, redes multicilíndricas, 4T Desktop, 116 Desktop checks y reproducciones CLI 4T/2T.
 - El grupo 4T añadido verifica el flujo con mapa Cd variable dentro de `ports-v4`, flujo directo e inverso, evaluación con presión de cara aceptada y rechazo de consulta fuera de dominio. El benchmark existente del sweep 4T midió mediana cercana a 0.53 s para 11 RPM, pero ese número corresponde al modelo de referencia, no al costo de mapa `ports-v4` en una campaña completa.
-- La rama integrada se creó desde `78df3e0` y se le aplicó `492a194` por cherry-pick (`df4b873`). La regresión completa registrada pertenece al mismo contenido de código científico, antes del commit sólo documental de consolidación.
+- La rama integrada se creó desde `78df3e0` y se le aplicó `492a194` por cherry-pick (`df4b873`). La regresión completa registrada pertenece al contenido final integrado: `evidence/stage15b1/integration-final-regression.log` (código 0), más las salidas CLI guardadas en `evidence/stage15b1/integration-cli`.
 
 ## Diferencias y limitaciones
 
@@ -49,3 +49,4 @@ $env:PATH = 'E:\dino2\.tools\dotnet;' + $env:PATH
 Set-Location E:\dino2-integration
 git log --oneline --decorate -4
 ```
+

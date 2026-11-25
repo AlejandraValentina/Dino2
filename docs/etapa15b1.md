@@ -37,7 +37,7 @@ La dirección selecciona mapas forward/reverse independientes o uno explícitame
 2. Build científico Release: 0 warnings/errores.
 3. 4T: **25/25** grupos; incluye el grupo nuevo de integración de Cd con presión de estado aceptado, flujo directo/inverso, masa y fuera de dominio. Masa ideal independiente con expresión isentrópica de gas perfecto y balance conservativo inspeccionado por la interfaz. No se usó este adaptador como banco experimental.
 4. Resto de `scripts/verify.ps1`: 13/13 base, 15/15 termoquímica reactiva, 7/7 estudios, pruebas 2T, redes multicilíndricas, Desktop y reproducciones CLI completas; proceso terminó con código 0.
-5. Log íntegro y trazas de consola: `evidence/stage15b1/science-regression.log`. CSV/mapa sintético anterior: `evidence/stage15b/cd-map-synthetic.csv`. Reproducción: desde el worktree deseado, poner `E:\dino2\.tools\dotnet` al frente de `PATH` y ejecutar `scripts/verify.ps1`.
+5. Logs íntegros: `evidence/stage15b1/science-regression.log` y la repetición final en `evidence/stage15b1/integration-final-regression.log`. Salidas CLI finales: `evidence/stage15b1/integration-cli`. CSV/mapa sintético anterior: `evidence/stage15b/cd-map-synthetic.csv`. Reproducción: desde el worktree deseado, poner `E:\dino2\.tools\dotnet` al frente de `PATH` y ejecutar `scripts/verify.ps1`.
 
 La prueba no constituye una regresión exhaustiva de 112 descargas variables, choque caliente/móvil, sensibilidad de todas las mezclas ni semillas reservadas con cada variante de mapa. La regresión base 14C de interfaces se preserva en el conjunto actual de pruebas y pasó, pero esta adaptación aún necesita una suite específica más amplia. Las campañas 4T 11/11 RPM y 2T existentes pasan sin mapas; no se atribuye al mapa ningún cambio de rendimiento completo. No se ajustaron combustión ni fricción. No se midió todavía el costo de una campaña con mapa `ports-v4`; el benchmark 4T existente (11 RPM, ~0.53 s mediana) es baseline sin afirmación de costo diferencial.
 
@@ -68,4 +68,5 @@ La lámina modal conserva el fallo de periodicidad de 5000 RPM: residuo `3.422e-
 ## Próximos límites de alcance
 
 Cerrar integración y pruebas 2T 1D/láminas aplicables, suite generativa independiente de cobertura y capacidad, campañas comparativas completas con cambios sintéticos claramente etiquetados, costo map-on, y flujo Desktop de mapa con persistencia/exportación; repetir regresión sobre el commit final. La dinámica de lámina sigue pendiente según 15B.2. Transfers 1D siguen fuera de esta solicitud.
+
 
