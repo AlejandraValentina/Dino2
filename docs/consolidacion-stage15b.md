@@ -4,7 +4,7 @@ Fecha de corte: 2026-11-25. Estado del checkout original inspeccionado antes de 
 
 ## Preservación y procedencia
 
-Antes de crear los worktrees se guardó una recuperación completa en `E:\dino2-stage15b1-recovery-20261125`: bundle Git SHA-256 `A1C2D7B4503E3EA186F503CBAD76701DB9059B364D4A721CD50747B0319ED81E`, parche del árbol tracked, copia de archivos no rastreados, estado/reflog y copias de los artefactos ignorados. El registro de las ramas y el reflog está en ese directorio. No se ejecutaron `reset --hard`, `clean` ni se reescribieron referencias históricas.
+Antes de crear los worktrees se guardó una recuperación completa en `E:\dino2-stage15b1-recovery-20261125`: bundle Git SHA-256 `A1C2D7B4503E3EA186F503CBAD76701DB9059B364D4A721CD50747B0319ED81E`, parche del árbol tracked, copia de archivos no rastreados, estado/reflog y copias de los artefactos ignorados. El registro de las ramas y el reflog está en ese directorio. El diff residual se guardó después de su consolidación en `stash@{0}` (`952b711d4f1f81f12f4ad1c541c1f4e92102556c`), dejando el checkout original limpio sobre `ui/mahapps-shell`. No se ejecutaron `reset --hard`, `clean` ni se reescribieron referencias históricas.
 
 | Desarrollo | Rama | Commit | Worktree | Contenido |
 |---|---|---|---|---|
@@ -49,4 +49,5 @@ $env:PATH = 'E:\dino2\.tools\dotnet;' + $env:PATH
 Set-Location E:\dino2-integration
 git log --oneline --decorate -4
 ```
+
 
