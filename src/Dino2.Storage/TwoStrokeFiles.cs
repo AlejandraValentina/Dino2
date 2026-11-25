@@ -136,9 +136,9 @@ public static partial class TwoStrokeFiles
     public static void ExportTrace(string path, TwoStrokePoint point, ResultProvenance? provenance = null)
     {
         using var csv = File.CreateText(path);
-        csv.WriteLine("rpm,angle_from_tdc_deg,p_cylinder_pa,t_cylinder_k,p_crankcase_pa,t_crankcase_k,reed_kg_s,transfer_kg_s,exhaust_out_kg_s,v_cylinder_m3,v_crankcase_m3,fresh_cylinder_kg,total_cylinder_kg,reed_face_pressure_pa,exhaust_face_pressure_pa");
+        csv.WriteLine("rpm,angle_from_tdc_deg,p_cylinder_pa,t_cylinder_k,p_crankcase_pa,t_crankcase_k,reed_kg_s,transfer_kg_s,exhaust_out_kg_s,v_cylinder_m3,v_crankcase_m3,fresh_cylinder_kg,total_cylinder_kg,reed_face_pressure_pa,exhaust_face_pressure_pa,reed_lift_m");
         foreach (var s in point.Trace)
-            csv.WriteLine(FormattableString.Invariant($"{point.Rpm},{s.AngleDeg:R},{s.CylinderPressurePa:R},{s.CylinderTemperatureK:R},{s.CrankcasePressurePa:R},{s.CrankcaseTemperatureK:R},{s.ReedKgPerS:R},{s.TransferKgPerS:R},{s.ExhaustOutKgPerS:R},{s.CylinderVolumeM3:R},{s.CrankcaseVolumeM3:R},{s.FreshCylinderKg:R},{s.CylinderMassKg:R},{s.IntakeValvePressurePa:R},{s.ExhaustPortPressurePa:R}"));
+            csv.WriteLine(FormattableString.Invariant($"{point.Rpm},{s.AngleDeg:R},{s.CylinderPressurePa:R},{s.CylinderTemperatureK:R},{s.CrankcasePressurePa:R},{s.CrankcaseTemperatureK:R},{s.ReedKgPerS:R},{s.TransferKgPerS:R},{s.ExhaustOutKgPerS:R},{s.CylinderVolumeM3:R},{s.CrankcaseVolumeM3:R},{s.FreshCylinderKg:R},{s.CylinderMassKg:R},{s.IntakeValvePressurePa:R},{s.ExhaustPortPressurePa:R},{s.ReedLiftM:R}"));
         CsvProvenance(csv, provenance, "provenance");
     }
 

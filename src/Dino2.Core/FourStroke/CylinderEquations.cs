@@ -34,8 +34,10 @@ public sealed class CylinderEquations
         double p = y[0] * AirProperties.R * t / position.VolumeM3;
         return new(angle, position.VolumeM3, y[0], t, p, y[2], ValveFlow.Lift(config.IntakeValve, angle),
             ValveFlow.Lift(config.ExhaustValve, angle),
-            ValveFlow.MassRate(ValveFlow.EffectiveArea(config.IntakeValve, angle), config.Intake.PressurePa, config.Intake.TemperatureK, p, t),
-            ValveFlow.MassRate(ValveFlow.EffectiveArea(config.ExhaustValve, angle), config.Exhaust.PressurePa, config.Exhaust.TemperatureK, p, t),
+            ValveFlow.MassRate(ValveFlow.EffectiveArea(config.IntakeValve, angle, config.Intake.PressurePa, p,
+                config.Intake.PressurePa >= p), config.Intake.PressurePa, config.Intake.TemperatureK, p, t),
+            ValveFlow.MassRate(ValveFlow.EffectiveArea(config.ExhaustValve, angle, config.Exhaust.PressurePa, p,
+                p >= config.Exhaust.PressurePa), config.Exhaust.PressurePa, config.Exhaust.TemperatureK, p, t),
             y[1], y[3], y[7], y[5], y[6]);
     }
 
@@ -47,9 +49,11 @@ public sealed class CylinderEquations
         double t = AirProperties.Temperature(y[1] / mass);
         var position = SliderCrank.At(config.Geometry, angle);
         double p = mass * AirProperties.R * t / position.VolumeM3;
-        double intake = ValveFlow.MassRate(ValveFlow.EffectiveArea(config.IntakeValve, angle),
+        double intake = ValveFlow.MassRate(ValveFlow.EffectiveArea(config.IntakeValve, angle, config.Intake.PressurePa, p,
+            config.Intake.PressurePa >= p),
             config.Intake.PressurePa, config.Intake.TemperatureK, p, t);
-        double exhaust = ValveFlow.MassRate(ValveFlow.EffectiveArea(config.ExhaustValve, angle),
+        double exhaust = ValveFlow.MassRate(ValveFlow.EffectiveArea(config.ExhaustValve, angle, config.Exhaust.PressurePa, p,
+            p >= config.Exhaust.PressurePa),
             config.Exhaust.PressurePa, config.Exhaust.TemperatureK, p, t);
         double cylinderH = AirProperties.Enthalpy(t);
         double enthalpy = intake * (intake >= 0 ? intakeEnthalpy : cylinderH) +

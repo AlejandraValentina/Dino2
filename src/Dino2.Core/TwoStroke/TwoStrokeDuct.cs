@@ -55,7 +55,7 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
     // Positive flux enters the engine. The single port flux is also the duct right boundary.
     internal double Rates(ReadOnlySpan<double> tube, Span<double> rate, GasState plenum,
         ReadOnlySpan<double> donor, double portArea, Reed? reed, Span<double> outer, Span<double> inner, out double facePressure,
-        out double wallHeat, DuctBoundary? exterior = null)
+        out double wallHeat, DuctBoundary? exterior = null, double dynamicReedLiftM = double.NaN)
     {
         Span<double> face = stackalloc double[gas.Size];
         long start = profile is null ? 0 : TwoStrokeProfile.Timestamp();
@@ -76,16 +76,24 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
         var right = mesh.BoundaryState(tube, true, face);
         double wall = gas.WallPressure(right, true);
         if (boundaryMode != ExteriorBoundary.PressureReservoir) wall = Math.Max(1, wall);
+        bool dynamicReedActive = reed is not null && double.IsFinite(dynamicReedLiftM);
         double limit = plenum.Pressure + (reed?.OpeningPressurePa ?? 0);
+        double instantaneousAperture = reed is null ? portArea : dynamicReedActive
+            ? reed.DynamicArea(dynamicReedLiftM) : reed.EffectiveArea(wall - plenum.Pressure);
         inner.Clear();
         if (boundaryMode == ExteriorBoundary.PressureReservoir)
         {
-            double aperture = Math.Min(mesh.ValveArea, reed?.EffectiveArea(wall - plenum.Pressure) ?? portArea);
+            bool dynamicReed = dynamicReedActive;
+            double reedArea = reed is null ? portArea : dynamicReed
+                ? reed.DynamicArea(dynamicReedLiftM) : reed.EffectiveArea(wall - plenum.Pressure);
+            double aperture = Math.Min(mesh.ValveArea, reedArea);
             facePressure = reed is null
                 ? PortBoundary.Flux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner)
-                : PortBoundary.OneWayFlux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner);
+                : dynamicReed
+                    ? PortBoundary.Flux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner)
+                    : PortBoundary.OneWayFlux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner);
         }
-        else if (reed is not null ? wall <= limit : portArea <= 0)
+        else if (reed is not null && !dynamicReedActive ? wall <= limit : instantaneousAperture <= 0)
         {
             facePressure = wall;
             inner[gas.Momentum] = wall * mesh.ValveArea;
@@ -97,14 +105,16 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
             for (int iteration = 0; iteration < 20; iteration++)
             {
                 double p = (low + high) * .5;
-                double area = Math.Min(mesh.ValveArea, reed?.EffectiveArea(p - plenum.Pressure) ?? portArea);
+                double area = Math.Min(mesh.ValveArea, reed is null ? portArea : dynamicReedActive
+                    ? reed.DynamicArea(dynamicReedLiftM) : reed.EffectiveArea(p - plenum.Pressure));
                 double flow = ReactiveCylinder.Nozzle(area, p, right.Temperature, right.GasConstant, right.Gamma,
                     plenum.Pressure, plenum.Temperature, plenum.GasConstant, plenum.Gamma);
                 if (impedance * (wall - p) > flow) low = p;
                 else high = p;
             }
             facePressure = (low + high) * .5;
-            double effectiveArea = Math.Min(mesh.ValveArea, reed?.EffectiveArea(facePressure - plenum.Pressure) ?? portArea);
+            double effectiveArea = Math.Min(mesh.ValveArea, reed is null ? portArea : dynamicReedActive
+                ? reed.DynamicArea(dynamicReedLiftM) : reed.EffectiveArea(facePressure - plenum.Pressure));
             double mass = ReactiveCylinder.Nozzle(effectiveArea, facePressure, right.Temperature, right.GasConstant, right.Gamma,
                 plenum.Pressure, plenum.Temperature, plenum.GasConstant, plenum.Gamma);
             var source = mass >= 0 ? right : plenum;

@@ -13,17 +13,27 @@ public sealed record PistonPort(double RoofM, double HeightM, double WidthM, dou
     public string? WidthProfileSource { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? WidthProfileSha256 { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DischargeMap? DischargeMap { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DischargeMap? ReverseDischargeMap { get; init; }
 
     public bool Equals(PistonPort? other) => other is not null && RoofM == other.RoofM && HeightM == other.HeightM &&
         WidthM == other.WidthM && ThroatM2 == other.ThroatM2 && Cd == other.Cd &&
         (WidthProfile is null ? other.WidthProfile is null : other.WidthProfile is not null && WidthProfile.SequenceEqual(other.WidthProfile)) &&
-        WidthProfileSource == other.WidthProfileSource && WidthProfileSha256 == other.WidthProfileSha256;
+        WidthProfileSource == other.WidthProfileSource && WidthProfileSha256 == other.WidthProfileSha256 &&
+        MapEquals(DischargeMap, other.DischargeMap) && MapEquals(ReverseDischargeMap, other.ReverseDischargeMap);
+
+    private static bool MapEquals(DischargeMap? a, DischargeMap? b) => a is null ? b is null : b is not null &&
+        a.Metadata == b.Metadata && a.Points.SequenceEqual(b.Points);
 
     public override int GetHashCode()
     {
         var hash = new HashCode();
         hash.Add(RoofM); hash.Add(HeightM); hash.Add(WidthM); hash.Add(ThroatM2); hash.Add(Cd);
         hash.Add(WidthProfileSource); hash.Add(WidthProfileSha256);
+        if (DischargeMap is not null) { hash.Add(DischargeMap.Metadata); foreach (var point in DischargeMap.Points) hash.Add(point); }
+        if (ReverseDischargeMap is not null) { hash.Add(ReverseDischargeMap.Metadata); foreach (var point in ReverseDischargeMap.Points) hash.Add(point); }
         if (WidthProfile is not null) foreach (var point in WidthProfile) hash.Add(point);
         return hash.ToHashCode();
     }
@@ -47,7 +57,35 @@ public sealed record PistonPort(double RoofM, double HeightM, double WidthM, dou
         return area;
     }
 
-    public double Area(double pistonTravelM) => Cd * Math.Min(ThroatM2, GeometricOpeningArea(pistonTravelM));
+    public double MaximumGeometricAreaM2 => Math.Min(ThroatM2, GeometricOpeningArea(RoofM + HeightM));
+    public double GeometricArea(double pistonTravelM) => Math.Min(ThroatM2, GeometricOpeningArea(pistonTravelM));
+    public double OpeningFraction(double pistonTravelM) => MaximumGeometricAreaM2 <= 0 ? 0 :
+        Math.Clamp(GeometricArea(pistonTravelM) / MaximumGeometricAreaM2, 0, 1);
+
+    public double Area(double pistonTravelM) => Cd * GeometricArea(pistonTravelM);
+
+    public double Area(double pistonTravelM, double pressure1Pa, double pressure2Pa, bool forward)
+    {
+        double geometric = GeometricArea(pistonTravelM);
+        if (pressure1Pa == pressure2Pa) return Cd * geometric;
+        var map = forward ? DischargeMap : ReverseDischargeMap;
+        if (map is null && !forward && DischargeMap is { } bidirectional &&
+            string.Equals(bidirectional.Metadata.Direction, "both", StringComparison.OrdinalIgnoreCase)) map = bidirectional;
+        if (map is null)
+        {
+            if (DischargeMap is not null || ReverseDischargeMap is not null)
+                throw new InvalidOperationException("El mapa Cd de lumbrera no cubre la dirección del flujo actual.");
+            return Cd * geometric;
+        }
+        if (!string.Equals(map.Metadata.CompatibleModel, "two-stroke-0d-isentropic-nozzle", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(map.Metadata.ReferenceArea, "port_open_area", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(map.Metadata.PressureConvention, "upstream_stagnation_to_downstream_static", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Convención Cd incompatible con el modelo de descarga 2T 0D.");
+        if (!string.Equals(map.Metadata.Direction, "both", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(map.Metadata.Direction, forward ? "forward" : "reverse", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El mapa Cd de lumbrera declara un sentido distinto al flujo actual.");
+        return map.Evaluate(OpeningFraction(pistonTravelM), Math.Min(pressure1Pa, pressure2Pa) / Math.Max(pressure1Pa, pressure2Pa)) * geometric;
+    }
 
     public double Opening(CylinderGeometry geometry)
     {
@@ -65,8 +103,13 @@ public sealed record PistonPort(double RoofM, double HeightM, double WidthM, dou
 public sealed record Reed(double ThroatM2, double PerimeterM, double LimitM, double StiffnessNPerM,
     double OpeningPressurePa, double Cd)
 {
+    /// <summary>Optional reduced beam dynamics. Null preserves the historical quasi-static reed.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ReedLeaf? DynamicLeaf { get; init; }
     public double EffectiveArea(double pressureDifference) => Cd * Math.Min(ThroatM2,
         PerimeterM * Math.Clamp((pressureDifference - OpeningPressurePa) * ThroatM2 / StiffnessNPerM, 0, LimitM));
+
+    public double DynamicArea(double liftM) => Cd * Math.Min(ThroatM2, PerimeterM * Math.Clamp(liftM, 0, DynamicLeaf?.LimitM ?? LimitM));
 }
 
 // Listed outward, from the cylinder to the tail. Diameter is linear within each conical section.
@@ -192,6 +235,7 @@ public sealed record TwoStrokeConfiguration(CylinderGeometry Geometry, double Cr
         Check(Reed.StiffnessNPerM, 50, 10000, "Rigidez de láminas");
         Check(Reed.OpeningPressurePa, 0, 3000, "Umbral de láminas");
         Check(Reed.Cd, .1, 1, "Cd de láminas");
+        Reed.DynamicLeaf?.Validate();
         IntakeDuct.Validate();
         foreach (double length in new[] { Expansion.HeaderM, Expansion.DiffuserM, Expansion.BellyM, Expansion.ConeM, Expansion.StingerM })
             Check(length, .035, .8, "Longitud de sección del escape");

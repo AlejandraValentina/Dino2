@@ -1,0 +1,9 @@
+Case class: synthetic diagnostic, not an engine calibration
+RPM: 5000
+Leaf: L=0.020 m, b=0.020 m, t=0.001 m, rho=1000 kg/m3, E=2e9 Pa, damping ratio=0.9,
+      stop=0.002 m, effective pressure area=1e-7 m2
+Maximum cycles: 200
+Solver: 1/20 modal period maximum angular step; dynamic flow area and reverse flow while open
+Result: nonconverged; cycle change 3.422e-3 after 200 cycles; dominant component is exhaust duct cell 26 energy.
+Interpretation: the transient model runs but this motor case is not accepted as periodic. This is a failed
+verification target, not evidence of experimental behavior. The coupled energy/contact model needs more work.

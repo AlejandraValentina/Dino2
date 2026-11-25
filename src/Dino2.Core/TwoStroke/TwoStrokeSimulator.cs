@@ -19,6 +19,8 @@ public sealed partial class TwoStrokeSimulator
     private readonly TwoStrokeDuct inlet, outlet;
     private readonly double[] freshMixture;
     private readonly int rpm, outletOffset, dimension;
+    private int ReedLiftIndex => outletOffset + outlet.Size;
+    private int ReedVelocityIndex => ReedLiftIndex + 1;
     private readonly double dps, clearance, pistonArea, meanSpeed, open, close, soc, duration;
     private readonly double[] events;
     private double burnFuel;
@@ -42,7 +44,7 @@ public sealed partial class TwoStrokeSimulator
         inlet = TwoStrokeDuct.Intake(c, gas, freshMixture, profile);
         outlet = exhaustPrimary is null ? TwoStrokeDuct.Exhaust(c, gas, profile) : TwoStrokeDuct.Primary(c, exhaustPrimary, gas);
         outletOffset = IntakeOffset + inlet.Size;
-        dimension = outletOffset + outlet.Size;
+        dimension = outletOffset + outlet.Size + (c.Reed.DynamicLeaf is null ? 0 : 2);
         var breaks = new List<double> { open, close, soc, soc + duration, open + 360 };
         foreach (var port in new[] { c.Exhaust, c.Transfer })
         {
@@ -136,7 +138,8 @@ public sealed partial class TwoStrokeSimulator
         Span<double> reedFlux = stackalloc double[Width], exhaustFlux = stackalloc double[Width];
         Span<double> outerIntake = stackalloc double[Width], outerExhaust = stackalloc double[Width];
         double dtI = inlet.Rates(y.Slice(IntakeOffset, inlet.Size), rate.Slice(IntakeOffset, inlet.Size), k,
-            caseDonor, 0, c.Reed, outerIntake, reedFlux, out double pReed, out double intakeHeat, intakeBoundary);
+            caseDonor, 0, c.Reed, outerIntake, reedFlux, out double pReed, out double intakeHeat, intakeBoundary,
+            c.Reed.DynamicLeaf is null ? double.NaN : y[ReedLiftIndex]);
         double dtE = outlet.Rates(y[outletOffset..], rate[outletOffset..], e, cylinderDonor,
             c.Exhaust.Area(travel), null, outerExhaust, exhaustFlux, out double pExhaust, out double exhaustHeat, exhaustBoundary);
         for (int i = 0; i < intakeRate.Length; i++) intakeRate[i] = outerIntake[i] / dps;
@@ -149,6 +152,12 @@ public sealed partial class TwoStrokeSimulator
         double exhaustMass = SpeciesThermodynamics.TotalMass(exhaustFlux[..N]);
         double exhaustTag = exhaustFlux[gas.Tag];
         double inletMass = SpeciesThermodynamics.TotalMass(reedFlux[..N]);
+        if (c.Reed.DynamicLeaf is { } leaf)
+        {
+            rate[ReedLiftIndex] = y[ReedVelocityIndex] / dps;
+            rate[ReedVelocityIndex] = ReedDynamics.Acceleration(leaf,
+                new(y[ReedLiftIndex], y[ReedVelocityIndex]), pReed - pk) / dps;
+        }
         double enteringTag = exhaustMass > 0 ? Fraction(exhaustTag, exhaustMass) : 0;
         for (int i = 0; i < N; i++)
         {
@@ -180,8 +189,16 @@ public sealed partial class TwoStrokeSimulator
         rate[DuctHeat] = (intakeHeat + exhaustHeat) / dps;
         for (int i = IntakeOffset; i < rate.Length; i++) rate[i] /= dps;
         sample = new(angle, pc, tc, pk, tk, inletMass, transfer, -exhaustMass, vc, vk, fresh, mc,
-            pReed, pExhaust);
+            pReed, pExhaust) { ReedLiftM = c.Reed.DynamicLeaf is null ? 0 : y[ReedLiftIndex] };
         return Math.Min(dtI, dtE) * c.Numerics.Courant * dps;
+    }
+
+    private void ProjectReedContact(Span<double> state)
+    {
+        if (c.Reed.DynamicLeaf is not { } leaf) return;
+        double x = state[ReedLiftIndex], v = state[ReedVelocityIndex];
+        if (x <= 0) { state[ReedLiftIndex] = 0; if (v < 0) state[ReedVelocityIndex] = 0; }
+        else if (x >= leaf.LimitM) { state[ReedLiftIndex] = leaf.LimitM; if (v > 0) state[ReedVelocityIndex] = 0; }
     }
 
     internal static double ExhaustFreshFraction(double freshFraction, double extractionRatio) =>

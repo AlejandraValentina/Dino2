@@ -163,9 +163,11 @@ public sealed class ReactiveCylinder
         }
         else
         {
-            double mi = Nozzle(ValveFlow.EffectiveArea(config.IntakeValve, angle), config.Intake.PressurePa,
+            double mi = Nozzle(ValveFlow.EffectiveArea(config.IntakeValve, angle, config.Intake.PressurePa, p,
+                config.Intake.PressurePa >= p), config.Intake.PressurePa,
                 config.Intake.TemperatureK, intakeR, intakeGamma, p, t, r, gamma);
-            double me = Nozzle(ValveFlow.EffectiveArea(config.ExhaustValve, angle), config.Exhaust.PressurePa,
+            double me = Nozzle(ValveFlow.EffectiveArea(config.ExhaustValve, angle, config.Exhaust.PressurePa, p,
+                p >= config.Exhaust.PressurePa), config.Exhaust.PressurePa,
                 config.Exhaust.TemperatureK, exhaustR, exhaustGamma, p, t, r, gamma);
             double h = SpeciesThermodynamics.Enthalpy(species, t);
             enthalpy = mi * (mi >= 0 ? intakeH : h) + me * (me >= 0 ? exhaustH : h);
@@ -221,8 +223,8 @@ public sealed class ReactiveCylinder
         {
             intakePressure = config.Intake.PressurePa;
             exhaustPressure = config.Exhaust.PressurePa;
-            mi = Nozzle(ValveFlow.EffectiveArea(config.IntakeValve, angle), intakePressure, config.Intake.TemperatureK, intakeR, intakeGamma, p, t, r, gamma);
-            me = Nozzle(ValveFlow.EffectiveArea(config.ExhaustValve, angle), exhaustPressure, config.Exhaust.TemperatureK, exhaustR, exhaustGamma, p, t, r, gamma);
+            mi = Nozzle(ValveFlow.EffectiveArea(config.IntakeValve, angle, intakePressure, p, intakePressure >= p), intakePressure, config.Intake.TemperatureK, intakeR, intakeGamma, p, t, r, gamma);
+            me = Nozzle(ValveFlow.EffectiveArea(config.ExhaustValve, angle, exhaustPressure, p, p >= exhaustPressure), exhaustPressure, config.Exhaust.TemperatureK, exhaustR, exhaustGamma, p, t, r, gamma);
         }
         return new(angle, pos.VolumeM3, mass, t, p, state[11] * (config.Combustion.AirFuelRatio + 1) / config.Combustion.AirFuelRatio,
             ValveFlow.Lift(config.IntakeValve, angle), ValveFlow.Lift(config.ExhaustValve, angle),

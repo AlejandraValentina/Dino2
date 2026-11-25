@@ -14,7 +14,8 @@ internal sealed class DuctBoundary(double[] values, ExteriorBoundary coupling = 
 
 internal sealed class DuctCoupling
 {
-    private sealed record End(DuctMesh Mesh, int Offset, PoppetValve Valve, double[] Reservoir, GasState Ambient, ExteriorBoundary Mode);
+    private sealed record End(DuctMesh Mesh, int Offset, PoppetValve Valve, double[] Reservoir, GasState Ambient,
+        ExteriorBoundary Mode, bool ReservoirToPipeIsForward);
 
     private readonly GasEquation gas;
     private readonly End inlet, outlet;
@@ -28,19 +29,21 @@ internal sealed class DuctCoupling
     {
         var path = config.Ducts!;
         gas = new GasEquation(intake.Length);
-        inlet = Create(path.Intake, config.Intake, config.IntakeValve, intake, 1 - intake[0], offset, path.Scheme, path.IntakeBoundary);
-        outlet = Create(path.Exhaust, config.Exhaust, config.ExhaustValve, exhaust, 0, inlet.Offset + inlet.Mesh.Size, path.Scheme, path.ExhaustBoundary);
+        inlet = Create(path.Intake, config.Intake, config.IntakeValve, intake, 1 - intake[0], offset,
+            path.Scheme, path.IntakeBoundary, reservoirToPipeIsForward: false);
+        outlet = Create(path.Exhaust, config.Exhaust, config.ExhaustValve, exhaust, 0, inlet.Offset + inlet.Mesh.Size,
+            path.Scheme, path.ExhaustBoundary, reservoirToPipeIsForward: true);
         integralOffset = outlet.Offset + outlet.Mesh.Size;
         Courant = path.Courant;
     }
 
     private End Create(DuctGeometry geometry, Reservoir reservoir, PoppetValve valve, double[] fractions, double tag,
-        int offset, DuctScheme scheme, ExteriorBoundary mode)
+        int offset, DuctScheme scheme, ExteriorBoundary mode, bool reservoirToPipeIsForward)
     {
         var mesh = new DuctMesh(geometry, gas, scheme);
         var state = new double[gas.Size];
         gas.Encode(state, fractions, reservoir.PressurePa, reservoir.TemperatureK, 0, tag);
-        return new(mesh, offset, valve, state, gas.Decode(state), mode);
+        return new(mesh, offset, valve, state, gas.Decode(state), mode, reservoirToPipeIsForward);
     }
 
     internal void Initialize(Span<double> state)
@@ -96,12 +99,20 @@ internal sealed class DuctCoupling
         ReadOnlySpan<double> cylinder, GasState chamber, Span<double> result)
     {
         double area = end.Mesh.ValveArea;
-        double opening = Math.Min(area, ValveFlow.EffectiveArea(end.Valve, angle));
+        if (end.Valve.DischargeMap is { } map)
+        {
+            double geometric = Math.Min(area, ValveFlow.GeometricArea(end.Valve, angle));
+            double opening = end.Valve.MaximumLiftM <= 0 ? 0 : ValveFlow.Lift(end.Valve, angle) / end.Valve.MaximumLiftM;
+            return PortBoundary.MappedFlux(gas, area, geometric, geometric, opening, "curtain_area",
+                map, end.Valve.ReverseDischargeMap, end.ReservoirToPipeIsForward,
+                cylinder, chamber, last, inside, result, out _);
+        }
+        double openingArea = Math.Min(area, ValveFlow.EffectiveArea(end.Valve, angle));
         if (end.Mode == ExteriorBoundary.PressureReservoir)
-            return PortBoundary.Flux(gas, area, opening, cylinder, chamber, last, inside, result);
+            return PortBoundary.Flux(gas, area, openingArea, cylinder, chamber, last, inside, result);
         double wallPressure = gas.WallPressure(inside, true);
         result.Clear();
-        if (opening == 0) { result[gas.Momentum] = wallPressure * area; return inside.Pressure; }
+        if (openingArea == 0) { result[gas.Momentum] = wallPressure * area; return inside.Pressure; }
 
         // Intersect the valve capacity with an outgoing pressure/mass-flow characteristic at the pipe end.
         // The wall state anchors the characteristic at zero flow; its slope uses the local impedance.
@@ -112,7 +123,7 @@ internal sealed class DuctCoupling
         for (int iteration = 0; iteration < 26 && high - low > .001; iteration++)
         {
             pressure = (low + high) / 2;
-            double predicted = ReactiveCylinder.Nozzle(opening, pressure, inside.Temperature, inside.GasConstant, inside.Gamma,
+            double predicted = ReactiveCylinder.Nozzle(openingArea, pressure, inside.Temperature, inside.GasConstant, inside.Gamma,
                 chamber.Pressure, chamber.Temperature, chamber.GasConstant, chamber.Gamma);
             if (predicted > conductance * (wallPressure - pressure)) high = pressure;
             else low = pressure;

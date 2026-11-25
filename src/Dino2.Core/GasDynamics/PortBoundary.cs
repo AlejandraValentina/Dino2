@@ -1,4 +1,5 @@
 using Dino2.Core.FourStroke;
+using Dino2.Core.Thermochemistry;
 
 namespace Dino2.Core.GasDynamics;
 
@@ -8,6 +9,11 @@ internal readonly record struct PortTrace(double ThroatPressurePa, double Throat
     internal double ThroatMassKgPerS { get; init; }
     internal string Regime { get; init; } = "";
     internal double? WaveResidualMps { get; init; }
+    internal bool FlowFromReservoir { get; init; }
+    internal double? MapCd { get; init; }
+    internal double? MapMassResidualKgPerS { get; init; }
+    internal double? MapEffectiveAreaM2 { get; init; }
+    internal int MapIterations { get; init; }
 }
 
 internal static class PortBoundary
@@ -26,6 +32,101 @@ internal static class PortBoundary
     internal static double OneWayFlux(GasEquation gas, double totalArea, double openArea, ReadOnlySpan<double> chamber,
         GasState reservoir, ReadOnlySpan<double> edge, GasState pipe, Span<double> flux) =>
         Flux(gas, totalArea, openArea, chamber, reservoir, edge, pipe, flux, out _, false);
+
+    /// <summary>
+    /// Resolves an equivalent opening area so the ports-v4 solution carries the mass flow prescribed by
+    /// a mass-based Cd map at the *same accepted* mixed-plane pressure. This replaces, rather than
+    /// multiplies, the historical opening capacity; the final flux remains a certified ports-v4 state.
+    /// </summary>
+    internal static double MappedFlux(GasEquation gas, double totalArea, double maximumOpenArea,
+        double referenceAreaM2, double normalizedOpening, string referenceAreaConvention,
+        DischargeMap forwardMap, DischargeMap? reverseMap, bool reservoirToPipeIsForward,
+        ReadOnlySpan<double> chamber, GasState reservoir, ReadOnlySpan<double> edge, GasState pipe,
+        Span<double> flux, out PortTrace? trace)
+    {
+        if (!(maximumOpenArea >= 0 && maximumOpenArea <= totalArea && referenceAreaM2 > 0) ||
+            !double.IsFinite(maximumOpenArea + referenceAreaM2))
+            throw new ArgumentOutOfRangeException(nameof(maximumOpenArea));
+        ValidateMap(forwardMap, referenceAreaConvention);
+        if (reverseMap is not null) ValidateMap(reverseMap, referenceAreaConvention);
+        if (maximumOpenArea == 0)
+            return Flux(gas, totalArea, 0, chamber, reservoir, edge, pipe, flux, out trace);
+
+        Span<double> trialFlux = stackalloc double[gas.Size];
+        double lo = 0, hi = maximumOpenArea;
+        double atHi = MapResidual(gas, totalArea, hi, referenceAreaM2, normalizedOpening, forwardMap,
+            reverseMap, reservoirToPipeIsForward, chamber, reservoir, edge, pipe, trialFlux, out _, out _);
+        if (atHi < -1e-10)
+            throw new ModelDomainException("La capacidad máxima certificada de ports-v4 no alcanza el caudal requerido por el mapa Cd en este estado.");
+        int iterations = 0;
+        for (; iterations < 48; iterations++)
+        {
+            double mid = (lo + hi) * .5;
+            double residual = MapResidual(gas, totalArea, mid, referenceAreaM2, normalizedOpening, forwardMap,
+                reverseMap, reservoirToPipeIsForward, chamber, reservoir, edge, pipe, trialFlux, out _, out _);
+            if (residual > 0) hi = mid; else lo = mid;
+            if (Math.Abs(residual) <= 1e-10) break;
+        }
+        double effectiveArea = (lo + hi) * .5;
+        double finalPressure = Flux(gas, totalArea, effectiveArea, chamber, reservoir, edge, pipe, flux, out trace);
+        if (trace is not { } finalTrace)
+            throw new NumericalStateException("El mapa Cd produjo caudal nulo en una abertura positiva.");
+        double finalResidual = MapResidual(gas, totalArea, effectiveArea, referenceAreaM2, normalizedOpening,
+            forwardMap, reverseMap, reservoirToPipeIsForward, chamber, reservoir, edge, pipe, trialFlux,
+            out _, out double finalCd);
+        trace = finalTrace with { MapCd = finalCd, MapMassResidualKgPerS = finalResidual,
+            MapEffectiveAreaM2 = effectiveArea, MapIterations = iterations + 1 };
+        if (Math.Abs(finalResidual) > Math.Max(1e-9, 1e-7 * Math.Abs(finalTrace.ThroatMassKgPerS)))
+            throw new NumericalStateException($"No convergió el acoplamiento Cd–ports-v4: residuo {finalResidual:R} kg/s.");
+        return finalPressure;
+    }
+
+    private static double MapResidual(GasEquation gas, double totalArea, double openingArea, double referenceAreaM2,
+        double normalizedOpening, DischargeMap forwardMap, DischargeMap? reverseMap, bool reservoirToPipeIsForward,
+        ReadOnlySpan<double> chamber, GasState reservoir, ReadOnlySpan<double> edge, GasState pipe,
+        Span<double> trialFlux, out PortTrace? stateTrace, out double cd)
+    {
+        Flux(gas, totalArea, openingArea, chamber, reservoir, edge, pipe, trialFlux, out stateTrace);
+        if (stateTrace is not { } tr || Math.Abs(tr.ThroatMassKgPerS) <= 1e-15)
+        { cd = 0; return 0; }
+        bool forward = tr.FlowFromReservoir == reservoirToPipeIsForward;
+        var map = SelectMap(forwardMap, reverseMap, forward);
+        var upstream = tr.FlowFromReservoir ? reservoir : Stagnation(pipe);
+        double downstreamPressure = tr.FlowFromReservoir ? tr.MixedPressurePa : reservoir.Pressure;
+        double ratio = downstreamPressure / upstream.Pressure;
+        cd = map.Evaluate(normalizedOpening, ratio);
+        double ideal = Math.Abs(ReactiveCylinder.Nozzle(referenceAreaM2 * cd,
+            upstream.Pressure, upstream.Temperature, upstream.GasConstant, upstream.Gamma,
+            downstreamPressure, tr.MixedTemperatureK, upstream.GasConstant, upstream.Gamma));
+        return Math.Abs(tr.ThroatMassKgPerS) - ideal;
+    }
+
+    private static void ValidateMap(DischargeMap map, string referenceAreaConvention)
+    {
+        if (!string.Equals(map.Metadata.CompatibleModel, "ports-v4-equivalent-capacity-v1", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(map.Metadata.PressureConvention, "upstream_stagnation_to_downstream_static", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(map.Metadata.ReferenceArea, referenceAreaConvention, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El mapa Cd no declara la convención compatible con el acoplamiento de capacidad de ports-v4.");
+    }
+
+    private static DischargeMap SelectMap(DischargeMap forward, DischargeMap? reverse, bool isForward)
+    {
+        var map = isForward ? forward : reverse ??
+            (string.Equals(forward.Metadata.Direction, "both", StringComparison.OrdinalIgnoreCase) ? forward : null);
+        if (map is null) throw new InvalidOperationException("El mapa Cd no cubre el sentido de flujo actual.");
+        if (!string.Equals(map.Metadata.Direction, "both", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(map.Metadata.Direction, isForward ? "forward" : "reverse", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El mapa Cd declara un sentido distinto al flujo actual.");
+        return map;
+    }
+
+    private static GasState Stagnation(GasState state)
+    {
+        double machSquared = state.Velocity * state.Velocity / (state.Gamma * state.GasConstant * state.Temperature);
+        double factor = 1 + .5 * (state.Gamma - 1) * machSquared;
+        return state with { Pressure = state.Pressure * Math.Pow(factor, state.Gamma / (state.Gamma - 1)),
+            Temperature = state.Temperature * factor, Velocity = 0 };
+    }
 
     private static double Flux(GasEquation gas, double totalArea, double openArea, ReadOnlySpan<double> chamber,
         GasState reservoir, ReadOnlySpan<double> edge, GasState pipe, Span<double> flux, out PortTrace? trace,
@@ -129,7 +230,7 @@ internal static class PortBoundary
         flux[gas.Momentum] = momentum;
         trace = new(throat.Pressure, throat.Temperature, throatMach, mixed.Pressure, -velocity, mixed.Temperature, solution.Iterations)
         {
-            ThroatMassKgPerS = mass, WaveResidualMps = solution.WaveResidual,
+            ThroatMassKgPerS = mass, WaveResidualMps = solution.WaveResidual, FlowFromReservoir = feeding,
             Regime = solution.Regime switch
             {
                 Regime.Step => nameof(Regime.Step), Regime.Jet => nameof(Regime.Jet), Regime.SonicJet => nameof(Regime.SonicJet),

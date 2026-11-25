@@ -1,0 +1,232 @@
+  Determinando los proyectos que se van a restaurar...
+  Todos los proyectos están actualizados para la restauración.
+  Dino2.Core -> E:\dino2\src\Dino2.Core\bin\Release\net10.0\Dino2.Core.dll
+  Dino2.Multicylinder.Tests -> E:\dino2\tests\Dino2.Multicylinder.Tests\bin\Release\net10.0\Dino2.Multicylinder.Tests.dll
+  Dino2.Storage -> E:\dino2\src\Dino2.Storage\bin\Release\net10.0\Dino2.Storage.dll
+  Dino2.Studies.Tests -> E:\dino2\tests\Dino2.Studies.Tests\bin\Release\net10.0\Dino2.Studies.Tests.dll
+  Dino2.Tests -> E:\dino2\tests\Dino2.Tests\bin\Release\net10.0\Dino2.Tests.dll
+  Dino2.Reactive.Tests -> E:\dino2\tests\Dino2.Reactive.Tests\bin\Release\net10.0\Dino2.Reactive.Tests.dll
+  Dino2.TwoStroke.Tests -> E:\dino2\tests\Dino2.TwoStroke.Tests\bin\Release\net10.0\Dino2.TwoStroke.Tests.dll
+  Dino2.FourStroke.Tests -> E:\dino2\tests\Dino2.FourStroke.Tests\bin\Release\net10.0\Dino2.FourStroke.Tests.dll
+  Dino2.Cli -> E:\dino2\src\Dino2.Cli\bin\Release\net10.0\Dino2.Cli.dll
+  Dino2.Desktop -> E:\dino2\src\Dino2.Desktop\bin\Release\net10.0-windows\Dino2.Desktop.dll
+  Dino2.Desktop.Tests -> E:\dino2\tests\Dino2.Desktop.Tests\bin\Release\net10.0-windows\Dino2.Desktop.Tests.dll
+
+Compilación correcta.
+    0 Advertencia(s)
+    0 Errores
+
+Tiempo transcurrido 00:00:07.54
+PASS Independent numerical reference (80 x 80 mm, r=10)
+PASS Energy conservation over 150 deterministic configurations
+PASS Net work equals independent numerical integral of p dV
+PASS Four-stroke cycle frequency and torque-power identity at every RPM
+PASS RPM sweep endpoints, non-divisible interval and single point
+PASS Zero heat yields zero work, power and torque
+PASS Geometry, heat and pressure scaling
+PASS Invalid physical inputs and nonfinite numbers rejected
+PASS Invalid and excessive RPM sweeps rejected without looping
+PASS Engineering envelope corner cases remain finite
+PASS Configuration persistence and deterministic recalculation
+PASS Malformed, incomplete, incompatible and unknown JSON rejected
+PASS CSV round trip numbers and traceability across decimal cultures
+13/13 test groups passed.
+REFLECTION matched=0,00008, pressure=-0,95786, closed=0,95765, strong=-0,77100
+QUARTER measured=0,011520483s analytic=0,011521112s
+PASS Physical reservoir boundaries, quarter-wave and distributed wall sources (7935,8 ms)
+APERTURE PULSE Δp=-25 Pa α=0 R=0.98499
+APERTURE PULSE Δp=-25 Pa α=0.3 R=-0.98278
+APERTURE PULSE Δp=-25 Pa α=1 R=-0.98466
+APERTURE PULSE Δp=25 Pa α=0 R=0.98484
+APERTURE PULSE Δp=25 Pa α=0.3 R=-0.98134
+APERTURE PULSE Δp=25 Pa α=1 R=-0.98482
+PLENUM V=0.1 L · Rmin=-0.6327 · L∞/A ramal=0.0312, tronco=0.0045
+PLENUM V=0.5 L · Rmin=-0.8542 · L∞/A ramal=0.0352, tronco=0.0020
+PLENUM V=2.4 L · Rmin=-0.9453 · L∞/A ramal=0.0352, tronco=0.0005
+PLENUM V=10 L · Rmin=-0.9678 · L∞/A ramal=0.0351, tronco=0.0001
+PLENUM V=30 L · Rmin=-0.9726 · L∞/A ramal=0.0351, tronco=0.0000
+PLENUM V=0.5 L · Rmin=-0.7478 · L∞/A ramal=0.0212, tronco=0.0030
+PASS Compact aperture choking, shock and dynamic plenum acoustics (2433,1 ms)
+PASS Variable-property jumps, local transfer and port domain (C13-01 to C13-03) (32,2 ms)
+PORTS-v4 seed=140301 accepted=1889 outsideDomain=159 free=177 sonic=961 discharge=1053
+PASS Certified port closure, regimes, predictor and generated states (36,2 ms)
+PASS Slider-crank endpoints, analytic derivative and displacement (0,4 ms)
+PASS NASA sensible energy derivative, inversion and continuity (2,9 ms)
+PASS Valve lift periodicity and curtain/throat geometry (0,1 ms)
+PASS Measured crank-angle lift profile interpolation, periodicity and geometric area (19,5 ms)
+CAM 4T 3000 RPM reference=36,498208 N·m profile=36,368984 N·m · synthetic verification, not experiment
+PASS Cam profile changes the 4T valve-flow cycle while retaining a reference baseline (214,8 ms)
+PASS Independent sonic mass flux, choking and reverse flow (0,1 ms)
+PASS Normalized finite Wiebe heat integrates to supplied energy (12,6 ms)
+PASS RK4 independent exponential solution and fourth-order refinement (0,4 ms)
+PASS Closed adiabatic cylinder conservation and independent reversible compression (12,6 ms)
+PASS Hohenberg pressure units and friction coefficient units (0,1 ms)
+PASS Periodic firing cycle, mass/energy closure and work decomposition (72,5 ms)
+Grid W[1,.5,.25]=458,6499900011999,458,65001144748067,458,6499909316244; errors=9,304E-007,2,052E-005
+PASS Grid/time refinement and independent trace work quadrature (155,4 ms)
+Sensitivity: base=9752,096W lift4mm=8067,208W spark5deg=9505,551W torque6000=17,5660Nm
+PASS Reproducibility, RPM response, valve lift and spark sensitivity (255,0 ms)
+PASS Cancellation and explicit nonconvergence failures (32,1 ms)
+PASS Motoring, limiting RPM and valve timing regression (291,2 ms)
+PASS 4T projects retain A/B, reject missing or incompatible data, and export traceability (60,1 ms)
+BENCHMARK {"runtime":"10.0.15","logicalProcessors":12,"elapsedMs":[524.2061,542.3207,518.3527],"medianMs":524.2061,"allocatedBytes":[11769552,11770408,11766960],"rpmPoints":11,"acceptedSteps":106440,"rejectedSteps":1006,"rhsEvaluations":1289352}
+PASS Measured full sweep and reusable numerical artifacts (4793,2 ms)
+PASS Independent duct Sod, rigid reflection, variable area balance and temporal order (118,7 ms)
+PASS MUSCL wave propagation and reflection, strong shock, area and refinement (371,3 ms)
+23/23 4T test groups passed.
+PASS Stoichiometric species, elemental conservation and derived chemical energy (9 ms)
+PASS Temperature-dependent mixture U, cp, R and inversion; NASA reference vectors (68 ms)
+PASS Closed constant-volume reaction conserves total chemical energy without extra LHV (3 ms)
+PASS Laminar correlation and conditioned duration respond to temperature, pressure, dilution and RPM (5 ms)
+Reactive 3000: W=477,0793536781109J Pb=10218,97603885976W Tpeak=2880,77K duration=33,887deg
+PASS Open reactive cycle closes mass, all species, elements and total energy (247 ms)
+PASS Temporal and cycle convergence; independent p dV quadrature (889 ms)
+PASS Files preserve model and declared evidence; reject incompatible fuel/energy (301 ms)
+PASS Unreacted fuel carries chemical enthalpy; cancellation and nonconvergence stay explicit (220 ms)
+PASS Reproducible reference-v1, frozen-v2 and conditioned-v2 comparisons and sensitivities (11754 ms)
+PASS Reduced UV vessels conserve energy and elements; expansion recombines products (4 ms)
+PASS Equilibrium cycle balances, frozen transport, independent work and A/B persistence (388 ms)
+PASS Equilibrium angular and periodic convergence (1338 ms)
+PASS Matched v1/v2/v3 and combustion, losses and mechanical sensitivities (16261 ms)
+PASS Coupled 1D conservation, periodicity, refinement, reproducibility and geometry A/B (70615 ms)
+PASS MUSCL integration, A/B resolution, motored pressure ratio and explicit nonconvergence (7070 ms)
+15/15 reactive test groups passed.
+PASS Finite factorial grid, engineering units, model capabilities and hard limits
+PASS Objectives with known answers, constraint and specific fuel consumption
+PASS Known interacting objective, ranking and empirical resolution classes
+PASS Physical studies deterministic in parallel; base immutable and reused
+PASS Invalid combinations, nonperiodicity and cancellation retain distinct states
+PASS Study and diagnostics round trip, CSV and corrupted data rejection
+PASS MUSCL length remeshing and verified 0D candidate
+7/7 study test groups passed.
+2T segmented wave: 96 cells, R=-0.4544, return=1.7805E-003 s.
+2T segmented wave: 192 cells, R=-0.5293, return=1.8064E-003 s.
+2T analytical verification: perfect mixing and bounded passive reconstruction.
+2T reference 3444.0 ms, 51 cycles, 853 steps, 2067.52102 W.
+PORT CONTOUR 2T 5000 RPM reference=2067.52102 W profile=2268.35664 W · synthetic verification, not experiment
+2T: geometry, mesh, reed, conservation, scavenging, periodicity, determinism, variants, limits, storage and CSV passed.
+n=1, rpm=5000, P=2067.52102, cycles=51, ms=3505
+n=2, a=False, e=False, rpm=5000, Periodic, cycles=51, error=2.9585E-05, dominant=cilindro 2 · escape · celda 13 · energía, W=4134.8372, Mass=1.3184E-018, U=9.0949E-013, marker=1.0368E-018, eval=7795128, ms=6598, bytes=549616, 
+n=2, a=True, e=True, rpm=5000, Periodic, cycles=53, error=0.00012606, dominant=colector y expansión común, W=3794.68744, Mass=1.6271E-018, U=-1.4255E-012, marker=-1.1045E-018, eval=8589064, ms=7186, bytes=540512, 
+n=3, a=False, e=False, rpm=5000, Periodic, cycles=52, error=3.0597E-05, dominant=cilindro 3 · escape · celda 13 · energía, W=6202.31618, Mass=1.3563E-018, U=1.1937E-012, marker=-2.7105E-020, eval=12183996, ms=10388, bytes=750816, 
+n=3, a=True, e=True, rpm=5000, Periodic, cycles=47, error=0.00010961, dominant=colector y expansión común, W=4998.32701, Mass=7.2422E-019, U=6.6347E-013, marker=2.7444E-019, eval=9814896, ms=8294, bytes=725280, 
+n=4, a=False, e=False, rpm=5000, Periodic, cycles=52, error=2.9867E-05, dominant=cilindro 4 · escape · celda 12 · energía, W=8269.6976, Mass=3.4647E-018, U=1.3074E-012, marker=-3.9302E-019, eval=16367120, ms=13895, bytes=962688, 
+n=4, a=True, e=True, rpm=5000, Periodic, cycles=46, error=0.00010117, dominant=colector y expansión común, W=5142.71013, Mass=-1.0563E-018, U=-3.2685E-013, marker=9.4868E-020, eval=11622152, ms=9733, bytes=909032, 
+PASS límites aislados, redes compartidas, balances, fases, periodicidad y cancelación 2T.
+UNION dx=24.265/24.965 Pa; dt=24.965/25.012 Pa; retorno=24.795 Pa; c=344.55 m/s; arribo=1.2761E-003 s; reversión=7.10330049608067E-05; balances=5.98E-019 kg/7.46E-013 J
+N=1,ms=347,P=9510.61966,W=357.496353
+N=2,shared=False,rpm=4000,status=Converged,cycles=6,periodic=1.2814E-05,W=714.992728,P=19021.2401,fill=0.7512668,mass=1.681E-018,elements=8.826E-019,U=4.320E-012,cells=554432,steps=8663,rejected=0,ms=556,bytes=1269840,detail=
+N=2,shared=True,rpm=4000,status=Converged,cycles=27,periodic=0.000246675,W=640.082574,P=16586.3725,fill=0.6829105,mass=7.003E-018,elements=5.204E-018,U=-4.775E-012,cells=3742752,steps=38987,rejected=0,ms=3569,bytes=1394648,detail=
+N=3,shared=True,rpm=4000,status=Converged,cycles=15,periodic=0.000271382,W=935.011285,P=24062.2053,fill=0.669229,mass=1.735E-018,elements=1.301E-018,U=2.728E-012,cells=2793600,steps=21825,rejected=0,ms=2735,bytes=1940336,detail=
+N=4,shared=True,rpm=4000,status=Converged,cycles=18,periodic=0.000181217,W=1204.17294,P=30698.1293,fill=0.6522822,mass=-5.736E-018,elements=6.722E-018,U=3.865E-012,cells=4170080,steps=26063,rejected=0,ms=4043,bytes=2537640,detail=
+N=3,shared=False,rpm=4000,status=Converged,cycles=6,periodic=9.50748E-06,W=1072.48927,P=28531.9016,fill=0.7512669,mass=3.803E-018,elements=3.638E-018,U=1.023E-012,cells=838080,steps=8730,rejected=0,ms=732,bytes=112552,detail=
+N=4,shared=False,rpm=4000,status=Converged,cycles=6,periodic=1.28077E-05,W=1429.98546,P=38042.4805,fill=0.7512667,mass=7.871E-018,elements=6.489E-018,U=-4.547E-013,cells=1111936,steps=8687,rejected=0,ms=1025,bytes=134752,detail=
+N=2,shared=True,rpm=4000,status=Converged,cycles=20,periodic=0.000270916,W=640.235457,P=16591.3748,fill=0.6830406,mass=-3.161E-018,elements=3.209E-018,U=6.821E-013,cells=2772384,steps=28879,rejected=0,ms=2683,bytes=1377880,detail=
+ESTUDIO casos=5; ms1=13114; ms2=9747
+PASS fases, límite monocilíndrico, 2–4 cilindros, conservación, periodicidad, no convergencia y cancelación.
+PASS Window calculates default RPM sweep
+PASS RPM grid receives results
+PASS Editing removes previous results and disables export
+PASS Decimal comma and geometry affect the physical calculation
+PASS Opening configuration requests recalculation
+PASS Save/open reproduces result
+PASS Fractional RPM rejected visibly without crashing
+PASS Nonfinite editor input rejected
+PASS Failed load preserves current configuration
+PASS Zero heat and single RPM render safely
+PASS 4T UI Inputs disabled during background calculation
+PASS 4T UI 3 RPM simulated off the UI thread
+PASS 4T UI Default model includes species and chemical-energy diagnostics
+PASS 4T UI Reactive heating value is derived, not an independent heat input
+PASS 4T UI Editing invalidates B and preserves immutable A
+PASS 4T UI Stale results cannot be exported
+PASS 4T UI Valve lift changes physical simulation
+PASS 4T UI A/B differences visible at matching RPM
+PASS 4T UI Loaded project reconstructs both curves from saved inputs
+PASS 4T UI Project reload reproduces B and original A
+PASS 4T UI Invalid mechanics rejected visibly
+PASS 4T UI Cancellation preserves input and publishes no partial B
+PASS 4T UI Reference v1 remains selectable while preserving saved original A
+PASS 4T UI Cross-model A/B cannot masquerade as a mechanical gain
+PASS 4T UI Frozen species model supports prescribed reference combustion
+PASS 4T UI 1D project restores duct model and editable geometry
+PASS 4T UI 1D Windows calculation publishes diagnostics
+PASS 4T UI Duct length changes B filling and preserves immutable A
+PASS 4T UI Desktop saves both duct geometries
+PASS 4T UI MUSCL example selects the correct model
+PASS 4T UI Equivalent A/B enables resolution check
+PASS 4T UI Refined A/B preserves original result
+PASS 4T UI Export includes mesh evidence and valve flows
+PASS 4T UI Editing invalidates resolution and B only
+24/24 4T desktop checks passed.
+PASS 4T Desktop · 11/11 RPM, CFL .20, paso .15°, periódico 1e-6 · 108385 ms
+PASS study UI Opens existing 4T and preserves A
+PASS study UI Previews unique cost before running
+PASS study UI Runs outside the UI thread with cancellation
+PASS study UI Shows complete factorial results and objective rank
+PASS study UI Separates sampled rank from comparison at three resolutions
+PASS study UI An unsaved study requires confirmation
+PASS study UI The saved study is safe to replace
+PASS study UI Reloads evaluated curves and exports resolution evidence
+PASS study UI Applying B keeps original A and invalidates stale manual B
+PASS study UI Manually simulates the selected configuration from the study
+PASS study UI Cancellation leaves a safe inspectable state
+11/11 study desktop checks passed.
+PASS audit compatible versioned desktop examples
+PASS audit plot zoom reduces both axes
+PASS audit plot cursor reports a calculated sample, ignoring gaps
+PASS audit plot resets to the original zero-based scale
+PASS audit graph exports a readable PNG
+PASS audit inactive duct parameters cannot block 0D runs
+PASS audit 4T preserves inspected RPM when retaining A
+PASS audit 4T exports trace for the inspected RPM
+PASS audit compact window retains the cancellation control
+AUDIT large_project_bytes=19054900; rpm=80; open_ms=259; working_set_bytes=384634880
+PASS audit reading a large 2T project yields to the WPF dispatcher
+PASS audit large project restores all settings
+PASS audit the large 2T result displays all RPMs
+PASS audit malformed nested project leaves the previous work intact
+PASS audit missing file leaves the previous work intact
+PASS multi Desktop la simulación ejecuta en segundo plano
+PASS multi Desktop muestra una simulación acoplada
+PASS multi Desktop la edición invalida B y conserva A
+PASS multi Desktop A/B y diagnóstico individual en la misma aplicación
+PASS multi Desktop el proyecto recupera configuraciones y curvas
+PASS multi Desktop exporta el ciclo completo por cilindro
+PASS multi Desktop previsualiza el plan de estudio
+PASS multi Desktop estudio real, deduplicación y clasificación
+PASS multi Desktop recupera estudio y curva desde el archivo
+PASS multi Desktop la variante del estudio se aplica a B
+PASS multi Desktop cancelación conserva A y deja B sin resultados
+PASS multi 2T Desktop cálculo de fondo
+PASS multi 2T Desktop motor acoplado, ciclo y barrido
+PASS multi 2T Desktop edición de escape preserva A
+PASS multi 2T Desktop comparación A/B
+PASS multi 2T Desktop guardado y reapertura con contraste
+PASS multi 2T Desktop conserva el contraste histórico del esquema sin presión prescrita
+PASS multi 2T Desktop rechaza un contraste de revisión incompatible
+PASS multi 2T Desktop CSV trazable de ambos cilindros
+PASS multi 2T Desktop plan con tamaño anticipado
+PASS multi 2T Desktop estudio físico y clasificación
+PASS multi 2T Desktop recupera el estudio
+PASS multi 2T Desktop aplica B con A inmutable
+PASS multi 2T Desktop cancelación preserva A
+Desktop smoke checks passed; images in E:\dino2\artifacts\verification
+otto-air-standard-v1: 11 puntos; W=249.87530538485063 J/ciclo; eta=0.6018928294465027; par=19.884445004297937 Nm indicados ideales.
+four-stroke-0d-air-v1: 11 RPM, 728,3 ms. Sin validación experimental.
+1000: Pi=3323.18 W, Pb=2886.38 W, Tb=27.5629 Nm, VE=0.88996, cycles=9, periodic=7.784E-011
+1500: Pi=5439.80 W, Pb=4720.22 W, Tb=30.0498 Nm, VE=0.89282, cycles=7, periodic=4.142E-010
+2000: Pi=7563.22 W, Pb=6532.21 W, Tb=31.1890 Nm, VE=0.88946, cycles=6, periodic=1.426E-009
+2500: Pi=9599.44 W, Pb=8237.01 W, Tb=31.4631 Nm, VE=0.88232, cycles=6, periodic=2.607E-009
+3000: Pi=11466.25 W, Pb=9752.10 W, Tb=31.0419 Nm, VE=0.87239, cycles=6, periodic=4.318E-009
+3500: Pi=13089.94 W, Pb=10999.81 W, Tb=30.0115 Nm, VE=0.85979, cycles=6, periodic=6.839E-009
+4000: Pi=14403.33 W, Pb=11907.44 W, Tb=28.4269 Nm, VE=0.84405, cycles=7, periodic=2.205E-009
+4500: Pi=15341.17 W, Pb=12404.87 W, Tb=26.3240 Nm, VE=0.82414, cycles=6, periodic=1.751E-008
+5000: Pi=15845.02 W, Pb=12429.53 W, Tb=23.7387 Nm, VE=0.79871, cycles=6, periodic=3.216E-008
+5500: Pi=15896.35 W, Pb=11959.28 W, Tb=20.7641 Nm, VE=0.76738, cycles=7, periodic=3.268E-009
+6000: Pi=15541.89 W, Pb=11037.02 W, Tb=17.5660 Nm, VE=0.73158, cycles=7, periodic=6.596E-009
+LEGACY / NO PREDICTIVO · contorno ausente en el archivo histórico.
+4000: Pi=1972.58 W, P=1225.65 W, T=2.9260 Nm, fresh=3.4500E-005 kg, cycles=67, periodic=3.748E-005
+5000: Pi=3116.35 W, P=2067.52 W, T=3.9487 Nm, fresh=4.1472E-005 kg, cycles=51, periodic=2.906E-005
+6000: Pi=2966.38 W, P=1628.61 W, T=2.5920 Nm, fresh=3.3173E-005 kg, cycles=67, periodic=4.481E-005
+two-stroke-reed-expansion-isooctane-v1: 12.614 s.

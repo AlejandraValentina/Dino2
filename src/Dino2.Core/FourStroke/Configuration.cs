@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Dino2.Core.GasDynamics;
 
 namespace Dino2.Core.FourStroke;
 
@@ -16,6 +17,10 @@ public sealed record PoppetValve(double DiameterM, double MaximumLiftM, int Coun
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<ValveLiftPoint>? LiftProfile { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DischargeMap? DischargeMap { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DischargeMap? ReverseDischargeMap { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? LiftProfileSource { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? LiftProfileSha256 { get; init; }
@@ -24,13 +29,19 @@ public sealed record PoppetValve(double DiameterM, double MaximumLiftM, int Coun
         MaximumLiftM == other.MaximumLiftM && Count == other.Count && DischargeCoefficient == other.DischargeCoefficient &&
         OpensDeg == other.OpensDeg && ClosesDeg == other.ClosesDeg &&
         (LiftProfile is null ? other.LiftProfile is null : other.LiftProfile is not null && LiftProfile.SequenceEqual(other.LiftProfile)) &&
-        LiftProfileSource == other.LiftProfileSource && LiftProfileSha256 == other.LiftProfileSha256;
+        LiftProfileSource == other.LiftProfileSource && LiftProfileSha256 == other.LiftProfileSha256 &&
+        (DischargeMap is null ? other.DischargeMap is null : other.DischargeMap is not null &&
+            DischargeMap.Metadata == other.DischargeMap.Metadata && DischargeMap.Points.SequenceEqual(other.DischargeMap.Points)) &&
+        (ReverseDischargeMap is null ? other.ReverseDischargeMap is null : other.ReverseDischargeMap is not null &&
+            ReverseDischargeMap.Metadata == other.ReverseDischargeMap.Metadata && ReverseDischargeMap.Points.SequenceEqual(other.ReverseDischargeMap.Points));
 
     public override int GetHashCode()
     {
         var hash = new HashCode();
         hash.Add(DiameterM); hash.Add(MaximumLiftM); hash.Add(Count); hash.Add(DischargeCoefficient);
         hash.Add(OpensDeg); hash.Add(ClosesDeg); hash.Add(LiftProfileSource); hash.Add(LiftProfileSha256);
+        if (DischargeMap is not null) { hash.Add(DischargeMap.Metadata); foreach (var point in DischargeMap.Points) hash.Add(point); }
+        if (ReverseDischargeMap is not null) { hash.Add(ReverseDischargeMap.Metadata); foreach (var point in ReverseDischargeMap.Points) hash.Add(point); }
         if (LiftProfile is not null) foreach (var point in LiftProfile) hash.Add(point);
         return hash.ToHashCode();
     }

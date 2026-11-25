@@ -1,3 +1,5 @@
+using Dino2.Core.GasDynamics;
+
 namespace Dino2.Core.FourStroke;
 
 public readonly record struct PistonPosition(double VolumeM3, double VolumeDerivativeM3PerDeg, double WettedAreaM2);
@@ -47,9 +49,41 @@ public static class ValveFlow
         return valve.MaximumLiftM * sine * sine;
     }
 
-    public static double EffectiveArea(PoppetValve valve, double degrees) =>
-        valve.DischargeCoefficient * valve.Count * Math.Min(Math.PI * valve.DiameterM * Lift(valve, degrees),
+    public static double GeometricArea(PoppetValve valve, double degrees) =>
+        valve.Count * Math.Min(Math.PI * valve.DiameterM * Lift(valve, degrees),
             Math.PI * valve.DiameterM * valve.DiameterM / 4);
+
+    public static double EffectiveArea(PoppetValve valve, double degrees) => valve.DischargeCoefficient * GeometricArea(valve, degrees);
+
+    public static double EffectiveArea(PoppetValve valve, double degrees, double upstreamPressurePa, double downstreamPressurePa)
+    {
+        return EffectiveArea(valve, degrees, upstreamPressurePa, downstreamPressurePa, true);
+    }
+
+    public static double EffectiveArea(PoppetValve valve, double degrees, double pressure1Pa, double pressure2Pa, bool forward)
+    {
+        double geometric = GeometricArea(valve, degrees);
+        if (pressure1Pa == pressure2Pa) return valve.DischargeCoefficient * geometric;
+        double upstream = Math.Max(pressure1Pa, pressure2Pa), downstream = Math.Min(pressure1Pa, pressure2Pa);
+        DischargeMap? map = forward ? valve.DischargeMap : valve.ReverseDischargeMap;
+        if (map is null && !forward && valve.DischargeMap is { } bidirectional &&
+            string.Equals(bidirectional.Metadata.Direction, "both", StringComparison.OrdinalIgnoreCase)) map = bidirectional;
+        if (map is null)
+        {
+            if (valve.DischargeMap is not null || valve.ReverseDischargeMap is not null)
+                throw new InvalidOperationException("El flujo invirtió dirección, pero no hay un mapa Cd para ese sentido; no se sustituye silenciosamente por el Cd constante.");
+            return valve.DischargeCoefficient * geometric;
+        }
+        if (!string.Equals(map.Metadata.CompatibleModel, "four-stroke-0d-isentropic-nozzle", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(map.Metadata.ReferenceArea, "curtain_area", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(map.Metadata.PressureConvention, "upstream_stagnation_to_downstream_static", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Convención Cd incompatible con el modelo 4T 0D isentrópico.");
+        if (!string.Equals(map.Metadata.Direction, "both", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(map.Metadata.Direction, forward ? "forward" : "reverse", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("El mapa Cd no declara el sentido de flujo solicitado.");
+        double opening = valve.MaximumLiftM <= 0 ? 0 : Lift(valve, degrees) / valve.MaximumLiftM;
+        return map.Evaluate(opening, downstream / upstream) * geometric;
+    }
 
     // Positive from side 1 to side 2; upstream reservoir/cylinder treated as stagnation state.
     // Local gamma approximation for the nozzle; the cylinder uses temperature-dependent energy.

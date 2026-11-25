@@ -1,12 +1,17 @@
 using Dino2.Core.FourStroke;
 using Dino2.Core.Thermochemistry;
+using System.Text.Json.Serialization;
 
 namespace Dino2.Core.TwoStroke;
 
 public readonly record struct TwoStrokeSample(double AngleDeg, double CylinderPressurePa, double CylinderTemperatureK,
     double CrankcasePressurePa, double CrankcaseTemperatureK, double ReedKgPerS, double TransferKgPerS,
     double ExhaustOutKgPerS, double CylinderVolumeM3, double CrankcaseVolumeM3, double FreshCylinderKg,
-    double CylinderMassKg, double IntakeValvePressurePa, double ExhaustPortPressurePa);
+    double CylinderMassKg, double IntakeValvePressurePa, double ExhaustPortPressurePa)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public double ReedLiftM { get; init; }
+}
 
 public sealed record TwoStrokeBalance(double MassKg, SpeciesMasses SpeciesKg, double CarbonKg, double HydrogenKg,
     double OxygenKg, double NitrogenKg, double EnergyJ, double FreshMarkerKg);

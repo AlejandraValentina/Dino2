@@ -50,7 +50,10 @@ public sealed partial class TwoStrokeSimulator
                         nextSample = angle + 1;
                     }
 
-                    double h = Math.Min(end - angle, Math.Min(c.Numerics.MaximumStepDeg, .98 * limit));
+                    double mechanicalStep = c.Reed.DynamicLeaf is { } leaf
+                        ? dps / (20 * leaf.NaturalFrequencyHz) : double.PositiveInfinity;
+                    double h = Math.Min(end - angle, Math.Min(mechanicalStep,
+                        Math.Min(c.Numerics.MaximumStepDeg, .98 * limit)));
                     TwoStrokeSample last;
                     string? cause = null;
                     ModelDomainException? interfaceDomain = null;
@@ -68,6 +71,7 @@ public sealed partial class TwoStrokeSimulator
                             if (h <= stageLimit)
                             {
                                 for (int i = 0; i < dimension; i++) candidate[i] = state[i] + h * .5 * (k1[i] + k2[i]);
+                                ProjectReedContact(candidate);
                                 ValidateAccepted(angle + h, candidate);
                                 break;
                             }

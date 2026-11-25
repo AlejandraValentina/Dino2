@@ -1,0 +1,24 @@
+{
+  "Rpm": 4000,
+  "BrakePowerW": {
+    "Coarse": 19.119785698650958,
+    "Medium": 20.142324814814856,
+    "Fine": 20.86401525524343,
+    "ObservedEnvelope": 2.0450782323277963,
+    "AboveObservedVariation": true
+  },
+  "BrakeTorqueNm": {
+    "Coarse": 0.04564512607197102,
+    "Medium": 0.0480862583946049,
+    "Fine": 0.04980916740925423,
+    "ObservedEnvelope": 0.004882264645267753,
+    "AboveObservedVariation": true
+  },
+  "Filling": {
+    "Coarse": 0.0015002286537810772,
+    "Medium": 0.0015676863459271884,
+    "Fine": 0.0016157597157367976,
+    "ObservedEnvelope": 0.00013491538429222238,
+    "AboveObservedVariation": true
+  }
+}

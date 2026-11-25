@@ -1,0 +1,120 @@
+PASS Window calculates default RPM sweep
+PASS RPM grid receives results
+PASS Editing removes previous results and disables export
+PASS Decimal comma and geometry affect the physical calculation
+PASS Opening configuration requests recalculation
+PASS Save/open reproduces result
+PASS Fractional RPM rejected visibly without crashing
+PASS Nonfinite editor input rejected
+PASS Failed load preserves current configuration
+PASS Zero heat and single RPM render safely
+PASS 4T UI Inputs disabled during background calculation
+PASS 4T UI 3 RPM simulated off the UI thread
+PASS 4T UI Default model includes species and chemical-energy diagnostics
+PASS 4T UI Reactive heating value is derived, not an independent heat input
+PASS 4T UI Editing invalidates B and preserves immutable A
+PASS 4T UI Stale results cannot be exported
+PASS 4T UI Valve lift changes physical simulation
+PASS 4T UI A/B differences visible at matching RPM
+PASS 4T UI Loaded project reconstructs both curves from saved inputs
+PASS 4T UI Project reload reproduces B and original A
+PASS 4T UI Invalid mechanics rejected visibly
+PASS 4T UI Cancellation preserves input and publishes no partial B
+PASS 4T UI Reference v1 remains selectable while preserving saved original A
+PASS 4T UI Cross-model A/B cannot masquerade as a mechanical gain
+PASS 4T UI Frozen species model supports prescribed reference combustion
+PASS 4T UI 1D project restores duct model and editable geometry
+PASS 4T UI 1D Windows calculation publishes diagnostics
+PASS 4T UI Duct length changes B filling and preserves immutable A
+PASS 4T UI Desktop saves both duct geometries
+PASS 4T UI MUSCL example selects the correct model
+PASS 4T UI Equivalent A/B enables resolution check
+PASS 4T UI Refined A/B preserves original result
+PASS 4T UI Export includes mesh evidence and valve flows
+PASS 4T UI Editing invalidates resolution and B only
+24/24 4T desktop checks passed.
+PASS 4T Desktop · 11/11 RPM, CFL .20, paso .15°, periódico 1e-6 · 105265 ms
+PASS study UI Opens existing 4T and preserves A
+PASS study UI Previews unique cost before running
+PASS study UI Runs outside the UI thread with cancellation
+PASS study UI Shows complete factorial results and objective rank
+PASS study UI Separates sampled rank from comparison at three resolutions
+PASS study UI An unsaved study requires confirmation
+PASS study UI The saved study is safe to replace
+PASS study UI Reloads evaluated curves and exports resolution evidence
+PASS study UI Applying B keeps original A and invalidates stale manual B
+PASS study UI Manually simulates the selected configuration from the study
+PASS study UI Cancellation leaves a safe inspectable state
+11/11 study desktop checks passed.
+PASS audit compatible versioned desktop examples
+PASS audit plot zoom reduces both axes
+PASS audit plot cursor reports a calculated sample, ignoring gaps
+PASS audit plot resets to the original zero-based scale
+PASS audit graph exports a readable PNG
+PASS audit inactive duct parameters cannot block 0D runs
+PASS audit 4T preserves inspected RPM when retaining A
+PASS audit 4T exports trace for the inspected RPM
+PASS audit compact window retains the cancellation control
+AUDIT large_project_bytes=19054900; rpm=80; open_ms=264; working_set_bytes=433319936
+PASS audit reading a large 2T project yields to the WPF dispatcher
+PASS audit large project restores all settings
+PASS audit the large 2T result displays all RPMs
+PASS audit malformed nested project leaves the previous work intact
+PASS audit missing file leaves the previous work intact
+PASS multi Desktop la simulación ejecuta en segundo plano
+PASS multi Desktop muestra una simulación acoplada
+PASS multi Desktop la edición invalida B y conserva A
+PASS multi Desktop A/B y diagnóstico individual en la misma aplicación
+PASS multi Desktop el proyecto recupera configuraciones y curvas
+PASS multi Desktop exporta el ciclo completo por cilindro
+PASS multi Desktop previsualiza el plan de estudio
+PASS multi Desktop estudio real, deduplicación y clasificación
+PASS multi Desktop recupera estudio y curva desde el archivo
+PASS multi Desktop la variante del estudio se aplica a B
+PASS multi Desktop cancelación conserva A y deja B sin resultados
+PASS multi 2T Desktop cálculo de fondo
+PASS multi 2T Desktop motor acoplado, ciclo y barrido
+PASS multi 2T Desktop edición de escape preserva A
+PASS multi 2T Desktop comparación A/B
+PASS multi 2T Desktop guardado y reapertura con contraste
+PASS multi 2T Desktop conserva el contraste histórico del esquema sin presión prescrita
+PASS multi 2T Desktop rechaza un contraste de revisión incompatible
+PASS multi 2T Desktop CSV trazable de ambos cilindros
+PASS multi 2T Desktop plan con tamaño anticipado
+PASS multi 2T Desktop estudio físico y clasificación
+PASS multi 2T Desktop recupera el estudio
+PASS multi 2T Desktop aplica B con A inmutable
+PASS multi 2T Desktop cancelación preserva A
+PASS shell inicia con el 4T alojado en la ventana única
+PASS shell los controles alojados se muestran y los diálogos pertenecen al shell
+PASS shell el título del shell refleja el simulador activo
+PASS shell la edición marca el motor con cambios sin guardar
+PASS shell F5 disponible con el foco en el panel lateral
+PASS shell el atajo inicia el cálculo y el indicador enlazado por nombre lo muestra
+PASS shell el cálculo alojado termina y publica resultados
+PASS shell navega a Motor 2T
+PASS shell navega a Multicilíndrico 4T
+PASS shell navega a Multicilíndrico 2T
+PASS shell navega a Otto ideal
+PASS shell volver al 4T conserva configuración y resultados
+PASS shell el panel lateral se reduce a íconos en ventanas angostas
+PASS shell el cierre consulta cada simulador y termina
+PASS ui los pasos de marca son 1, 2 o 5 por potencia de diez
+PASS ui las marcas caen en múltiplos del paso dentro de la vista
+PASS ui las etiquetas usan los decimales del paso y no agregan separadores de miles
+PASS ui el eje vertical empieza en cero y termina en un valor redondo
+PASS ui un número mal escrito se marca al escribirlo
+PASS ui la coma decimal se acepta y limpia la marca
+PASS ui las RPM exigen enteros
+PASS ui un campo deshabilitado no se marca
+PASS ui sin campos inválidos tras corregir
+PASS ui el selector dividido representa el modelo 0
+PASS ui el selector dividido representa el modelo 1
+PASS ui el selector dividido representa el modelo 2
+PASS ui el selector dividido representa el modelo 3
+PASS ui el selector dividido representa el modelo 4
+PASS ui el selector dividido representa el modelo 5
+PASS ui el selector dividido representa el modelo 6
+PASS ui el selector dividido representa el modelo 7
+PASS ui el selector dividido representa el modelo 8
+Desktop smoke checks passed; images in E:\dino2-desktop\artifacts\verification

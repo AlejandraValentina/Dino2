@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Dino2.Core.FourStroke;
 using Dino2.Core.Numerics;
+using Dino2.Core.GasDynamics;
 using Dino2.Storage;
 
 if (args is ["--recovery"])
@@ -47,6 +48,7 @@ Test("Physical reservoir boundaries, quarter-wave and distributed wall sources",
 Test("Compact aperture choking, shock and dynamic plenum acoustics", CouplingChecks.Run);
 Test("Variable-property jumps, local transfer and port domain (C13-01 to C13-03)", Interface14BChecks.Run);
 Test("Certified port closure, regimes, predictor and generated states", () => Interface14CChecks.Run());
+Test("Cd map resolves against the accepted ports-v4 mixed state", () => Interface15BChecks.Run());
 void Assert(bool value, string message) { if (!value) throw new Exception(message); }
 void Near(double value, double expected, double tolerance = 1e-8) =>
     Assert(double.IsFinite(value) && Math.Abs(value - expected) <= tolerance, $"Expected {expected:R}, got {value:R}");
@@ -82,6 +84,52 @@ Test("Valve lift periodicity and curtain/throat geometry", () =>
     Near(ValveFlow.Lift(v, (v.OpensDeg + v.ClosesDeg) / 2), v.MaximumLiftM);
     Near(ValveFlow.Lift(v, 0), ValveFlow.Lift(v, 720));
     Assert(ValveFlow.EffectiveArea(v, 100) <= v.DischargeCoefficient * v.Count * Math.PI * v.DiameterM * v.DiameterM / 4, "Throat exceeded");
+});
+Test("Discharge map bilinear reference, bounded domain, valve coupling and CSV metadata", () =>
+{
+    var metadata = new DischargeMapMetadata("curtain_area", "upstream_stagnation_to_downstream_static", "both",
+        "opening_fraction,pressure_ratio,dimensionless", "synthetic analytic fixture", "four-stroke-0d-isentropic-nozzle", "synthetic");
+    var map = new DischargeMap(metadata, new DischargeMapPoint[]
+    {
+        new(0, .5, .2), new(0, 1, .4), new(1, .5, .6), new(1, 1, .8)
+    });
+    Near(map.Evaluate(0, .5), .2); Near(map.Evaluate(1, 1), .8);
+    Near(map.Evaluate(.5, .75), .5);
+    var constant = new DischargeMap(metadata, new DischargeMapPoint[]
+    { new(0,.2,.73), new(0,1,.73), new(1,.2,.73), new(1,1,.73) });
+    var historicalArea = ValveFlow.EffectiveArea(c.IntakeValve, 100);
+    var mappedValve = c.IntakeValve with { DischargeMap = constant };
+    double mappedArea = ValveFlow.EffectiveArea(mappedValve, 100, 100000, 40000);
+    Near(mappedArea, historicalArea * .73 / c.IntakeValve.DischargeCoefficient, Math.Abs(mappedArea) * 1e-12);
+    Near(ValveFlow.MassRate(mappedArea, 100000, 300, 40000, 300),
+        ValveFlow.MassRate(historicalArea * .73 / c.IntakeValve.DischargeCoefficient, 100000, 300, 40000, 300), 1e-15);
+    var v = c.IntakeValve with { DischargeMap = map };
+    Near(ValveFlow.EffectiveArea(v, (v.OpensDeg + v.ClosesDeg) / 2, 100000, 75000),
+        .7 * v.Count * Math.Min(Math.PI * v.DiameterM * v.MaximumLiftM, Math.PI * v.DiameterM * v.DiameterM / 4));
+    Assert(v == v with { DischargeMap = new DischargeMap(metadata, map.Points) }, "Map structural equality failed");
+    try { map.Evaluate(1.01, .75); throw new Exception("Opening extrapolation accepted"); }
+    catch (ArgumentOutOfRangeException) { }
+    try { map.Evaluate(.5, .49); throw new Exception("Pressure-ratio extrapolation accepted"); }
+    catch (ArgumentOutOfRangeException) { }
+    try { _ = new DischargeMap(metadata, new DischargeMapPoint[] { new(0,.5,.2), new(1,.5,.6), new(1,1,.8) });
+        throw new Exception("Incomplete grid accepted"); }
+    catch (ArgumentException) { }
+    try { _ = new DischargeMap(metadata, new DischargeMapPoint[]
+        { new(0,.5,.2), new(0,.5,.3), new(1,.5,.6), new(1,1,.8) });
+        throw new Exception("Duplicate map coordinate accepted"); }
+    catch (ArgumentException) { }
+    string csv = Path.Combine(Path.GetTempPath(), "dino2-cd-" + Guid.NewGuid().ToString("N") + ".csv");
+    try
+    {
+        File.WriteAllText(csv, "# reference_area=curtain_area\n# pressure_convention=upstream_stagnation_to_downstream_static\n# direction=both\n# units=opening_fraction,pressure_ratio,dimensionless\n# source=synthetic analytic fixture\n# compatible_model=four-stroke-0d-isentropic-nozzle\n# data_kind=synthetic\nopening_fraction,pressure_ratio,cd\n0,.5,.2\n0,1,.4\n1,.5,.6\n1,1,.8\n");
+        var imported = DischargeMapFile.Load(csv);
+        Near(imported.Map.Evaluate(.5,.75), .5);
+        Assert(imported.Sha256.Length == 64 && imported.Map.Metadata.DataKind == "synthetic", "CSV provenance missing");
+        var restored = System.Text.Json.JsonSerializer.Deserialize<DischargeMap>(System.Text.Json.JsonSerializer.Serialize(imported.Map))!;
+        Near(restored.Evaluate(.5,.75), .5);
+        Assert(restored.Metadata.DataSha256 == imported.Sha256, "map persistence lost source hash");
+    }
+    finally { File.Delete(csv); }
 });
 Test("Measured crank-angle lift profile interpolation, periodicity and geometric area", () =>
 {

@@ -1,0 +1,12 @@
+# reference_area=curtain_area
+# pressure_convention=upstream_stagnation_to_downstream_static
+# direction=both
+# units=opening_fraction,pressure_ratio,dimensionless
+# source=synthetic bilinear verification fixture; no engine measurement
+# compatible_model=0d-isentropic-nozzle
+# data_kind=synthetic
+opening_fraction,pressure_ratio,cd
+0,0.5,0.2
+0,1,0.4
+1,0.5,0.6
+1,1,0.8

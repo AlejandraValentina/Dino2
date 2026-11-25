@@ -1,0 +1,641 @@
+{
+  "schemaVersion": 2,
+  "solverModel": "four-stroke-isooctane-equilibrium-v3",
+  "study": {
+    "run": {
+      "definition": {
+        "base": {
+          "geometry": {
+            "boreM": 0.08,
+            "strokeM": 0.08,
+            "rodLengthM": 0.135,
+            "compressionRatio": 10
+          },
+          "intake": {
+            "pressurePa": 100000,
+            "temperatureK": 320
+          },
+          "exhaust": {
+            "pressurePa": 105000,
+            "temperatureK": 800
+          },
+          "intakeValve": {
+            "diameterM": 0.032,
+            "maximumLiftM": 0.008,
+            "count": 1,
+            "dischargeCoefficient": 0.7,
+            "opensDeg": -10,
+            "closesDeg": 220
+          },
+          "exhaustValve": {
+            "diameterM": 0.028,
+            "maximumLiftM": 0.007,
+            "count": 1,
+            "dischargeCoefficient": 0.7,
+            "opensDeg": 500,
+            "closesDeg": 730
+          },
+          "combustion": {
+            "sparkAdvanceDeg": 20,
+            "ignitionDelayS": 0.0003,
+            "durationS": 0.002,
+            "airFuelRatio": 15.033440717137054,
+            "lowerHeatingValueJPerKg": 44650141.231121376,
+            "heatReleaseEfficiency": 0.98,
+            "wiebeExponent": 2,
+            "durationDeg": null
+          },
+          "thermal": {
+            "wallTemperatureK": 450,
+            "hohenbergMultiplier": 1
+          },
+          "friction": {
+            "constantPa": 50000,
+            "peakPressureFactor": 0.006,
+            "speedPaPerMPerS": 9000,
+            "speedSquaredPaPerM2PerS2": 45
+          },
+          "speeds": {
+            "start": 2500,
+            "end": 3500,
+            "step": 500
+          },
+          "solver": {
+            "maximumStepDeg": 0.5,
+            "relativeTolerance": 2E-07,
+            "periodicTolerance": 1E-06,
+            "maximumCycles": 60
+          },
+          "thermochemistry": {
+            "burnLaw": "ConditionScaledWiebe",
+            "referenceTemperatureK": 650,
+            "referencePressurePa": 2000000,
+            "referenceResidualFraction": 0.05,
+            "referenceMeanPistonSpeedMPerS": 8,
+            "referenceBoreM": 0.08,
+            "turbulenceToPistonSpeed": 0.3,
+            "combustionEvidence": {
+              "status": "Estimated",
+              "source": "Metghalchi-Keck 1982 \u002B duraci\u00F3n de referencia y turbulencia asumidas",
+              "calibrationDataset": "",
+              "applicableRange": "Iso-octano; phi 0.8\u20131; sin validaci\u00F3n de motor"
+            },
+            "heatTransferEvidence": {
+              "status": "Estimated",
+              "source": "Hohenberg 1979; multiplicador transferido, no calibrado",
+              "calibrationDataset": "",
+              "applicableRange": "Correlaci\u00F3n de otro tipo de motor; sin rango validado propio"
+            },
+            "frictionEvidence": {
+              "status": "Estimated",
+              "source": "Chen-Flynn; coeficientes transferidos MVM2012-026; D con incertidumbre dimensional de origen",
+              "calibrationDataset": "",
+              "applicableRange": "Sin ensayos de fricci\u00F3n del motor objetivo"
+            },
+            "referenceEquivalenceRatio": 1,
+            "products": "ClosedCycleEquilibrium"
+          },
+          "ducts": null
+        },
+        "axes": [
+          {
+            "parameter": "Spark",
+            "start": 15,
+            "end": 25,
+            "increment": 5
+          },
+          {
+            "parameter": "Compression",
+            "start": 9,
+            "end": 10,
+            "increment": 1
+          }
+        ],
+        "speeds": {
+          "start": 2500,
+          "end": 3500,
+          "step": 500
+        },
+        "objective": {
+          "kind": "MeanPower",
+          "band": {
+            "start": 2500,
+            "end": 3500
+          },
+          "lowBand": null,
+          "allowedLowLossNm": 0
+        }
+      },
+      "evaluations": [
+        {
+          "id": 0,
+          "status": "Completed",
+          "points": [
+            {
+              "rpm": 2500,
+              "indicatedPowerW": 9982.992029937906,
+              "brakePowerW": 8659.46480747793,
+              "brakeTorqueNm": 33.076719087370094,
+              "volumetricEfficiency": 0.930315710270898,
+              "fuelMassKgPerCycle": 2.6981759853438452E-05,
+              "netWorkJ": 479.1836174370195,
+              "peakPressurePa": 7664070.804732268,
+              "peakTemperatureK": 2785.412962935831,
+              "cycles": 6,
+              "periodicError": 8.017020553651936E-08,
+              "massResidualKg": -2.4591340318529044E-19,
+              "energyResidualJ": 1.1368683772161603E-13,
+              "speciesResidualKg": 2.536135758087583E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": false
+            },
+            {
+              "rpm": 3000,
+              "indicatedPowerW": 11815.905327117764,
+              "brakePowerW": 10117.633356190596,
+              "brakeTorqueNm": 32.20542722058352,
+              "volumetricEfficiency": 0.9198032093902261,
+              "fuelMassKgPerCycle": 2.667631971449603E-05,
+              "netWorkJ": 472.63621308471056,
+              "peakPressurePa": 7341706.134111918,
+              "peakTemperatureK": 2766.6782266553014,
+              "cycles": 6,
+              "periodicError": 9.632525629799298E-09,
+              "massResidualKg": -5.6263274302208406E-21,
+              "energyResidualJ": 1.9326762412674725E-12,
+              "speciesResidualKg": 8.773346410436491E-20,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": true
+            },
+            {
+              "rpm": 3500,
+              "indicatedPowerW": 13477.087046967114,
+              "brakePowerW": 11365.79286843145,
+              "brakeTorqueNm": 31.01009343719104,
+              "volumetricEfficiency": 0.906056093986671,
+              "fuelMassKgPerCycle": 2.6276978561472292E-05,
+              "netWorkJ": 462.0715558960153,
+              "peakPressurePa": 7015378.407895245,
+              "peakTemperatureK": 2749.2287032062764,
+              "cycles": 6,
+              "periodicError": 1.3073008306327263E-08,
+              "massResidualKg": 1.506977285488654E-19,
+              "energyResidualJ": -2.2737367544323206E-12,
+              "speciesResidualKg": 7.156435787563774E-20,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": true
+            }
+          ],
+          "error": null,
+          "milliseconds": 413.9968
+        },
+        {
+          "id": 1,
+          "status": "Completed",
+          "points": [
+            {
+              "rpm": 2500,
+              "indicatedPowerW": 9740.552383194563,
+              "brakePowerW": 8486.084053799037,
+              "brakeTorqueNm": 32.41445339173023,
+              "volumetricEfficiency": 0.930350002624387,
+              "fuelMassKgPerCycle": 2.6982710302835318E-05,
+              "netWorkJ": 467.546514393339,
+              "peakPressurePa": 6290187.780274585,
+              "peakTemperatureK": 2734.241487451155,
+              "cycles": 6,
+              "periodicError": 1.2164400738680581E-08,
+              "massResidualKg": -2.2901818747510656E-19,
+              "energyResidualJ": 1.1937117960769683E-12,
+              "speciesResidualKg": 3.855521922334164E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": true
+            },
+            {
+              "rpm": 3000,
+              "indicatedPowerW": 11450.376059008828,
+              "brakePowerW": 9834.073705629278,
+              "brakeTorqueNm": 31.302828819618643,
+              "volumetricEfficiency": 0.9196119509031623,
+              "fuelMassKgPerCycle": 2.6670749546639332E-05,
+              "netWorkJ": 458.0150423603531,
+              "peakPressurePa": 5982761.361606116,
+              "peakTemperatureK": 2717.007819284405,
+              "cycles": 6,
+              "periodicError": 1.586641588902961E-08,
+              "massResidualKg": 3.6787591122982934E-19,
+              "energyResidualJ": 1.9326762412674725E-12,
+              "speciesResidualKg": 2.9455901613013316E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": true
+            },
+            {
+              "rpm": 3500,
+              "indicatedPowerW": 12980.84229117312,
+              "brakePowerW": 10963.140135863656,
+              "brakeTorqueNm": 29.911507618831784,
+              "volumetricEfficiency": 0.9056326648003358,
+              "fuelMassKgPerCycle": 2.6264704950967285E-05,
+              "netWorkJ": 445.05744998307836,
+              "peakPressurePa": 5685411.164107624,
+              "peakTemperatureK": 2701.456336102378,
+              "cycles": 6,
+              "periodicError": 2.02281607034449E-08,
+              "massResidualKg": 2.2901022586171074E-19,
+              "energyResidualJ": 2.8421709430404007E-12,
+              "speciesResidualKg": 2.7619229780900573E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": true
+            }
+          ],
+          "error": null,
+          "milliseconds": 418.3161
+        },
+        {
+          "id": 2,
+          "status": "Completed",
+          "points": [
+            {
+              "rpm": 2500,
+              "indicatedPowerW": 10061.938270297467,
+              "brakePowerW": 8770.577081041174,
+              "brakeTorqueNm": 33.50113670918855,
+              "volumetricEfficiency": 0.9304237030715088,
+              "fuelMassKgPerCycle": 2.6984929223863638E-05,
+              "netWorkJ": 482.97303697427844,
+              "peakPressurePa": 7024147.9067293005,
+              "peakTemperatureK": 2742.5619461998804,
+              "cycles": 6,
+              "periodicError": 5.735164050760791E-09,
+              "massResidualKg": 3.514215569367421E-19,
+              "energyResidualJ": 7.389644451905042E-13,
+              "speciesResidualKg": 1.958879495811327E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": true
+            },
+            {
+              "rpm": 3000,
+              "indicatedPowerW": 11840.864934287114,
+              "brakePowerW": 10183.702784961662,
+              "brakeTorqueNm": 32.41573274410699,
+              "volumetricEfficiency": 0.9199682498676277,
+              "fuelMassKgPerCycle": 2.6681162415681924E-05,
+              "netWorkJ": 473.6345973714845,
+              "peakPressurePa": 6660161.205201576,
+              "peakTemperatureK": 2723.746000070622,
+              "cycles": 6,
+              "periodicError": 8.49411475275805E-09,
+              "massResidualKg": 1.0203014361900174E-20,
+              "energyResidualJ": 2.1600499167107046E-12,
+              "speciesResidualKg": 1.998203662132098E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": true
+            },
+            {
+              "rpm": 3500,
+              "indicatedPowerW": 13436.662885335003,
+              "brakePowerW": 11374.81444996672,
+              "brakeTorqueNm": 31.034707653691235,
+              "volumetricEfficiency": 0.9062905497058732,
+              "fuelMassKgPerCycle": 2.628385743210558E-05,
+              "netWorkJ": 460.68558464005724,
+              "peakPressurePa": 6312741.404329082,
+              "peakTemperatureK": 2707.0488323167333,
+              "cycles": 6,
+              "periodicError": 1.5174138845078417E-08,
+              "massResidualKg": 3.676619816439078E-19,
+              "energyResidualJ": -7.389644451905042E-13,
+              "speciesResidualKg": 1.568764575319068E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": true
+            }
+          ],
+          "error": null,
+          "milliseconds": 423.6913
+        },
+        {
+          "id": 3,
+          "status": "Completed",
+          "points": [
+            {
+              "rpm": 2500,
+              "indicatedPowerW": 9675.481381321038,
+              "brakePowerW": 8394.200921405436,
+              "brakeTorqueNm": 32.063485678757225,
+              "volumetricEfficiency": 0.9302476619250659,
+              "fuelMassKgPerCycle": 2.6979706147228954E-05,
+              "netWorkJ": 464.42310630340984,
+              "peakPressurePa": 6823598.168661471,
+              "peakTemperatureK": 2773.538582384304,
+              "cycles": 6,
+              "periodicError": 1.2196479080667114E-08,
+              "massResidualKg": 2.336598597836596E-19,
+              "energyResidualJ": -1.0800249583553523E-12,
+              "speciesResidualKg": 2.1729869255645526E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": false
+            },
+            {
+              "rpm": 3000,
+              "indicatedPowerW": 11435.769195034289,
+              "brakePowerW": 9785.263716244883,
+              "brakeTorqueNm": 31.147461797962848,
+              "volumetricEfficiency": 0.9194562290912905,
+              "fuelMassKgPerCycle": 2.6666180057278642E-05,
+              "netWorkJ": 457.43076780137153,
+              "peakPressurePa": 6549802.661415574,
+              "peakTemperatureK": 2756.433518701978,
+              "cycles": 6,
+              "periodicError": 1.724849898089041E-08,
+              "massResidualKg": -1.505920303762176E-19,
+              "energyResidualJ": 1.1368683772161603E-12,
+              "speciesResidualKg": 2.1577502586813259E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": false
+            },
+            {
+              "rpm": 3500,
+              "indicatedPowerW": 13027.040546900014,
+              "brakePowerW": 10968.081813045888,
+              "brakeTorqueNm": 29.924990344844066,
+              "volumetricEfficiency": 0.9054113375909133,
+              "fuelMassKgPerCycle": 2.625821198521682E-05,
+              "netWorkJ": 446.64139017942904,
+              "peakPressurePa": 6271677.986468532,
+              "peakTemperatureK": 2740.4293609141646,
+              "cycles": 6,
+              "periodicError": 2.4676111392610046E-08,
+              "massResidualKg": 2.531443576062876E-19,
+              "energyResidualJ": -1.5347723092418164E-12,
+              "speciesResidualKg": 8.830649347371102E-20,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": true
+            }
+          ],
+          "error": null,
+          "milliseconds": 422.2552
+        },
+        {
+          "id": 4,
+          "status": "Completed",
+          "points": [
+            {
+              "rpm": 2500,
+              "indicatedPowerW": 9982.992029937906,
+              "brakePowerW": 8659.46480747793,
+              "brakeTorqueNm": 33.076719087370094,
+              "volumetricEfficiency": 0.930315710270898,
+              "fuelMassKgPerCycle": 2.6981759853438452E-05,
+              "netWorkJ": 479.1836174370195,
+              "peakPressurePa": 7664070.804732268,
+              "peakTemperatureK": 2785.412962935831,
+              "cycles": 6,
+              "periodicError": 8.017020553651936E-08,
+              "massResidualKg": -2.4591340318529044E-19,
+              "energyResidualJ": 1.1368683772161603E-13,
+              "speciesResidualKg": 2.536135758087583E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": false
+            },
+            {
+              "rpm": 3000,
+              "indicatedPowerW": 11815.905327117764,
+              "brakePowerW": 10117.633356190596,
+              "brakeTorqueNm": 32.20542722058352,
+              "volumetricEfficiency": 0.9198032093902261,
+              "fuelMassKgPerCycle": 2.667631971449603E-05,
+              "netWorkJ": 472.63621308471056,
+              "peakPressurePa": 7341706.134111918,
+              "peakTemperatureK": 2766.6782266553014,
+              "cycles": 6,
+              "periodicError": 9.632525629799298E-09,
+              "massResidualKg": -5.6263274302208406E-21,
+              "energyResidualJ": 1.9326762412674725E-12,
+              "speciesResidualKg": 8.773346410436491E-20,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": true
+            },
+            {
+              "rpm": 3500,
+              "indicatedPowerW": 13477.087046967114,
+              "brakePowerW": 11365.79286843145,
+              "brakeTorqueNm": 31.01009343719104,
+              "volumetricEfficiency": 0.906056093986671,
+              "fuelMassKgPerCycle": 2.6276978561472292E-05,
+              "netWorkJ": 462.0715558960153,
+              "peakPressurePa": 7015378.407895245,
+              "peakTemperatureK": 2749.2287032062764,
+              "cycles": 6,
+              "periodicError": 1.3073008306327263E-08,
+              "massResidualKg": 1.506977285488654E-19,
+              "energyResidualJ": -2.2737367544323206E-12,
+              "speciesResidualKg": 7.156435787563774E-20,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": true
+            }
+          ],
+          "error": null,
+          "milliseconds": 0
+        },
+        {
+          "id": 5,
+          "status": "Completed",
+          "points": [
+            {
+              "rpm": 2500,
+              "indicatedPowerW": 9472.995952721627,
+              "brakePowerW": 8171.343565310554,
+              "brakeTorqueNm": 31.212233282911836,
+              "volumetricEfficiency": 0.9302012272683431,
+              "fuelMassKgPerCycle": 2.6978343227296897E-05,
+              "netWorkJ": 454.70380573063807,
+              "peakPressurePa": 7228884.788813192,
+              "peakTemperatureK": 2814.5631568581443,
+              "cycles": 6,
+              "periodicError": 1.3014701398401776E-07,
+              "massResidualKg": 3.950146731519285E-20,
+              "energyResidualJ": -3.979039320256561E-13,
+              "speciesResidualKg": 8.642713912199054E-20,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": false
+            },
+            {
+              "rpm": 3000,
+              "indicatedPowerW": 11255.974091547581,
+              "brakePowerW": 9577.87239846067,
+              "brakeTorqueNm": 30.487314730368862,
+              "volumetricEfficiency": 0.919374967537609,
+              "fuelMassKgPerCycle": 2.6663795526478976E-05,
+              "netWorkJ": 450.23896366190326,
+              "peakPressurePa": 7007310.361006302,
+              "peakTemperatureK": 2798.4481811335804,
+              "cycles": 6,
+              "periodicError": 1.8762568151430494E-08,
+              "massResidualKg": -6.622136565461046E-20,
+              "energyResidualJ": -1.1937117960769683E-12,
+              "speciesResidualKg": 6.285249166422925E-20,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": false
+            },
+            {
+              "rpm": 3500,
+              "indicatedPowerW": 12882.60697613689,
+              "brakePowerW": 10788.818531910105,
+              "brakeTorqueNm": 29.43589370528466,
+              "volumetricEfficiency": 0.905283788193285,
+              "fuelMassKgPerCycle": 2.6254470013556476E-05,
+              "netWorkJ": 441.68938203897915,
+              "peakPressurePa": 6766617.323278195,
+              "peakTemperatureK": 2783.1226936065045,
+              "cycles": 6,
+              "periodicError": 8.599753828256335E-08,
+              "massResidualKg": 3.0026816501918587E-19,
+              "energyResidualJ": 1.9895196601282805E-12,
+              "speciesResidualKg": 1.7794474773363242E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": false
+            }
+          ],
+          "error": null,
+          "milliseconds": 423.07
+        },
+        {
+          "id": 6,
+          "status": "Completed",
+          "points": [
+            {
+              "rpm": 2500,
+              "indicatedPowerW": 9755.25803358678,
+              "brakePowerW": 8407.3840660606,
+              "brakeTorqueNm": 32.11384158205398,
+              "volumetricEfficiency": 0.9302694188878831,
+              "fuelMassKgPerCycle": 2.6980401236124515E-05,
+              "netWorkJ": 468.2523856121655,
+              "peakPressurePa": 8148433.907917888,
+              "peakTemperatureK": 2830.306432829329,
+              "cycles": 6,
+              "periodicError": 6.7375793788292705E-09,
+              "massResidualKg": 4.7945779372531645E-20,
+              "energyResidualJ": 1.1937117960769683E-12,
+              "speciesResidualKg": 1.7520098964179403E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": false
+            },
+            {
+              "rpm": 3000,
+              "indicatedPowerW": 11611.661489466696,
+              "brakePowerW": 9880.299976443528,
+              "brakeTorqueNm": 31.449971609634492,
+              "volumetricEfficiency": 0.9197197935195942,
+              "fuelMassKgPerCycle": 2.667387196851238E-05,
+              "netWorkJ": 464.46645957866787,
+              "peakPressurePa": 7890285.737156259,
+              "peakTemperatureK": 2812.69678821732,
+              "cycles": 6,
+              "periodicError": 9.848353358797678E-08,
+              "massResidualKg": 2.556057369165157E-19,
+              "energyResidualJ": -1.3073986337985843E-12,
+              "speciesResidualKg": 1.5011342884367325E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": false
+            },
+            {
+              "rpm": 3500,
+              "indicatedPowerW": 13310.306339677703,
+              "brakePowerW": 11157.207390771975,
+              "brakeTorqueNm": 30.44099498301922,
+              "volumetricEfficiency": 0.9059227481908164,
+              "fuelMassKgPerCycle": 2.6273066328596957E-05,
+              "netWorkJ": 456.35336021752124,
+              "peakPressurePa": 7609435.180146791,
+              "peakTemperatureK": 2796.0042662219457,
+              "cycles": 6,
+              "periodicError": 1.4265947425938941E-08,
+              "massResidualKg": 1.0293133104698412E-19,
+              "energyResidualJ": 5.115907697472721E-13,
+              "speciesResidualKg": 1.1443547466303606E-19,
+              "ductEnergyResidualJ": null,
+              "ductMomentumResidualNs": null,
+              "flameCorrelationExtrapolated": false
+            }
+          ],
+          "error": null,
+          "milliseconds": 407.4747
+        }
+      ],
+      "cancelled": false,
+      "workers": 2,
+      "executedCurves": 6,
+      "milliseconds": 1676.1143,
+      "provenance": {
+        "build": "1.0.0\u002B78df3e03d8955438d541430b06c18e12a4772ada",
+        "sourceTree": "clean",
+        "physicsModel": "four-stroke-isooctane-equilibrium-v3",
+        "numericalRevision": "four-stroke-isooctane-equilibrium-v3",
+        "calculatedUtc": "2026-11-25T12:33:35.3543387+00:00",
+        "resultSchema": 1
+      }
+    },
+    "checks": [
+      {
+        "candidateId": 2,
+        "referenceId": 0,
+        "verdict": "DiscretizationSensitive",
+        "observedBand": 0.015367188327218173,
+        "levels": [
+          {
+            "scale": 1,
+            "candidateScore": 10128.199275232802,
+            "referenceScore": 10065.131097072643,
+            "advantage": 63.06817816015973,
+            "candidateLowMarginNm": null,
+            "referenceLowMarginNm": null,
+            "error": null
+          },
+          {
+            "scale": 2,
+            "candidateScore": 10128.178831237336,
+            "referenceScore": 10065.116962598373,
+            "advantage": 63.06186863896255,
+            "candidateLowMarginNm": null,
+            "referenceLowMarginNm": null,
+            "error": null
+          },
+          {
+            "scale": 4,
+            "candidateScore": 10128.175628586836,
+            "referenceScore": 10065.10607635371,
+            "advantage": 63.06955223312616,
+            "candidateLowMarginNm": null,
+            "referenceLowMarginNm": null,
+            "error": null
+          }
+        ],
+        "milliseconds": 2747.8723,
+        "workers": 2,
+        "numericalRevision": "four-stroke-isooctane-equilibrium-v3"
+      }
+    ]
+  },
+  "integrity": "128BD9F97F013B597E07D977E9B8F406305DAA084607B926411BE3BBA64B664B"
+}

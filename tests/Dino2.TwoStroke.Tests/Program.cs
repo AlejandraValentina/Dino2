@@ -14,6 +14,26 @@ if (args.Contains("--stage10"))
     return;
 }
 var example = TwoStrokeConfiguration.Example;
+{
+    // Synthetic leaf only: compare the reduced stiffness/frequency with Euler-Bernoulli cantilever references.
+    var leaf = new ReedLeaf(.025, .018, .00025, 1200, 4.5e9, .04, .004, .0002);
+    leaf.Validate();
+    double ei = leaf.YoungModulusPa * leaf.SecondMomentM4;
+    double force = .02;
+    double staticDeflection = force * Math.Pow(leaf.LengthM, 3) / (3 * ei);
+    Near(force / leaf.TipStiffnessNPerM, staticDeflection, 1e-15, "cantilever tip stiffness");
+    double exactCantileverHz = Math.Pow(1.875104068711961, 2) * Math.Sqrt(ei /
+        (leaf.DensityKgM3 * leaf.WidthM * leaf.ThicknessM * Math.Pow(leaf.LengthM, 4))) / (2 * Math.PI);
+    Near(leaf.NaturalFrequencyHz, exactCantileverHz, exactCantileverHz * .015, "first cantilever mode");
+    double equilibrium = force / leaf.TipStiffnessNPerM;
+    var relaxed = ReedDynamics.Advance(leaf, new(0, 0), force / leaf.EffectivePressureAreaM2, 1.0);
+    Near(relaxed.LiftM, equilibrium, equilibrium * .025, "damped static equilibrium");
+    var impact = ReedDynamics.Advance(leaf, new(leaf.LimitM * .99, 2), 0, .001);
+    Check(impact.LiftM <= leaf.LimitM && impact.LiftM >= 0, "reed stop non-penetration");
+    Check(ReedDynamics.StoredEnergy(leaf, impact) <= ReedDynamics.StoredEnergy(leaf, new(leaf.LimitM * .99, 2)),
+        "perfectly inelastic stop created mechanical energy");
+    Console.WriteLine($"PASS synthetic cantilever leaf: k={leaf.TipStiffnessNPerM:R} N/m f1={leaf.NaturalFrequencyHz:R} Hz");
+}
 var config = example with { Speeds = new(5000, 5000, 1) };
 var definition = new TwoStrokeStudyDefinition(config, [new(TwoStrokeParameter.DiffuserLength, 250, 290, 40)],
     new(ObjectiveKind.PeakTorque));
