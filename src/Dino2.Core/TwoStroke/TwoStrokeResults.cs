@@ -11,6 +11,10 @@ public readonly record struct TwoStrokeSample(double AngleDeg, double CylinderPr
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public double ReedLiftM { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ExhaustMapCd { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ExhaustMapMassResidualKgPerS { get; init; }
 }
 
 public sealed record TwoStrokeBalance(double MassKg, SpeciesMasses SpeciesKg, double CarbonKg, double HydrogenKg,

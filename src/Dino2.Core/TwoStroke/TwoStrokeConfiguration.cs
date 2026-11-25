@@ -106,10 +106,31 @@ public sealed record Reed(double ThroatM2, double PerimeterM, double LimitM, dou
     /// <summary>Optional reduced beam dynamics. Null preserves the historical quasi-static reed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ReedLeaf? DynamicLeaf { get; init; }
-    public double EffectiveArea(double pressureDifference) => Cd * Math.Min(ThroatM2,
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DischargeMap? DischargeMap { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DischargeMap? ReverseDischargeMap { get; init; }
+
+    public bool Equals(Reed? other) => other is not null && ThroatM2 == other.ThroatM2 && PerimeterM == other.PerimeterM &&
+        LimitM == other.LimitM && StiffnessNPerM == other.StiffnessNPerM && OpeningPressurePa == other.OpeningPressurePa &&
+        Cd == other.Cd && DynamicLeaf == other.DynamicLeaf && MapEquals(DischargeMap, other.DischargeMap) &&
+        MapEquals(ReverseDischargeMap, other.ReverseDischargeMap);
+
+    private static bool MapEquals(DischargeMap? a, DischargeMap? b) => a is null ? b is null : b is not null && a.Equals(b);
+
+    public override int GetHashCode() => HashCode.Combine(
+        HashCode.Combine(ThroatM2, PerimeterM, LimitM, StiffnessNPerM, OpeningPressurePa, Cd, DynamicLeaf),
+        DischargeMap, ReverseDischargeMap);
+
+    public double GeometricEffectiveArea(double pressureDifference) => Math.Min(ThroatM2,
         PerimeterM * Math.Clamp((pressureDifference - OpeningPressurePa) * ThroatM2 / StiffnessNPerM, 0, LimitM));
 
-    public double DynamicArea(double liftM) => Cd * Math.Min(ThroatM2, PerimeterM * Math.Clamp(liftM, 0, DynamicLeaf?.LimitM ?? LimitM));
+    public double EffectiveArea(double pressureDifference) => Cd * GeometricEffectiveArea(pressureDifference);
+
+    public double GeometricDynamicArea(double liftM) => Math.Min(ThroatM2,
+        PerimeterM * Math.Clamp(liftM, 0, DynamicLeaf?.LimitM ?? LimitM));
+
+    public double DynamicArea(double liftM) => Cd * GeometricDynamicArea(liftM);
 }
 
 // Listed outward, from the cylinder to the tail. Diameter is linear within each conical section.

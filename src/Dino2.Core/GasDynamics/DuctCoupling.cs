@@ -99,12 +99,13 @@ internal sealed class DuctCoupling
         ReadOnlySpan<double> cylinder, GasState chamber, Span<double> result)
     {
         double area = end.Mesh.ValveArea;
-        if (end.Valve.DischargeMap is { } map)
+        if (end.Valve.DischargeMap is not null || end.Valve.ReverseDischargeMap is not null)
         {
             double geometric = Math.Min(area, ValveFlow.GeometricArea(end.Valve, angle));
             double opening = end.Valve.MaximumLiftM <= 0 ? 0 : ValveFlow.Lift(end.Valve, angle) / end.Valve.MaximumLiftM;
             return PortBoundary.MappedFlux(gas, area, geometric, geometric, opening, "curtain_area",
-                map, end.Valve.ReverseDischargeMap, end.ReservoirToPipeIsForward,
+                "ports-v4-equivalent-capacity-v1",
+                end.Valve.DischargeMap, end.Valve.ReverseDischargeMap, end.ReservoirToPipeIsForward,
                 cylinder, chamber, last, inside, result, out _);
         }
         double openingArea = Math.Min(area, ValveFlow.EffectiveArea(end.Valve, angle));

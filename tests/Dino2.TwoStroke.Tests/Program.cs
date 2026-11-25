@@ -34,6 +34,7 @@ var example = TwoStrokeConfiguration.Example;
         "perfectly inelastic stop created mechanical energy");
     Console.WriteLine($"PASS synthetic cantilever leaf: k={leaf.TipStiffnessNPerM:R} N/m f1={leaf.NaturalFrequencyHz:R} Hz");
 }
+TwoStrokeMapPortsChecks();
 var config = example with { Speeds = new(5000, 5000, 1) };
 var definition = new TwoStrokeStudyDefinition(config, [new(TwoStrokeParameter.DiffuserLength, 250, 290, 40)],
     new(ObjectiveKind.PeakTorque));
@@ -192,6 +193,22 @@ var pointA = TwoStrokeSimulator.Simulate(config, 5000);
 Console.WriteLine($"2T reference {watch.Elapsed.TotalMilliseconds:F1} ms, {pointA.Cycles} cycles, {pointA.Steps} steps, {pointA.ShaftPowerW:G10} W.");
 Check(pointA.PeriodicError <= config.Numerics.PeriodicTolerance && pointA.Cycles > 3, "periodic");
 Check(pointA.Trace.Count > 250 && pointA.Trace.Zip(pointA.Trace.Skip(1)).All(x => x.First.AngleDeg < x.Second.AngleDeg), "trace sorted");
+{
+    var tracePoint = pointA with
+    {
+        Trace = [pointA.Trace[0] with { ExhaustMapCd = .17, ExhaustMapMassResidualKgPerS = 2e-12 }]
+    };
+    string csvPath = Path.GetTempFileName();
+    try
+    {
+        TwoStrokeFiles.ExportTrace(csvPath, tracePoint);
+        var csvRows = File.ReadAllLines(csvPath);
+        Check(csvRows[0].EndsWith(",exhaust_map_cd,exhaust_map_mass_residual_kg_s", StringComparison.Ordinal) &&
+            csvRows[1].Split(',')[^2] == "0.17" && csvRows[1].Split(',')[^1] == "2E-12",
+            "2T mapped Cd and residual are traceable in CSV export");
+    }
+    finally { File.Delete(csvPath); }
+}
 {
     var height = config.Transfer.HeightM;
     var port = config.Transfer with
@@ -356,6 +373,87 @@ static void SegmentedMesh(ExpansionChamber expansion)
     mesh.Prepare(state);
     mesh.Rates(state, rates, left, right);
     Check(rates.All(v => Math.Abs(v) < 1e-7), "segmented hydrostatic balance");
+}
+
+static void TwoStrokeMapPortsChecks()
+{
+    var c = TwoStrokeConfiguration.RecoveryExample;
+    var gas = new GasEquation(SpeciesThermodynamics.ExtendedCount);
+    var forward = PortMap("forward", .16);
+    var reverse = PortMap("reverse", .22);
+    var port = c.Exhaust with { DischargeMap = forward, ReverseDischargeMap = reverse };
+    var duct = TwoStrokeDuct.Exhaust(c, gas, null);
+    double travel = port.RoofM + .65 * port.HeightM;
+    var tube = new double[duct.Size];
+    duct.Initialize(tube);
+    var donor = new double[gas.Size];
+    var fractions = TwoStrokeDuct.TailMixture(c);
+    var chamber = gas.EncodeFace(donor, fractions, 185000, 410, 0, 0);
+    var rate = new double[duct.Size];
+    var outer = new double[gas.Size];
+    var inner = new double[gas.Size];
+    double dt = duct.Rates(tube, rate, chamber, donor, port.GeometricArea(travel), null, outer, inner,
+        out double face, out _, out var trace, mappedPort: port, pistonTravelM: travel);
+    Check(dt > 0 && face > 0 && trace is { FlowFromReservoir: true, MapCd: not null },
+        "2T 1D exhaust map resolves a forward ports-v4 state");
+    Near(trace!.Value.MapCd!.Value, .16, 2e-12, "2T forward exhaust map selection");
+    double speciesMass = Enumerable.Range(0, gas.SpeciesCount).Sum(i => inner[i]);
+    Near(speciesMass, trace.Value.ThroatMassKgPerS, Math.Abs(trace.Value.ThroatMassKgPerS) * 2e-8,
+        "2T exhaust ports-v4 species mass equals accepted interface mass");
+    Check(Math.Abs(trace.Value.MapMassResidualKgPerS ?? double.PositiveInfinity) < 1e-8 &&
+        double.IsFinite(inner[gas.Energy]) && double.IsFinite(inner[gas.Momentum]),
+        "2T map residual and conservative energy/momentum flux are finite");
+
+    for (int i = 0; i < duct.Cells; i++)
+        gas.Encode(tube.AsSpan(i * gas.Size, gas.Size), fractions, 185000, 410, 0, 0);
+    Array.Clear(rate); Array.Clear(outer); Array.Clear(inner);
+    var lowChamberValues = new double[gas.Size];
+    var lowChamber = gas.EncodeFace(lowChamberValues, fractions, 100000, 300, 0, 0);
+    duct.Rates(tube, rate, lowChamber, lowChamberValues, port.GeometricArea(travel), null, outer, inner,
+        out face, out _, out trace, mappedPort: port, pistonTravelM: travel);
+    Check(trace is { FlowFromReservoir: false, MapCd: not null }, "2T 1D exhaust map resolves reverse flow");
+    Near(trace!.Value.MapCd!.Value, .22, 2e-12, "2T reverse exhaust map selection");
+    Check(face > 0 && Math.Abs(trace.Value.MapMassResidualKgPerS ?? double.PositiveInfinity) < 1e-8,
+        "2T reverse exhaust map closes mass residual");
+    Console.WriteLine("PASS 2T 1D exhaust Cd map: forward/reverse ports-v4, accepted mass conservation, residual and trace values");
+
+    var reed = c.Reed with
+    {
+        DischargeMap = PortMap("forward", .15, "reed_open_area"),
+        ReverseDischargeMap = PortMap("reverse", .21, "reed_open_area")
+    };
+    var intake = TwoStrokeDuct.Intake(c, gas, fractions, null);
+    var intakeTube = new double[intake.Size];
+    intake.Initialize(intakeTube);
+    var intakeRate = new double[intake.Size];
+    Array.Clear(outer); Array.Clear(inner);
+    var lowCaseValues = new double[gas.Size];
+    var lowCase = gas.EncodeFace(lowCaseValues, fractions, 90000, 300, 0, 0);
+    intake.Rates(intakeTube, intakeRate, lowCase, lowCaseValues, 0, reed, outer, inner,
+        out face, out _, out trace, mappedReed: reed);
+    Check(trace is { FlowFromReservoir: false, MapCd: not null }, "quasi-static reed map resolves forward inlet flow");
+    Near(trace!.Value.MapCd!.Value, .15, 2e-12, "quasi-static reed forward map selection");
+    var highCaseValues = new double[gas.Size];
+    var highCase = gas.EncodeFace(highCaseValues, fractions, 115000, 330, 0, 0);
+    Array.Clear(intakeRate); Array.Clear(outer); Array.Clear(inner);
+    intake.Rates(intakeTube, intakeRate, highCase, highCaseValues, 0, reed, outer, inner,
+        out face, out _, out trace, dynamicReedLiftM: .001, mappedReed: reed);
+    Check(trace is { FlowFromReservoir: true, MapCd: not null }, "dynamic reed map resolves reverse flow while leaf is open");
+    Near(trace!.Value.MapCd!.Value, .21, 2e-12, "dynamic reed reverse map selection");
+    Check(face > 0 && Math.Abs(trace.Value.MapMassResidualKgPerS ?? double.PositiveInfinity) < 1e-8,
+        "reed map closes accepted-state mass residual");
+    Console.WriteLine("PASS 2T reed Cd maps: quasi-static and dynamic ports-v4 flow with directional selection");
+
+    static DischargeMap PortMap(string direction, double cd, string referenceArea = "port_open_area")
+    {
+        var metadata = new DischargeMapMetadata(referenceArea, "upstream_stagnation_to_downstream_static",
+            direction, "opening_fraction,pressure_ratio,dimensionless", "synthetic 2T ports-v4 interface test",
+            "ports-v4-equivalent-capacity-v1", "synthetic");
+        return new(metadata, new DischargeMapPoint[]
+        {
+            new(0,.2,cd), new(0,1,cd), new(1,.2,cd), new(1,1,cd)
+        });
+    }
 }
 
 static void ExpansionReflection()

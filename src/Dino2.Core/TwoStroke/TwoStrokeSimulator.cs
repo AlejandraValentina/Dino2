@@ -137,11 +137,19 @@ public sealed partial class TwoStrokeSimulator
         var e = gas.EncodeFace(cylinderDonor, outFractions, pc, tc, 0, extracted);
         Span<double> reedFlux = stackalloc double[Width], exhaustFlux = stackalloc double[Width];
         Span<double> outerIntake = stackalloc double[Width], outerExhaust = stackalloc double[Width];
+        bool mappedReed = c.Reed.DischargeMap is not null || c.Reed.ReverseDischargeMap is not null;
+        if (mappedReed && c.Numerics.Exterior != ExteriorBoundary.PressureReservoir)
+            throw new InvalidOperationException("El mapa Cd de láminas requiere la interfaz de presión ports-v4.");
         double dtI = inlet.Rates(y.Slice(IntakeOffset, inlet.Size), rate.Slice(IntakeOffset, inlet.Size), k,
-            caseDonor, 0, c.Reed, outerIntake, reedFlux, out double pReed, out double intakeHeat, intakeBoundary,
-            c.Reed.DynamicLeaf is null ? double.NaN : y[ReedLiftIndex]);
+            caseDonor, 0, c.Reed, outerIntake, reedFlux, out double pReed, out double intakeHeat, out _, intakeBoundary,
+            c.Reed.DynamicLeaf is null ? double.NaN : y[ReedLiftIndex], mappedReed: mappedReed ? c.Reed : null);
+        bool mappedExhaust = c.Exhaust.DischargeMap is not null || c.Exhaust.ReverseDischargeMap is not null;
+        if (mappedExhaust && c.Numerics.Exterior != ExteriorBoundary.PressureReservoir)
+            throw new InvalidOperationException("El mapa Cd del escape 2T requiere la interfaz de presión ports-v4.");
+        double exhaustOpeningArea = mappedExhaust ? c.Exhaust.GeometricArea(travel) : c.Exhaust.Area(travel);
         double dtE = outlet.Rates(y[outletOffset..], rate[outletOffset..], e, cylinderDonor,
-            c.Exhaust.Area(travel), null, outerExhaust, exhaustFlux, out double pExhaust, out double exhaustHeat, exhaustBoundary);
+            exhaustOpeningArea, null, outerExhaust, exhaustFlux, out double pExhaust, out double exhaustHeat, out var exhaustMapTrace, exhaustBoundary,
+            mappedPort: mappedExhaust ? c.Exhaust : null, pistonTravelM: travel);
         for (int i = 0; i < intakeRate.Length; i++) intakeRate[i] = outerIntake[i] / dps;
         for (int i = 0; i < exhaustRate.Length; i++) exhaustRate[i] = outerExhaust[i] / dps;
         double transfer = ReactiveCylinder.Nozzle(c.Transfer.Area(travel), pk, tk, rk, k.Gamma, pc, tc, rc,
@@ -189,7 +197,12 @@ public sealed partial class TwoStrokeSimulator
         rate[DuctHeat] = (intakeHeat + exhaustHeat) / dps;
         for (int i = IntakeOffset; i < rate.Length; i++) rate[i] /= dps;
         sample = new(angle, pc, tc, pk, tk, inletMass, transfer, -exhaustMass, vc, vk, fresh, mc,
-            pReed, pExhaust) { ReedLiftM = c.Reed.DynamicLeaf is null ? 0 : y[ReedLiftIndex] };
+            pReed, pExhaust)
+        {
+            ReedLiftM = c.Reed.DynamicLeaf is null ? 0 : y[ReedLiftIndex],
+            ExhaustMapCd = exhaustMapTrace?.MapCd,
+            ExhaustMapMassResidualKgPerS = exhaustMapTrace?.MapMassResidualKgPerS
+        };
         return Math.Min(dtI, dtE) * c.Numerics.Courant * dps;
     }
 

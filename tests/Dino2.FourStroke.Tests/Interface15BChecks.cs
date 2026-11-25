@@ -14,7 +14,8 @@ internal static class Interface15BChecks
 
         var reservoir = gas.Encode(reservoirValues, Perfect, 150000, 400, 0, .7);
         var pipe = gas.Encode(pipeValues, Perfect, 100000, 320, 0, .1);
-        double face = PortBoundary.MappedFlux(gas, .001, .0006, .0006, .65, "curtain_area", forward, reverse,
+        double face = PortBoundary.MappedFlux(gas, .001, .0006, .0006, .65, "curtain_area",
+            "ports-v4-equivalent-capacity-v1", forward, reverse,
             true, reservoirValues, reservoir, pipeValues, pipe, flux, out var trace);
         Check(trace is { FlowFromReservoir: true, MapCd: not null, MapMassResidualKgPerS: not null, MapIterations: > 0 },
             "forward direction, accepted-state map query and scalar root");
@@ -24,7 +25,8 @@ internal static class Interface15BChecks
 
         reservoir = gas.Encode(reservoirValues, Perfect, 100000, 300, 0, .2);
         pipe = gas.Encode(pipeValues, Perfect, 180000, 420, 0, .8);
-        face = PortBoundary.MappedFlux(gas, .001, .0006, .0006, .65, "curtain_area", forward, reverse,
+        face = PortBoundary.MappedFlux(gas, .001, .0006, .0006, .65, "curtain_area",
+            "ports-v4-equivalent-capacity-v1", forward, reverse,
             true, reservoirValues, reservoir, pipeValues, pipe, flux, out trace);
         Check(trace is { FlowFromReservoir: false, MapCd: not null }, "reverse direction selected its independent map");
         VerifyIndependent(gas, reverse, false, reservoir, pipe, flux, trace!.Value);
@@ -35,7 +37,8 @@ internal static class Interface15BChecks
         var narrow = MakeMap("forward", .98, 1);
         try
         {
-            PortBoundary.MappedFlux(gas, .001, .0006, .0006, .65, "curtain_area", narrow, null,
+            PortBoundary.MappedFlux(gas, .001, .0006, .0006, .65, "curtain_area",
+                "ports-v4-equivalent-capacity-v1", narrow, null,
                 true, reservoirValues, reservoir, pipeValues, pipe, flux, out _);
             throw new Exception("Cd map silently extrapolated beyond its pressure-ratio coverage.");
         }

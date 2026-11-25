@@ -40,21 +40,23 @@ internal static class PortBoundary
     /// </summary>
     internal static double MappedFlux(GasEquation gas, double totalArea, double maximumOpenArea,
         double referenceAreaM2, double normalizedOpening, string referenceAreaConvention,
-        DischargeMap forwardMap, DischargeMap? reverseMap, bool reservoirToPipeIsForward,
+        string compatibleModel, DischargeMap? forwardMap, DischargeMap? reverseMap, bool reservoirToPipeIsForward,
         ReadOnlySpan<double> chamber, GasState reservoir, ReadOnlySpan<double> edge, GasState pipe,
         Span<double> flux, out PortTrace? trace)
     {
         if (!(maximumOpenArea >= 0 && maximumOpenArea <= totalArea && referenceAreaM2 > 0) ||
             !double.IsFinite(maximumOpenArea + referenceAreaM2))
             throw new ArgumentOutOfRangeException(nameof(maximumOpenArea));
-        ValidateMap(forwardMap, referenceAreaConvention);
-        if (reverseMap is not null) ValidateMap(reverseMap, referenceAreaConvention);
+        if (forwardMap is null && reverseMap is null)
+            throw new ArgumentException("Se requiere al menos un mapa Cd direccional.");
+        if (forwardMap is not null) ValidateMap(forwardMap, referenceAreaConvention, compatibleModel);
+        if (reverseMap is not null) ValidateMap(reverseMap, referenceAreaConvention, compatibleModel);
         if (maximumOpenArea == 0)
             return Flux(gas, totalArea, 0, chamber, reservoir, edge, pipe, flux, out trace);
 
         Span<double> trialFlux = stackalloc double[gas.Size];
         double lo = 0, hi = maximumOpenArea;
-        double atHi = MapResidual(gas, totalArea, hi, referenceAreaM2, normalizedOpening, forwardMap,
+        double atHi = MapResidual(gas, totalArea, hi, referenceAreaM2, normalizedOpening, compatibleModel, forwardMap,
             reverseMap, reservoirToPipeIsForward, chamber, reservoir, edge, pipe, trialFlux, out _, out _);
         if (atHi < -1e-10)
             throw new ModelDomainException("La capacidad máxima certificada de ports-v4 no alcanza el caudal requerido por el mapa Cd en este estado.");
@@ -62,7 +64,7 @@ internal static class PortBoundary
         for (; iterations < 48; iterations++)
         {
             double mid = (lo + hi) * .5;
-            double residual = MapResidual(gas, totalArea, mid, referenceAreaM2, normalizedOpening, forwardMap,
+            double residual = MapResidual(gas, totalArea, mid, referenceAreaM2, normalizedOpening, compatibleModel, forwardMap,
                 reverseMap, reservoirToPipeIsForward, chamber, reservoir, edge, pipe, trialFlux, out _, out _);
             if (residual > 0) hi = mid; else lo = mid;
             if (Math.Abs(residual) <= 1e-10) break;
@@ -71,7 +73,7 @@ internal static class PortBoundary
         double finalPressure = Flux(gas, totalArea, effectiveArea, chamber, reservoir, edge, pipe, flux, out trace);
         if (trace is not { } finalTrace)
             throw new NumericalStateException("El mapa Cd produjo caudal nulo en una abertura positiva.");
-        double finalResidual = MapResidual(gas, totalArea, effectiveArea, referenceAreaM2, normalizedOpening,
+        double finalResidual = MapResidual(gas, totalArea, effectiveArea, referenceAreaM2, normalizedOpening, compatibleModel,
             forwardMap, reverseMap, reservoirToPipeIsForward, chamber, reservoir, edge, pipe, trialFlux,
             out _, out double finalCd);
         trace = finalTrace with { MapCd = finalCd, MapMassResidualKgPerS = finalResidual,
@@ -82,7 +84,7 @@ internal static class PortBoundary
     }
 
     private static double MapResidual(GasEquation gas, double totalArea, double openingArea, double referenceAreaM2,
-        double normalizedOpening, DischargeMap forwardMap, DischargeMap? reverseMap, bool reservoirToPipeIsForward,
+        double normalizedOpening, string compatibleModel, DischargeMap? forwardMap, DischargeMap? reverseMap, bool reservoirToPipeIsForward,
         ReadOnlySpan<double> chamber, GasState reservoir, ReadOnlySpan<double> edge, GasState pipe,
         Span<double> trialFlux, out PortTrace? stateTrace, out double cd)
     {
@@ -101,18 +103,18 @@ internal static class PortBoundary
         return Math.Abs(tr.ThroatMassKgPerS) - ideal;
     }
 
-    private static void ValidateMap(DischargeMap map, string referenceAreaConvention)
+    private static void ValidateMap(DischargeMap map, string referenceAreaConvention, string compatibleModel)
     {
-        if (!string.Equals(map.Metadata.CompatibleModel, "ports-v4-equivalent-capacity-v1", StringComparison.OrdinalIgnoreCase) ||
+        if (!string.Equals(map.Metadata.CompatibleModel, compatibleModel, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(map.Metadata.PressureConvention, "upstream_stagnation_to_downstream_static", StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(map.Metadata.ReferenceArea, referenceAreaConvention, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("El mapa Cd no declara la convención compatible con el acoplamiento de capacidad de ports-v4.");
     }
 
-    private static DischargeMap SelectMap(DischargeMap forward, DischargeMap? reverse, bool isForward)
+    private static DischargeMap SelectMap(DischargeMap? forward, DischargeMap? reverse, bool isForward)
     {
         var map = isForward ? forward : reverse ??
-            (string.Equals(forward.Metadata.Direction, "both", StringComparison.OrdinalIgnoreCase) ? forward : null);
+            (forward is not null && string.Equals(forward.Metadata.Direction, "both", StringComparison.OrdinalIgnoreCase) ? forward : null);
         if (map is null) throw new InvalidOperationException("El mapa Cd no cubre el sentido de flujo actual.");
         if (!string.Equals(map.Metadata.Direction, "both", StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(map.Metadata.Direction, isForward ? "forward" : "reverse", StringComparison.OrdinalIgnoreCase))

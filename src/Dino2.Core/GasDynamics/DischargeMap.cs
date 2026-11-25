@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Dino2.Core.GasDynamics;
 
 /// <summary>Measured mass-discharge coefficient map. Coefficients are relative to the declared
@@ -24,8 +26,10 @@ public readonly record struct DischargeMapPoint(double Opening, double PressureR
 public sealed class DischargeMap
 {
     private readonly double[] openings, ratios, values;
-    public DischargeMapMetadata Metadata { get; }
-    public IReadOnlyList<DischargeMapPoint> Points { get; }
+    [JsonInclude]
+    public DischargeMapMetadata Metadata { get; init; }
+    [JsonInclude]
+    public IReadOnlyList<DischargeMapPoint> Points { get; init; }
 
     public DischargeMap(DischargeMapMetadata metadata, IReadOnlyList<DischargeMapPoint> points)
     {
@@ -58,6 +62,16 @@ public sealed class DischargeMap
         if (openings.Zip(openings.Skip(1)).Any(p => p.Second <= p.First) ||
             ratios.Zip(ratios.Skip(1)).Any(p => p.Second <= p.First))
             throw new ArgumentException("Ejes del mapa Cd no estrictamente crecientes.", nameof(points));
+    }
+
+    public bool Equals(DischargeMap? other) => other is not null && Metadata == other.Metadata && Points.SequenceEqual(other.Points);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Metadata);
+        foreach (var point in Points) hash.Add(point);
+        return hash.ToHashCode();
     }
 
     public double Evaluate(double opening, double downstreamToUpstreamPressureRatio)

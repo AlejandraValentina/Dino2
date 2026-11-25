@@ -55,8 +55,10 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
     // Positive flux enters the engine. The single port flux is also the duct right boundary.
     internal double Rates(ReadOnlySpan<double> tube, Span<double> rate, GasState plenum,
         ReadOnlySpan<double> donor, double portArea, Reed? reed, Span<double> outer, Span<double> inner, out double facePressure,
-        out double wallHeat, DuctBoundary? exterior = null, double dynamicReedLiftM = double.NaN)
+        out double wallHeat, out PortTrace? dischargeTrace, DuctBoundary? exterior = null, double dynamicReedLiftM = double.NaN,
+        PistonPort? mappedPort = null, double pistonTravelM = double.NaN, Reed? mappedReed = null)
     {
+        dischargeTrace = null;
         Span<double> face = stackalloc double[gas.Size];
         long start = profile is null ? 0 : TwoStrokeProfile.Timestamp();
         mesh.Prepare(tube);
@@ -79,19 +81,59 @@ internal sealed class TwoStrokeDuct(DuctMesh mesh, GasEquation gas, double[] gho
         bool dynamicReedActive = reed is not null && double.IsFinite(dynamicReedLiftM);
         double limit = plenum.Pressure + (reed?.OpeningPressurePa ?? 0);
         double instantaneousAperture = reed is null ? portArea : dynamicReedActive
-            ? reed.DynamicArea(dynamicReedLiftM) : reed.EffectiveArea(wall - plenum.Pressure);
+            ? mappedReed is null ? reed.DynamicArea(dynamicReedLiftM) : reed.GeometricDynamicArea(dynamicReedLiftM)
+            : mappedReed is null ? reed.EffectiveArea(wall - plenum.Pressure) : reed.GeometricEffectiveArea(wall - plenum.Pressure);
         inner.Clear();
         if (boundaryMode == ExteriorBoundary.PressureReservoir)
         {
             bool dynamicReed = dynamicReedActive;
             double reedArea = reed is null ? portArea : dynamicReed
-                ? reed.DynamicArea(dynamicReedLiftM) : reed.EffectiveArea(wall - plenum.Pressure);
+                ? mappedReed is null ? reed.DynamicArea(dynamicReedLiftM) : reed.GeometricDynamicArea(dynamicReedLiftM)
+                : mappedReed is null ? reed.EffectiveArea(wall - plenum.Pressure) : reed.GeometricEffectiveArea(wall - plenum.Pressure);
             double aperture = Math.Min(mesh.ValveArea, reedArea);
-            facePressure = reed is null
-                ? PortBoundary.Flux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner)
-                : dynamicReed
+            if (mappedReed is not null)
+            {
+                var forwardMap = mappedReed.DischargeMap;
+                var reverseMap = mappedReed.ReverseDischargeMap;
+                if ((forwardMap is not null && !string.Equals(forwardMap.Metadata.CompatibleModel,
+                        "ports-v4-equivalent-capacity-v1", StringComparison.OrdinalIgnoreCase)) ||
+                    (reverseMap is not null && !string.Equals(reverseMap.Metadata.CompatibleModel,
+                        "ports-v4-equivalent-capacity-v1", StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidOperationException("El mapa de láminas debe declarar compatibleModel=ports-v4-equivalent-capacity-v1.");
+                double geometric = dynamicReed
+                    ? mappedReed.GeometricDynamicArea(dynamicReedLiftM)
+                    : mappedReed.GeometricEffectiveArea(wall - plenum.Pressure);
+                facePressure = geometric <= 0
+                    ? PortBoundary.Flux(gas, mesh.ValveArea, 0, donor, plenum, face, right, inner)
+                    : PortBoundary.MappedFlux(gas, mesh.ValveArea, Math.Min(mesh.ValveArea, geometric), geometric,
+                        geometric / mappedReed.ThroatM2, "reed_open_area", "ports-v4-equivalent-capacity-v1",
+                        forwardMap, reverseMap, false, donor, plenum, face, right, inner, out dischargeTrace);
+            }
+            else if (mappedPort is not null)
+            {
+                var forwardMap = mappedPort.DischargeMap;
+                var reverseMap = mappedPort.ReverseDischargeMap;
+                if ((forwardMap is not null && !string.Equals(forwardMap.Metadata.CompatibleModel,
+                        "ports-v4-equivalent-capacity-v1", StringComparison.OrdinalIgnoreCase)) ||
+                    (reverseMap is not null && !string.Equals(reverseMap.Metadata.CompatibleModel,
+                        "ports-v4-equivalent-capacity-v1", StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidOperationException("El mapa del escape 2T debe declarar compatibleModel=ports-v4-equivalent-capacity-v1.");
+                double geometric = mappedPort.GeometricArea(pistonTravelM);
+                double opening = mappedPort.OpeningFraction(pistonTravelM);
+                facePressure = geometric <= 0
+                    ? PortBoundary.Flux(gas, mesh.ValveArea, 0, donor, plenum, face, right, inner)
+                    : PortBoundary.MappedFlux(gas, mesh.ValveArea, Math.Min(mesh.ValveArea, geometric), geometric,
+                        opening, "port_open_area", "ports-v4-equivalent-capacity-v1", forwardMap, reverseMap, true,
+                        donor, plenum, face, right, inner, out dischargeTrace);
+            }
+            else
+            {
+                facePressure = reed is null
                     ? PortBoundary.Flux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner)
-                    : PortBoundary.OneWayFlux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner);
+                    : dynamicReed
+                        ? PortBoundary.Flux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner)
+                        : PortBoundary.OneWayFlux(gas, mesh.ValveArea, aperture, donor, plenum, face, right, inner);
+            }
         }
         else if (reed is not null && !dynamicReedActive ? wall <= limit : instantaneousAperture <= 0)
         {
