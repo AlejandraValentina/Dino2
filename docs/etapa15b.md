@@ -1,4 +1,4 @@
-# Dino2 · Etapa 15B — descarga, láminas y transfers
+> **Actualización posterior (Etapa 15B.1):** este informe conserva el estado científico previo a la consolidación. La integración limitada del mapa con `ports-v4` en 4T 1D y las regresiones finales están registradas en [etapa15b1.md](etapa15b1.md). El veredicto global sigue CONDITIONAL / RESTRICTED; no implica mapas en escape 2T 1D, láminas o Desktop.\n\n# Dino2 · Etapa 15B — descarga, láminas y transfers
 
 **Veredicto: CONDITIONAL / RESTRICTED.** Se desarrollaron un mapa Cd tabulado para el camino 4T 0D y un primer modelo de lámina modal acoplado al cálculo 2T. Falta la integración de mapas con `ports-v4`, la verificación de periodicidad y energía del modelo dinámico en motor completo, y el bloque de transfers independientes 1D. No se considera cerrada la etapa ni se recomienda iniciar el barrido multizona de 15C.
 
@@ -76,3 +76,4 @@ El mapa es un objeto serializable en configuración y guarda puntos, metadatos y
 ## Condiciones para continuar
 
 Completar la integración de mapas en las interfaces `ports-v4` mediante resolución conjunta consistente; verificar importación y persistencia completa. Resolver el balance de energía y contacto de lámina, obtener periodicidad bajo refinamiento temporal y ejecutar campañas 2T controladas. Implementar conductos de transfer múltiples con geometría, inventario y transporte conservativo reutilizando `DuctMesh`. Sólo después de esas verificaciones y la regresión general del commit final corresponde evaluar preparación para 15C.
+
