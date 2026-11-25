@@ -33,6 +33,16 @@
             <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="VectorPolyline" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Contorno transfers…"/></StackPanel></Button>
           <Button Click="ImportExhaustContour_Click" ToolTip="Importar contorno de escape. CSV height_mm,width_mm: altura sobre el techo y ancho agregado de apertura, en mm.">
             <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="VectorPolylineEdit" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Contorno escape…"/></StackPanel></Button>
+          <Button x:Name="ImportTransferMapButton" Click="ImportTransferMap_Click" ToolTip="Importar mapa Cd para el transfer agregado 2T 0D. Requiere compatible_model=two-stroke-0d-isentropic-nozzle.">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="ChartLine" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Mapa Cd transfer…"/></StackPanel></Button>
+          <Button x:Name="ImportExhaustMapButton" Click="ImportExhaustMap_Click" ToolTip="Importar mapa Cd para el escape 2T ports-v4 1D. Requiere compatible_model=ports-v4-equivalent-capacity-v1.">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="ChartBellCurve" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Mapa Cd escape…"/></StackPanel></Button>
+          <Button x:Name="ImportReedMapButton" Click="ImportReedMap_Click" ToolTip="Importar mapa Cd de láminas cuasiestáticas o dinámicas, usando reed_open_area y el contrato ports-v4.">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="ChartAreaspline" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Mapa Cd láminas…"/></StackPanel></Button>
+          <Button x:Name="ClearCdMapsButton" Click="ClearMaps_Click" ToolTip="Quitar mapas Cd y volver al coeficiente constante.">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="Close" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Cd constante"/></StackPanel></Button>
+          <Button x:Name="ViewCdMapsButton" Click="ViewMaps_Click" ToolTip="Ver puntos, origen, dirección y dominio de mapas Cd cargados.">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="TableEye" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Ver puntos Cd"/></StackPanel></Button>
         </StackPanel>
       </WrapPanel>
     </Border>

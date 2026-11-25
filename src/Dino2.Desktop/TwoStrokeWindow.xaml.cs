@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Dino2.Core.FourStroke;
+using Dino2.Core.GasDynamics;
 using Dino2.Core.Studies;
 using Dino2.Core.TwoStroke;
 using Dino2.Storage;
@@ -111,8 +112,13 @@ public partial class TwoStrokeWindow : EngineDocument
         string Contour(PistonPort port) => port.WidthProfile is null
             ? "rectangular constante"
             : $"CSV {port.WidthProfileSource} · {port.WidthProfile.Count} puntos · SHA-256 {port.WidthProfileSha256}";
-        PortContourInfo.Text = $"Transfers: {Contour(configuration.Transfer)}. Escape: {Contour(configuration.Exhaust)}. " +
-            "Cd permanece constante; anchos múltiples se representan como agregado.";
+        string MapInfo(DischargeMap? forward, DischargeMap? reverse) => forward is null && reverse is null
+            ? "Cd constante"
+            : string.Join(" / ", new[] { forward, reverse }.Where(m => m is not null)
+                .Select(m => $"mapa {m!.Metadata.Direction} · {m.Metadata.CompatibleModel} · {m.Points.Count} puntos · f={m.Points.Min(p => p.Opening):G3}–{m.Points.Max(p => p.Opening):G3}, r={m.Points.Min(p => p.PressureRatio):G3}–{m.Points.Max(p => p.PressureRatio):G3} · {m.Metadata.Source} · SHA {m.Metadata.DataSha256[..Math.Min(12, m.Metadata.DataSha256.Length)]}"));
+        PortContourInfo.Text = $"Transfers: {Contour(configuration.Transfer)} · {MapInfo(configuration.Transfer.DischargeMap, configuration.Transfer.ReverseDischargeMap)}. " +
+            $"Escape: {Contour(configuration.Exhaust)} · {MapInfo(configuration.Exhaust.DischargeMap, configuration.Exhaust.ReverseDischargeMap)}. " +
+            $"Láminas: {MapInfo(configuration.Reed.DischargeMap, configuration.Reed.ReverseDischargeMap)}. Anchos múltiples se representan como agregado.";
         populating = false;
         ClearResolution();
         Render();
@@ -120,6 +126,110 @@ public partial class TwoStrokeWindow : EngineDocument
 
     private void ImportTransferContour_Click(object sender, RoutedEventArgs e) => ImportPortContour(true);
     private void ImportExhaustContour_Click(object sender, RoutedEventArgs e) => ImportPortContour(false);
+
+    private void ImportTransferMap_Click(object sender, RoutedEventArgs e) => ImportPortMap(true);
+    private void ImportExhaustMap_Click(object sender, RoutedEventArgs e) => ImportPortMap(false);
+    private void ImportReedMap_Click(object sender, RoutedEventArgs e) => ImportReedMap();
+    private void ViewMaps_Click(object sender, RoutedEventArgs e) => ViewDischargeMaps();
+
+    internal void ViewDischargeMaps()
+    {
+        var config = CurrentConfiguration();
+        var maps = new List<(string Component, DischargeMap Map)>();
+        if (config.Transfer.DischargeMap is { } transfer) maps.Add(("2T · transfer agregado", transfer));
+        if (config.Transfer.ReverseDischargeMap is { } transferReverse) maps.Add(("2T · transfer inverso", transferReverse));
+        if (config.Exhaust.DischargeMap is { } exhaust) maps.Add(("2T · escape 1D", exhaust));
+        if (config.Exhaust.ReverseDischargeMap is { } exhaustReverse) maps.Add(("2T · escape inverso", exhaustReverse));
+        if (config.Reed.DischargeMap is { } reed) maps.Add(("2T · láminas", reed));
+        if (config.Reed.ReverseDischargeMap is { } reedReverse) maps.Add(("2T · láminas inverso", reedReverse));
+        if (maps.Count == 0) { ShowStatus("No hay mapas Cd cargados."); return; }
+        new DischargeMapWindow(maps) { Owner = DialogOwner }.ShowDialog();
+    }
+
+    private void ImportReedMap()
+    {
+        Guard(() =>
+        {
+            string? path = Choose(false, "Mapa Cd CSV (*.csv)|*.csv", "mapa-cd-laminas.csv");
+            if (path is null) return;
+            ApplyReedMap(DischargeMapFile.Load(path));
+        });
+    }
+
+    internal void ApplyReedMap(ImportedDischargeMap imported)
+    {
+        var configuration = CurrentConfiguration();
+        var map = imported.Map;
+        if (!string.Equals(map.Metadata.CompatibleModel, "ports-v4-equivalent-capacity-v1", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(map.Metadata.ReferenceArea, "reed_open_area", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(map.Metadata.PressureConvention, "upstream_stagnation_to_downstream_static", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("El mapa de láminas requiere ports-v4-equivalent-capacity-v1, reed_open_area y remanso→estática.");
+        if (configuration.Numerics.Exterior != Dino2.Core.GasDynamics.ExteriorBoundary.PressureReservoir)
+            throw new InvalidDataException("El mapa de láminas requiere el contorno de presión ports-v4.");
+        var reed = map.Metadata.Direction.Equals("reverse", StringComparison.OrdinalIgnoreCase)
+            ? configuration.Reed with { ReverseDischargeMap = map }
+            : configuration.Reed with { DischargeMap = map };
+        template = configuration with { Reed = reed };
+        template.Validate();
+        Populate(template);
+        dirty = true;
+        ShowStatus($"Mapa Cd de láminas importado: {imported.Source}, {map.Metadata.Direction}, {map.Points.Count} puntos, SHA-256 {imported.Sha256[..12]}…");
+    }
+
+    private void ImportPortMap(bool transfer)
+    {
+        Guard(() =>
+        {
+            string? path = Choose(false, "Mapa Cd CSV (*.csv)|*.csv", "mapa-cd.csv");
+            if (path is null) return;
+            var imported = DischargeMapFile.Load(path);
+            ApplyPortMap(transfer, imported);
+        });
+    }
+
+    internal void ApplyPortMap(bool transfer, ImportedDischargeMap imported)
+    {
+        var configuration = CurrentConfiguration();
+        var port = transfer ? configuration.Transfer : configuration.Exhaust;
+        var map = imported.Map;
+        string compatible = transfer ? "two-stroke-0d-isentropic-nozzle" : "ports-v4-equivalent-capacity-v1";
+        if (!string.Equals(map.Metadata.CompatibleModel, compatible, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(map.Metadata.ReferenceArea, "port_open_area", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(map.Metadata.PressureConvention, "upstream_stagnation_to_downstream_static", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"Contrato incompatible: se requiere {compatible}, port_open_area y remanso→estática.");
+        if (!transfer && configuration.Numerics.Exterior != Dino2.Core.GasDynamics.ExteriorBoundary.PressureReservoir)
+            throw new InvalidDataException("El mapa de escape 2T requiere el contorno de presión ports-v4; seleccione ese modelo de interfaz antes de importar.");
+        var updated = map.Metadata.Direction.Equals("reverse", StringComparison.OrdinalIgnoreCase)
+            ? port with { ReverseDischargeMap = map }
+            : port with { DischargeMap = map };
+        template = transfer ? configuration with { Transfer = updated } : configuration with { Exhaust = updated };
+        template.Validate();
+        Populate(template);
+        dirty = true;
+        ShowStatus($"Mapa Cd {(transfer ? "de transfer 0D" : "de escape ports-v4 1D")} importado: {imported.Source}, {map.Metadata.Direction}, {map.Points.Count} puntos, SHA-256 {imported.Sha256[..12]}…");
+    }
+
+    private void ClearMaps_Click(object sender, RoutedEventArgs e)
+    {
+        Guard(() =>
+        {
+            ClearPortMaps();
+        });
+    }
+
+    internal void ClearPortMaps()
+    {
+        var configuration = CurrentConfiguration();
+        template = configuration with
+        {
+            Transfer = configuration.Transfer with { DischargeMap = null, ReverseDischargeMap = null },
+            Exhaust = configuration.Exhaust with { DischargeMap = null, ReverseDischargeMap = null },
+            Reed = configuration.Reed with { DischargeMap = null, ReverseDischargeMap = null }
+        };
+        Populate(template);
+        dirty = true;
+        ShowStatus("Se usa Cd constante en transfer y escape.");
+    }
 
     private void ImportPortContour(bool transfer)
     {

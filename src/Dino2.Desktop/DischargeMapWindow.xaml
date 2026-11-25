@@ -1,0 +1,14 @@
+<mah:MetroWindow x:Class="Dino2.Desktop.DischargeMapWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+        Style="{StaticResource Dino2.Window}" Title="Mapa de descarga Cd" Width="980" Height="650" MinWidth="720" MinHeight="420">
+  <DockPanel Margin="12">
+    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+      <TextBlock x:Name="MapMetadata" TextWrapping="Wrap" Style="{StaticResource Dino2.Muted}"/>
+      <TextBlock Margin="0,5,0,0" Text="Puntos tabulados · apertura normalizada, relación de presión aguas abajo/arriba y Cd. Fuera de este dominio el cálculo se rechaza." TextWrapping="Wrap"/>
+    </StackPanel>
+    <DataGrid x:Name="MapPoints" IsReadOnly="True" AutoGenerateColumns="True" CanUserAddRows="False"
+              CanUserDeleteRows="False" MinColumnWidth="100" ColumnHeaderHeight="34" RowHeight="28"/>
+  </DockPanel>
+</mah:MetroWindow>

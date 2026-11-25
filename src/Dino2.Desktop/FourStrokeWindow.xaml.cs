@@ -59,6 +59,82 @@ public partial class FourStrokeWindow : EngineDocument
         }
     }
 
+    private void ImportIntakeMap_Click(object sender, RoutedEventArgs e) => ImportDischargeMap(true);
+    private void ImportExhaustMap_Click(object sender, RoutedEventArgs e) => ImportDischargeMap(false);
+    private void ViewMaps_Click(object sender, RoutedEventArgs e) => ViewDischargeMaps();
+
+    internal void ViewDischargeMaps()
+    {
+        var config = ReadConfiguration(false);
+        var maps = new List<(string Component, DischargeMap Map)>();
+        if (config.IntakeValve.DischargeMap is { } intake) maps.Add(("4T · admisión", intake));
+        if (config.IntakeValve.ReverseDischargeMap is { } intakeReverse) maps.Add(("4T · admisión inverso", intakeReverse));
+        if (config.ExhaustValve.DischargeMap is { } exhaust) maps.Add(("4T · escape", exhaust));
+        if (config.ExhaustValve.ReverseDischargeMap is { } exhaustReverse) maps.Add(("4T · escape inverso", exhaustReverse));
+        if (maps.Count == 0) { Status.Text = "No hay mapas Cd cargados."; return; }
+        new DischargeMapWindow(maps) { Owner = DialogOwner }.ShowDialog();
+    }
+
+    private void ImportDischargeMap(bool intake)
+    {
+        var dialog = new OpenFileDialog { Filter = "Mapa Cd CSV (*.csv)|*.csv", Title = intake ? "Mapa Cd de admisión" : "Mapa Cd de escape" };
+        if (dialog.ShowDialog(DialogOwner) != true) return;
+        try
+        {
+            var config = ReadConfiguration(false);
+            var imported = DischargeMapFile.Load(dialog.FileName);
+            ApplyDischargeMap(intake, imported);
+        }
+        catch (Exception ex) when (Expected(ex) || ex is IOException || ex is InvalidDataException)
+        {
+            Status.Text = "No se importó el mapa Cd: " + ex.Message;
+        }
+    }
+
+    internal void ApplyDischargeMap(bool intake, ImportedDischargeMap imported)
+    {
+        var config = ReadConfiguration(false);
+        var valve = intake ? config.IntakeValve : config.ExhaustValve;
+        var map = imported.Map;
+        if (!string.Equals(map.Metadata.ReferenceArea, "curtain_area", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(map.Metadata.PressureConvention, "upstream_stagnation_to_downstream_static", StringComparison.OrdinalIgnoreCase) ||
+            !(string.Equals(map.Metadata.CompatibleModel, "four-stroke-0d-isentropic-nozzle", StringComparison.OrdinalIgnoreCase) ||
+              string.Equals(map.Metadata.CompatibleModel, "ports-v4-equivalent-capacity-v1", StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidDataException("El mapa debe declarar curtain_area, remanso→estática y un modelo 4T compatible.");
+        var updated = map.Metadata.Direction.Equals("reverse", StringComparison.OrdinalIgnoreCase)
+            ? valve with { ReverseDischargeMap = map }
+            : valve with { DischargeMap = map };
+        editorTemplate = intake ? config with { IntakeValve = updated } : config with { ExhaustValve = updated };
+        editorTemplate.Validate(false);
+        Populate(editorTemplate);
+        dirty = true;
+        Title = "Dino2 · mapa Cd modificado *";
+        Status.Text = $"Mapa Cd {(intake ? "admisión" : "escape")} importado: {imported.Source}, {map.Metadata.Direction}, {map.Points.Count} puntos, SHA-256 {imported.Sha256[..12]}… Modelo {map.Metadata.CompatibleModel}.";
+    }
+
+    private void ClearMaps_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            ClearDischargeMaps();
+        }
+        catch (Exception ex) when (Expected(ex)) { Status.Text = ex.Message; }
+    }
+
+    internal void ClearDischargeMaps()
+    {
+        var config = ReadConfiguration(false);
+        editorTemplate = config with
+        {
+            IntakeValve = config.IntakeValve with { DischargeMap = null, ReverseDischargeMap = null },
+            ExhaustValve = config.ExhaustValve with { DischargeMap = null, ReverseDischargeMap = null }
+        };
+        Populate(editorTemplate);
+        dirty = true;
+        Title = "Dino2 · configuración modificada *";
+        Status.Text = "Se usa Cd constante en admisión y escape.";
+    }
+
     public FourStrokeWindow() : this(null) { }
     internal FourStrokeWindow(Func<bool>? confirmDiscard)
     {
@@ -160,8 +236,12 @@ public partial class FourStrokeWindow : EngineDocument
         string Profile(PoppetValve valve) => valve.LiftProfile is null
             ? "alzada histórica seno-cuadrado"
             : $"perfil CSV {valve.LiftProfileSource} · {valve.LiftProfile.Count} puntos · SHA-256 {valve.LiftProfileSha256}";
-        ValveProfileInfo.Text = $"Admisión: {Profile(configuration.IntakeValve)}. Escape: {Profile(configuration.ExhaustValve)}. " +
-            "Cd sigue siendo constante; los perfiles importados no implican calibración experimental.";
+        string MapInfo(PoppetValve valve) => valve.DischargeMap is null && valve.ReverseDischargeMap is null
+            ? "Cd constante"
+            : string.Join(" / ", new[] { valve.DischargeMap, valve.ReverseDischargeMap }.Where(m => m is not null)
+                .Select(m => $"mapa {m!.Metadata.Direction} · {m.Metadata.CompatibleModel} · {m.Points.Count} puntos · f={m.Points.Min(p => p.Opening):G3}–{m.Points.Max(p => p.Opening):G3}, r={m.Points.Min(p => p.PressureRatio):G3}–{m.Points.Max(p => p.PressureRatio):G3} · {m.Metadata.Source} · SHA {m.Metadata.DataSha256[..Math.Min(12, m.Metadata.DataSha256.Length)]}"));
+        ValveProfileInfo.Text = $"Admisión: {Profile(configuration.IntakeValve)} · {MapInfo(configuration.IntakeValve)}. " +
+            $"Escape: {Profile(configuration.ExhaustValve)} · {MapInfo(configuration.ExhaustValve)}. Mapas sintéticos/medidos según metadatos; sin validación experimental implícita.";
         populating = false;
         CurrentResult = null;
         RenderResults();

@@ -49,6 +49,14 @@
           <Button Click="ImportExhaustLift_Click"
                   ToolTip="Importar alzada de escape. CSV con columnas crank_angle_deg,lift_mm; ángulo de cigüeñal en 0–720°, alzada en mm. Se interpola linealmente.">
             <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="ChartBellCurve" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Alzada esc.…"/></StackPanel></Button>
+          <Button x:Name="ImportIntakeMapButton" Click="ImportIntakeMap_Click" ToolTip="Importar mapa Cd de admisión. CSV con metadatos explícitos de área, presión, dirección y modelo compatible.">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="TableArrowRight" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Mapa Cd adm.…"/></StackPanel></Button>
+          <Button x:Name="ImportExhaustMapButton" Click="ImportExhaustMap_Click" ToolTip="Importar mapa Cd de escape. El modelo compatible debe coincidir con 4T 0D o ports-v4 1D.">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="TableArrowDown" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Mapa Cd esc.…"/></StackPanel></Button>
+          <Button x:Name="ClearDischargeMapsButton" Click="ClearMaps_Click" ToolTip="Volver al coeficiente constante Cd de ambas válvulas.">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="CloseCircleOutline" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Cd constante"/></StackPanel></Button>
+          <Button x:Name="ViewDischargeMapsButton" Click="ViewMaps_Click" ToolTip="Ver puntos tabulados, dirección, metadatos y dominio de los mapas cargados.">
+            <StackPanel Orientation="Horizontal"><ic:PackIconMaterial Kind="TableEye" Style="{StaticResource Dino2.ToolIcon}"/><TextBlock Text="Ver puntos Cd"/></StackPanel></Button>
         </StackPanel>
       </WrapPanel>
     </Border>

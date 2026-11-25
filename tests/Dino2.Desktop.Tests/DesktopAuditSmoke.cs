@@ -7,6 +7,8 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Dino2.Core.FourStroke;
+using Dino2.Core.GasDynamics;
 using Dino2.Core.TwoStroke;
 using Dino2.Desktop;
 using Dino2.Storage;
@@ -21,6 +23,12 @@ internal static class DesktopAuditSmoke
         {
             if (!condition) throw new Exception(message);
             Console.WriteLine("PASS audit " + message);
+        }
+
+        string MapCsv(string path, string model, string direction = "both", string referenceArea = "curtain_area")
+        {
+            File.WriteAllText(path, $"#reference_area={referenceArea}\n#pressure_convention=upstream_stagnation_to_downstream_static\n#direction={direction}\n#units=opening_fraction,pressure_ratio,dimensionless\n#source=synthetic-desktop-smoke\n#compatible_model={model}\n#data_kind=synthetic\nopening_fraction,pressure_ratio,cd\n0,0.2,0.65\n0,1,0.65\n1,0.2,0.7\n1,1,0.7\n");
+            return path;
         }
 
         foreach (string example in Directory.EnumerateFiles("examples", "*.json"))
@@ -73,6 +81,27 @@ internal static class DesktopAuditSmoke
             Check(File.ReadLines(trace).Any(line => line.StartsWith("# rpm=4000", StringComparison.Ordinal)), "4T exports trace for the inspected RPM");
             four.UpdateLayout();
             Check(((Button)four.FindName("CancelButton")).ActualHeight > 0, "compact window retains the cancellation control");
+            Check(four.FindName("ImportIntakeMapButton") is Button && four.FindName("ImportExhaustMapButton") is Button &&
+                four.FindName("ClearDischargeMapsButton") is Button && four.FindName("ViewDischargeMapsButton") is Button,
+                "4T Desktop exposes map import, domain viewer and constant-Cd controls");
+            var fourMap = DischargeMapFile.Load(MapCsv(Path.Combine(output, "audit-4t-map.csv"), "four-stroke-0d-isentropic-nozzle"));
+            four.ApplyDischargeMap(true, fourMap);
+            string fourMapProject = Path.Combine(output, "audit-4t-map-project.json");
+            four.SaveTo(fourMapProject);
+            var savedFourMap = FourStrokeFiles.Load(fourMapProject).Current.IntakeValve.DischargeMap;
+            Check(savedFourMap is not null && savedFourMap.Metadata.DataSha256 == fourMap.Sha256 &&
+                savedFourMap.Points.SequenceEqual(fourMap.Map.Points), "4T Desktop saves and reopens Cd map points and provenance");
+            var fourViewer = new DischargeMapWindow([("4T · admisión", savedFourMap!)]);
+            fourViewer.Show();
+            Check(((DataGrid)fourViewer.FindName("MapPoints")).Items.Count == 4 &&
+                ((TextBlock)fourViewer.FindName("MapMetadata")).Text.Contains(fourMap.Sha256, StringComparison.Ordinal),
+                "4T Cd viewer displays every sample, provenance and coverage");
+            fourViewer.Close();
+            four.ClearDischargeMaps();
+            string constantProject = Path.Combine(output, "audit-4t-constant-cd.json");
+            four.SaveTo(constantProject);
+            Check(FourStrokeFiles.Load(constantProject).Current.IntakeValve.DischargeMap is null &&
+                four.FindName("ValveProfileInfo") is TextBlock, "4T Desktop can return to constant Cd and displays map coverage");
         }
         finally { four.Close(); }
 
@@ -114,6 +143,45 @@ internal static class DesktopAuditSmoke
                 "malformed nested project leaves the previous work intact");
             await two.Guard(() => two.LoadProjectAsync(Path.Combine(output, "audit-absent.json")));
             Check(resultGrid.Items.Count == runs.Length, "missing file leaves the previous work intact");
+            Check(two.FindName("ImportTransferMapButton") is Button && two.FindName("ImportExhaustMapButton") is Button &&
+                two.FindName("ImportReedMapButton") is Button && two.FindName("ClearCdMapsButton") is Button &&
+                two.FindName("ViewCdMapsButton") is Button,
+                "2T Desktop exposes distinct transfer, exhaust and reed map controls");
+            var pressureConfig = basis with { Numerics = basis.Numerics with { Exterior = ExteriorBoundary.PressureReservoir } };
+            string pressureProject = Path.Combine(output, "audit-2t-pressure-project.json");
+            TwoStrokeFiles.Save(pressureProject, new(pressureConfig, null));
+            await two.LoadProjectAsync(pressureProject);
+            var transferMap = DischargeMapFile.Load(MapCsv(Path.Combine(output, "audit-2t-transfer-map.csv"),
+                "two-stroke-0d-isentropic-nozzle", "reverse", "port_open_area"));
+            two.ApplyPortMap(true, transferMap);
+            var exhaustMap = DischargeMapFile.Load(MapCsv(Path.Combine(output, "audit-2t-exhaust-map.csv"),
+                "ports-v4-equivalent-capacity-v1", "forward", "port_open_area"));
+            two.ApplyPortMap(false, exhaustMap);
+            var reedMap = DischargeMapFile.Load(MapCsv(Path.Combine(output, "audit-2t-reed-map.csv"),
+                "ports-v4-equivalent-capacity-v1", "both", "reed_open_area"));
+            two.ApplyReedMap(reedMap);
+            string mappedProject = Path.Combine(output, "audit-2t-mapped-project.json");
+            TwoStrokeFiles.Save(mappedProject, new(two.CurrentConfiguration(), null));
+            var reopened = TwoStrokeFiles.Load(mappedProject).Current;
+            Check(reopened.Transfer.ReverseDischargeMap?.Metadata.DataSha256 == transferMap.Sha256 &&
+                reopened.Exhaust.DischargeMap?.Metadata.DataSha256 == exhaustMap.Sha256 &&
+                reopened.Reed.DischargeMap?.Metadata.DataSha256 == reedMap.Sha256,
+                "2T Desktop stores transfer, ports-v4 exhaust and reed maps with provenance");
+            var twoViewer = new DischargeMapWindow(new[]
+            {
+                ("2T · transfer", reopened.Transfer.ReverseDischargeMap!),
+                ("2T · escape", reopened.Exhaust.DischargeMap!),
+                ("2T · láminas", reopened.Reed.DischargeMap!)
+            });
+            twoViewer.Show();
+            Check(((DataGrid)twoViewer.FindName("MapPoints")).Items.Count == 12 &&
+                ((TextBlock)twoViewer.FindName("MapMetadata")).Text.Contains("reed_open_area", StringComparison.Ordinal),
+                "2T Cd viewer displays transfer, exhaust and reed samples with conventions");
+            twoViewer.Close();
+            two.ClearPortMaps();
+            Check(two.CurrentConfiguration().Transfer.DischargeMap is null && two.CurrentConfiguration().Exhaust.DischargeMap is null &&
+                two.CurrentConfiguration().Reed.DischargeMap is null, "2T Desktop returns ports and reed to constant Cd");
+            await two.LoadProjectAsync(pressureProject);
         }
         finally { two.Close(); }
     }
